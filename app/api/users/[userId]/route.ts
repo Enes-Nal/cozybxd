@@ -6,14 +6,14 @@ import { transformUserToFrontend } from '@/lib/utils/transformers';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
+  context: { params: Promise<{ userId: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { userId } = await params;
+  const { userId } = await context.params;
   const supabase = createServerClient();
 
   try {

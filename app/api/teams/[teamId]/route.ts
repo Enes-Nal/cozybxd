@@ -5,14 +5,14 @@ import { createServerClient } from '@/lib/supabase';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ teamId: string }> }
+  context: { params: Promise<{ teamId: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { teamId } = await params;
+  const { teamId } = await context.params;
   const supabase = createServerClient();
 
   // Get team with all relations

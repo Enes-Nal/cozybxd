@@ -4,10 +4,10 @@ import { transformMediaToMovie } from '@/lib/utils/transformers';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ mediaId: string }> }
+  context: { params: Promise<{ mediaId: string }> }
 ) {
   try {
-    const { mediaId } = await params;
+    const { mediaId } = await context.params;
     const supabase = createServerClient();
 
     // Get media with related data

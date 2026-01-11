@@ -5,14 +5,14 @@ import { createServerClient } from '@/lib/supabase';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ mediaId: string }> }
+  context: { params: Promise<{ mediaId: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { mediaId } = await params;
+  const { mediaId } = await context.params;
   const searchParams = request.nextUrl.searchParams;
   const teamId = searchParams.get('teamId');
 
