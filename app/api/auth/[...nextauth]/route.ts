@@ -37,25 +37,45 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async signIn({ user, account, profile }) {
       try {
-        console.log('[AUTH] Sign in attempt:', { 
-          email: user.email, 
+        console.log('[AUTH] Sign in callback invoked:', { 
+          email: user?.email, 
           provider: account?.provider,
-          hasAccount: !!account 
+          hasAccount: !!account,
+          accountType: account?.type,
+          userId: user?.id
         });
 
-        // Enforce Discord-only authentication
-        if (account?.provider !== 'discord') {
-          console.error('[AUTH] Sign in failed: Only Discord authentication is allowed');
+        // The signIn callback is only called after OAuth returns
+        // Account should always be present after OAuth completes
+        if (!account) {
+          console.error('[AUTH] No account object after OAuth - this should not happen');
           return false;
         }
 
-        if (!user.email) {
-          console.error('[AUTH] Sign in failed: No email provided');
+        // Enforce Discord-only authentication
+        if (account.provider !== 'discord') {
+          console.error('[AUTH] Sign in failed: Only Discord authentication is allowed', { provider: account.provider });
+          return false;
+        }
+
+        if (!user?.email) {
+          console.error('[AUTH] Sign in failed: No email provided', { user });
           return false;
         }
 
         console.log('[AUTH] Creating Supabase client...');
-        const supabase = createServerClient();
+        let supabase;
+        try {
+          supabase = createServerClient();
+        } catch (supabaseError) {
+          console.error('[AUTH] Failed to create Supabase client:', supabaseError);
+          if (supabaseError instanceof Error) {
+            console.error('[AUTH] Supabase error message:', supabaseError.message);
+          }
+          // Don't fail sign-in if Supabase client creation fails - might be env var issue
+          // But we can't proceed without it, so return false
+          return false;
+        }
         
         // Check if user exists, if not create them
         console.log('[AUTH] Checking for existing user...');
@@ -68,6 +88,12 @@ export const authOptions: NextAuthOptions = {
         // If there's an error other than "not found", fail the sign-in
         if (userCheckError) {
           console.error('[AUTH] Error checking for existing user:', JSON.stringify(userCheckError, null, 2));
+          console.error('[AUTH] Error details:', {
+            message: userCheckError.message,
+            code: userCheckError.code,
+            details: userCheckError.details,
+            hint: userCheckError.hint
+          });
           return false;
         }
 
