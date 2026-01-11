@@ -5,7 +5,9 @@ import { Movie, User } from '@/lib/types';
 
 interface MovieGridProps {
   movies: Movie[];
-  onVote: (id: string) => void;
+  onVote?: (id: string) => void; // Legacy support
+  onUpvote?: (id: string) => void;
+  onDownvote?: (id: string) => void;
   onSchedule: (id: string) => void;
   onSelect: (movie: Movie) => void;
   users: User[];
@@ -13,7 +15,7 @@ interface MovieGridProps {
   isGroupWatchlist?: boolean; // Indicates if this is a group watchlist
 }
 
-const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onSchedule, onSelect, users, personalWatchlist = [], isGroupWatchlist = false }) => {
+const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownvote, onSchedule, onSelect, users, personalWatchlist = [], isGroupWatchlist = false }) => {
   // Helper to check if movie is in personal watchlist
   const isInWatchlist = (movieId: string) => {
     if (!personalWatchlist || personalWatchlist.length === 0) return false;
@@ -48,66 +50,111 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onSchedule, onSel
           onClick={() => onSelect(movie)}
         >
           {/* Vote count badge - always visible for group watchlists */}
-          {isGroupWatchlist && (movie.votes || 0) > 0 && (
+          {isGroupWatchlist && ((movie.upvotes || 0) > 0 || (movie.downvotes || 0) > 0) && (
             <div className="absolute top-3 left-3 z-10 bg-[var(--accent-color)]/90 backdrop-blur-sm px-2.5 py-1 rounded-lg flex items-center gap-1.5 border border-white/20">
               <i className="fa-solid fa-thumbs-up text-[10px] text-white"></i>
-              <span className="text-[10px] font-bold text-white">{movie.votes || 0}</span>
-            </div>
-          )}
-
-          {/* Vote button - always visible for group watchlists, hover-only for personal */}
-          {isGroupWatchlist ? (
-            <div className="absolute top-3 right-3 z-10" onClick={(e) => e.stopPropagation()}>
-              <button 
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onVote(movie.id);
-                }}
-                className="bg-[var(--accent-color)]/90 backdrop-blur-sm px-3 py-2 rounded-lg flex items-center gap-2 active:scale-95 transition-transform border border-white/20 shadow-lg"
-                title={`Vote for ${movie.title} (${movie.votes || 0} votes)`}
-              >
-                <i className="fa-solid fa-thumbs-up text-[11px] text-white"></i>
-                <span className="text-[11px] font-bold text-white">{movie.votes || 0}</span>
-              </button>
-            </div>
-          ) : (
-            <div className="absolute top-3 right-3 z-10 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
-              {/* Personal watchlist: Show heart button */}
-              <button 
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onVote(movie.id);
-                }}
-                className={`w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-transform ${
-                  isInWatchlist(movie.id)
-                    ? 'bg-[var(--accent-color)] border-2 border-[var(--accent-color)]'
-                    : 'bg-black/40 backdrop-blur-sm border-2 border-white/30'
-                }`}
-                title={isInWatchlist(movie.id) ? "Remove from Personal Watchlist" : "Add to Personal Watchlist"}
-              >
-                <i className={`text-[10px] ${
-                  isInWatchlist(movie.id)
-                    ? 'fa-solid fa-heart text-white'
-                    : 'fa-regular fa-heart text-white'
-                }`}></i>
-              </button>
-              <button 
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onSchedule(movie.id);
-                }}
-                className="glass w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-transform border-main bg-black/40 backdrop-blur-sm"
-                title="Add to Group Watchlist"
-              >
-                <i className="fa-solid fa-plus text-[10px] text-white"></i>
-              </button>
+              <span className="text-[10px] font-bold text-white">{movie.upvotes || 0}</span>
+              {(movie.downvotes || 0) > 0 && (
+                <>
+                  <span className="text-[8px] text-white/60">/</span>
+                  <i className="fa-solid fa-thumbs-down text-[10px] text-white/60"></i>
+                  <span className="text-[10px] font-bold text-white/60">{movie.downvotes || 0}</span>
+                </>
+              )}
             </div>
           )}
 
           <div className="aspect-[2/3] overflow-hidden relative rounded-2xl border border-main bg-[#111]">
+            {/* Vote buttons - always visible for group watchlists, hover-only for personal */}
+            {isGroupWatchlist ? (
+              <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                {/* Downvote button */}
+                <button 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (onDownvote) {
+                      onDownvote(movie.id);
+                    } else if (onVote) {
+                      onVote(movie.id);
+                    }
+                  }}
+                  className={`px-2.5 py-2 rounded-lg flex items-center gap-1.5 active:scale-95 transition-transform border shadow-lg ${
+                    movie.userVote === 'downvote'
+                      ? 'bg-red-600/90 border-red-400/50'
+                      : 'bg-black/60 backdrop-blur-sm border-white/20'
+                  }`}
+                  title={`Downvote ${movie.title}`}
+                >
+                  <i className={`fa-solid fa-thumbs-down text-[10px] ${
+                    movie.userVote === 'downvote' ? 'text-white' : 'text-white/70'
+                  }`}></i>
+                  <span className={`text-[10px] font-bold ${
+                    movie.userVote === 'downvote' ? 'text-white' : 'text-white/70'
+                  }`}>{movie.downvotes || 0}</span>
+                </button>
+                
+                {/* Upvote button */}
+                <button 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (onUpvote) {
+                      onUpvote(movie.id);
+                    } else if (onVote) {
+                      onVote(movie.id);
+                    }
+                  }}
+                  className={`px-2.5 py-2 rounded-lg flex items-center gap-1.5 active:scale-95 transition-transform border shadow-lg ${
+                    movie.userVote === 'upvote'
+                      ? 'bg-[var(--accent-color)]/90 border-[var(--accent-color)]/50'
+                      : 'bg-black/60 backdrop-blur-sm border-white/20'
+                  }`}
+                  title={`Upvote ${movie.title}`}
+                >
+                  <i className={`fa-solid fa-thumbs-up text-[10px] ${
+                    movie.userVote === 'upvote' ? 'text-white' : 'text-white/70'
+                  }`}></i>
+                  <span className={`text-[10px] font-bold ${
+                    movie.userVote === 'upvote' ? 'text-white' : 'text-white/70'
+                  }`}>{movie.upvotes || 0}</span>
+                </button>
+              </div>
+            ) : (
+              <div className="absolute bottom-3 right-3 z-10 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+                {/* Personal watchlist: Show heart button */}
+                <button 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onVote?.(movie.id);
+                  }}
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-transform ${
+                    isInWatchlist(movie.id)
+                      ? 'bg-[var(--accent-color)] border-2 border-[var(--accent-color)]'
+                      : 'bg-black/40 backdrop-blur-sm border-2 border-white/30'
+                  }`}
+                  title={isInWatchlist(movie.id) ? "Remove from Personal Watchlist" : "Add to Personal Watchlist"}
+                >
+                  <i className={`text-[10px] ${
+                    isInWatchlist(movie.id)
+                      ? 'fa-solid fa-heart text-white'
+                      : 'fa-regular fa-heart text-white'
+                  }`}></i>
+                </button>
+                <button 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onSchedule(movie.id);
+                  }}
+                  className="glass w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-transform border-main bg-black/40 backdrop-blur-sm"
+                  title="Add to Group Watchlist"
+                >
+                  <i className="fa-solid fa-plus text-[10px] text-white"></i>
+                </button>
+              </div>
+            )}
             {movie.poster ? (
               <img 
                 src={movie.poster} 
@@ -138,13 +185,22 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onSchedule, onSel
               <span>{movie.year}</span>
               <span className="opacity-30">•</span>
               <span>{movie.runtime}</span>
-              {isGroupWatchlist && movie.votes > 0 && (
+              {isGroupWatchlist && ((movie.upvotes || 0) > 0 || (movie.downvotes || 0) > 0) && (
                 <>
                   <span className="opacity-30">•</span>
                   <span className="text-[var(--accent-color)] font-bold flex items-center gap-1">
                     <i className="fa-solid fa-thumbs-up text-[9px]"></i>
-                    {movie.votes}
+                    {movie.upvotes || 0}
                   </span>
+                  {(movie.downvotes || 0) > 0 && (
+                    <>
+                      <span className="opacity-30">•</span>
+                      <span className="text-red-400 font-bold flex items-center gap-1">
+                        <i className="fa-solid fa-thumbs-down text-[9px]"></i>
+                        {movie.downvotes || 0}
+                      </span>
+                    </>
+                  )}
                 </>
               )}
             </div>

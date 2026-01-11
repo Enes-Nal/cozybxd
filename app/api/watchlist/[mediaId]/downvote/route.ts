@@ -52,9 +52,9 @@ export async function POST(
     let voteAction = 'added';
 
     if (existingVote) {
-      if (existingVote.vote_type === 'upvote') {
-        // User already upvoted, remove the upvote (toggle off)
-        newUpvotes = Math.max(0, newUpvotes - 1);
+      if (existingVote.vote_type === 'downvote') {
+        // User already downvoted, remove the downvote (toggle off)
+        newDownvotes = Math.max(0, newDownvotes - 1);
         voteAction = 'removed';
         
         // Delete the vote record
@@ -62,21 +62,21 @@ export async function POST(
           .from('watchlist_votes')
           .delete()
           .eq('id', existingVote.id);
-      } else if (existingVote.vote_type === 'downvote') {
-        // User downvoted, switch to upvote
-        newDownvotes = Math.max(0, newDownvotes - 1);
-        newUpvotes = (newUpvotes || 0) + 1;
+      } else if (existingVote.vote_type === 'upvote') {
+        // User upvoted, switch to downvote
+        newUpvotes = Math.max(0, newUpvotes - 1);
+        newDownvotes = (newDownvotes || 0) + 1;
         voteAction = 'switched';
         
         // Update the vote record
         await supabase
           .from('watchlist_votes')
-          .update({ vote_type: 'upvote' })
+          .update({ vote_type: 'downvote' })
           .eq('id', existingVote.id);
       }
     } else {
-      // User hasn't voted, add upvote
-      newUpvotes = (newUpvotes || 0) + 1;
+      // User hasn't voted, add downvote
+      newDownvotes = (newDownvotes || 0) + 1;
       
       // Create vote record
       await supabase
@@ -84,7 +84,7 @@ export async function POST(
         .insert({
           watchlist_item_id: watchlistItem.id,
           user_id: session.user.id,
-          vote_type: 'upvote'
+          vote_type: 'downvote'
         });
     }
 
@@ -106,12 +106,12 @@ export async function POST(
     return NextResponse.json({ 
       upvotes: updated.upvotes,
       downvotes: updated.downvotes,
-      userVote: voteAction === 'removed' ? null : 'upvote'
+      userVote: voteAction === 'removed' ? null : 'downvote'
     });
   } catch (error) {
-    console.error('Upvote error:', error);
+    console.error('Downvote error:', error);
     return NextResponse.json(
-      { error: 'Failed to upvote' },
+      { error: 'Failed to downvote' },
       { status: 500 }
     );
   }

@@ -272,3 +272,93 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function DELETE(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const supabase = createServerClient();
+
+  try {
+    const body = await request.json();
+    const { friendId } = body;
+
+    if (!friendId || typeof friendId !== 'string') {
+      return NextResponse.json(
+        { error: 'Friend ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Check if trying to unfriend self
+    if (friendId === session.user.id) {
+      return NextResponse.json(
+        { error: 'Cannot unfriend yourself' },
+        { status: 400 }
+      );
+    }
+
+    // Check if friendship exists (check both directions)
+    const { data: existingFriendship1 } = await supabase
+      .from('friends')
+      .select('id')
+      .eq('user_id', session.user.id)
+      .eq('friend_id', friendId)
+      .maybeSingle();
+
+    const { data: existingFriendship2 } = await supabase
+      .from('friends')
+      .select('id')
+      .eq('user_id', friendId)
+      .eq('friend_id', session.user.id)
+      .maybeSingle();
+
+    const existingFriendship = existingFriendship1 || existingFriendship2;
+
+    if (!existingFriendship) {
+      return NextResponse.json(
+        { error: 'Friendship not found' },
+        { status: 404 }
+      );
+    }
+
+    // Delete both directions of the friendship
+    const { error: deleteError1 } = await supabase
+      .from('friends')
+      .delete()
+      .eq('user_id', session.user.id)
+      .eq('friend_id', friendId);
+
+    const { error: deleteError2 } = await supabase
+      .from('friends')
+      .delete()
+      .eq('user_id', friendId)
+      .eq('friend_id', session.user.id);
+
+    if (deleteError1) {
+      console.error('Delete friendship error (direction 1):', deleteError1);
+      return NextResponse.json(
+        { error: 'Failed to remove friend' },
+        { status: 500 }
+      );
+    }
+
+    if (deleteError2) {
+      console.error('Delete friendship error (direction 2):', deleteError2);
+      return NextResponse.json(
+        { error: 'Failed to remove friend' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Unfriend error:', error);
+    return NextResponse.json(
+      { error: 'Failed to remove friend' },
+      { status: 500 }
+    );
+  }
+}
+

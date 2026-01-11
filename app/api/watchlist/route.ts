@@ -57,10 +57,31 @@ export async function GET(request: NextRequest) {
       logsByMedia[log.media_id].push(log);
     });
 
+    // Get user votes for all watchlist items (only for team watchlists)
+    const watchlistItemIds = (watchlistItems || []).map((item: any) => item.id);
+    let voteMap: Record<string, 'upvote' | 'downvote'> = {};
+    
+    if (teamId) {
+      const { data: userVotes } = await supabase
+        .from('watchlist_votes')
+        .select('watchlist_item_id, vote_type')
+        .eq('user_id', session.user.id)
+        .in('watchlist_item_id', watchlistItemIds);
+
+      // Create a map of watchlist_item_id -> vote_type
+      (userVotes || []).forEach((vote: any) => {
+        voteMap[vote.watchlist_item_id] = vote.vote_type;
+      });
+    }
+
     // Transform to front-end format
-    const movies = (watchlistItems || []).map((item: any) => 
-      transformMediaToMovie(item.media, item, logsByMedia[item.media_id] || [])
-    );
+    const movies = (watchlistItems || []).map((item: any) => {
+      const itemWithVote = {
+        ...item,
+        userVote: voteMap[item.id] || null
+      };
+      return transformMediaToMovie(item.media, itemWithVote, logsByMedia[item.media_id] || []);
+    });
 
     return NextResponse.json(movies);
   } catch (error) {

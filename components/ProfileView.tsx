@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useSession } from 'next-auth/react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { User, Movie } from '@/lib/types';
 
 interface ProfileViewProps {
@@ -10,6 +11,9 @@ interface ProfileViewProps {
 }
 
 const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) => {
+  const { data: session } = useSession();
+  const queryClient = useQueryClient();
+
   // Fetch user profile data
   const { data: userData, isLoading: userLoading } = useQuery({
     queryKey: ['user', user.id],
@@ -29,6 +33,46 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
       return res.json();
     },
   });
+
+  // Fetch current user's friends to check if this user is a friend
+  const { data: friendsData = [] } = useQuery({
+    queryKey: ['friends'],
+    queryFn: async () => {
+      const res = await fetch('/api/friends');
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!session,
+  });
+
+  // Check if the viewed user is a friend
+  const isFriend = friendsData.some((friend: User) => friend.id === user.id);
+  const isCurrentUser = session?.user?.id === user.id;
+
+  // Unfriend mutation
+  const unfriendMutation = useMutation({
+    mutationFn: async (friendId: string) => {
+      const res = await fetch('/api/friends', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ friendId }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to unfriend');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['friends'] });
+    },
+  });
+
+  const handleUnfriend = async () => {
+    if (confirm(`Are you sure you want to unfriend ${user.name}?`)) {
+      unfriendMutation.mutate(user.id);
+    }
+  };
 
   const stats = userData?.stats || { watched: 0, reviews: 0, groups: 0 };
   const teams = userData?.teams || [];
@@ -63,6 +107,18 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
           <p className="text-gray-500 font-bold uppercase tracking-widest">{user.role}</p>
           {userData?.email && (
             <p className="text-gray-500 text-sm mt-1">{userData.email}</p>
+          )}
+          {session && !isCurrentUser && isFriend && (
+            <div className="mt-4 flex justify-center md:justify-start">
+              <button
+                onClick={handleUnfriend}
+                disabled={unfriendMutation.isPending}
+                className="px-6 py-2 rounded-xl bg-red-500/10 border border-red-500/50 text-red-500 hover:bg-red-500/20 transition-all text-sm font-bold uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <i className="fa-solid fa-user-minus text-xs"></i>
+                {unfriendMutation.isPending ? 'Unfriending...' : 'Unfriend'}
+              </button>
+            </div>
           )}
           <div className="flex gap-6 mt-8 justify-center md:justify-start">
             {[

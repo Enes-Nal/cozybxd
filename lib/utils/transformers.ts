@@ -29,6 +29,7 @@ export function transformMediaToMovie(media: any, watchlistItem?: any, logs?: an
   // Priority based on upvotes
   let priority: 'High' | 'Medium' | 'Low' = 'Low';
   const upvotes = watchlistItem?.upvotes || 0;
+  const downvotes = watchlistItem?.downvotes || 0;
   if (upvotes >= 5) priority = 'High';
   else if (upvotes >= 2) priority = 'Medium';
 
@@ -41,6 +42,9 @@ export function transformMediaToMovie(media: any, watchlistItem?: any, logs?: an
   // Handle both snake_case (Supabase) and camelCase (Prisma) formats for poster URLs
   const poster = media.posterUrl || media.poster_url || media.thumbnailUrl || media.thumbnail_url || '';
   
+  // Get user vote from watchlistItem if provided
+  const userVote = watchlistItem?.userVote || null;
+  
   return {
     id: movieId,
     title: media.title,
@@ -51,7 +55,10 @@ export function transformMediaToMovie(media: any, watchlistItem?: any, logs?: an
     description: media.description || media.overview || undefined,
     priority,
     status,
-    votes: upvotes,
+    votes: upvotes - downvotes, // Net votes
+    upvotes,
+    downvotes,
+    userVote,
     seenBy: [...new Set(seenBy)],
     availability: [],
   };
@@ -163,8 +170,12 @@ export async function transformTMDBMovieToMovie(tmdbMovie: TMDBMovie, watchlistI
   // Priority based on upvotes
   let priority: 'High' | 'Medium' | 'Low' = 'Low';
   const upvotes = watchlistItem?.upvotes || 0;
+  const downvotes = watchlistItem?.downvotes || 0;
   if (upvotes >= 5) priority = 'High';
   else if (upvotes >= 2) priority = 'Medium';
+
+  // Get user vote from watchlistItem if provided
+  const userVote = watchlistItem?.userVote || null;
 
   return {
     id: `tmdb-${tmdbMovie.id}`,
@@ -176,7 +187,10 @@ export async function transformTMDBMovieToMovie(tmdbMovie: TMDBMovie, watchlistI
     description: tmdbMovie.overview || undefined,
     priority,
     status,
-    votes: upvotes,
+    votes: upvotes - downvotes, // Net votes
+    upvotes,
+    downvotes,
+    userVote,
     seenBy: [...new Set(seenBy)],
     availability: [],
   };
@@ -213,8 +227,12 @@ export function transformTMDBMovieToMovieSync(tmdbMovie: TMDBMovie, genreMap: Ma
   // Priority based on upvotes
   let priority: 'High' | 'Medium' | 'Low' = 'Low';
   const upvotes = watchlistItem?.upvotes || 0;
+  const downvotes = watchlistItem?.downvotes || 0;
   if (upvotes >= 5) priority = 'High';
   else if (upvotes >= 2) priority = 'Medium';
+
+  // Get user vote from watchlistItem if provided
+  const userVote = watchlistItem?.userVote || null;
 
   return {
     id: `tmdb-${tmdbMovie.id}`,
@@ -226,7 +244,10 @@ export function transformTMDBMovieToMovieSync(tmdbMovie: TMDBMovie, genreMap: Ma
     description: tmdbMovie.overview || undefined,
     priority,
     status,
-    votes: upvotes,
+    votes: upvotes - downvotes, // Net votes
+    upvotes,
+    downvotes,
+    userVote,
     seenBy: [...new Set(seenBy)],
     availability: [],
   };

@@ -298,51 +298,6 @@ function HomeContent() {
           <GroupView 
             group={groupData} 
             movies={groupMovies}
-            onVote={async (id) => {
-              try {
-                let mediaId = id.startsWith('tmdb-') ? id.replace('tmdb-', '') : id;
-                
-                // If it's a TMDB ID, sync it first
-                if (id.startsWith('tmdb-')) {
-                  const syncRes = await fetch('/api/media/sync', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ tmdbId: mediaId, type: 'movie' }),
-                  });
-                  if (syncRes.ok) {
-                    const media = await syncRes.json();
-                    mediaId = media.id;
-                  }
-                }
-                
-                // Try to upvote first
-                let res = await fetch(`/api/watchlist/${mediaId}/upvote?teamId=${activeGroup}`, {
-                  method: 'POST',
-                });
-                
-                // If not in watchlist, add it first then upvote
-                if (!res.ok && res.status === 404) {
-                  const addRes = await fetch('/api/watchlist', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ mediaId, teamId: activeGroup }),
-                  });
-                  if (addRes.ok) {
-                    // Now upvote
-                    res = await fetch(`/api/watchlist/${mediaId}/upvote?teamId=${activeGroup}`, {
-                      method: 'POST',
-                    });
-                  }
-                }
-                
-                if (res.ok) {
-                  const data = await res.json();
-                  setGroupMovies(prev => prev.map(m => m.id === id ? {...m, votes: data.upvotes} : m));
-                }
-              } catch (error) {
-                console.error('Failed to vote:', error);
-              }
-            }}
             onSchedule={(movie) => setSchedulingMovie(movie)}
             onSelect={handleMovieSelect}
           />

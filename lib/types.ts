@@ -8,7 +8,10 @@ export interface Movie {
   description?: string;
   priority: 'High' | 'Medium' | 'Low';
   status: 'Watchlist' | 'Ongoing' | 'Seen';
-  votes: number;
+  votes: number; // upvotes - downvotes (net votes)
+  upvotes?: number;
+  downvotes?: number;
+  userVote?: 'upvote' | 'downvote' | null;
   seenBy: string[];
   availability: string[]; // e.g., ['Netflix', 'Max']
 }

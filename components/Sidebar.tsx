@@ -93,6 +93,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     statusText: friend.status === 'Online' ? 'Online' : friend.status === 'Ready' ? 'Ready' : 'Offline',
   }));
 
+
   const navItems = [
     { id: 'Home', icon: 'fa-house' },
     { id: 'Inbox', icon: 'fa-envelope', badge: false },
@@ -247,7 +248,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <div 
                   key={friend.id} 
                   onClick={() => onFriendSelect(friend)}
-                  className="flex items-center gap-3 px-4 py-2 rounded-xl hover:bg-black/[0.03] transition-all group cursor-pointer"
+                  className="flex items-center gap-3 px-4 py-2 rounded-xl hover:bg-black/[0.03] transition-all group cursor-pointer relative"
                 >
                   <div className="relative">
                     <img src={friend.avatar} className="w-8 h-8 rounded-full border border-main" alt={friend.name} />

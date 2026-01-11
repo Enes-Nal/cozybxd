@@ -140,3 +140,55 @@ export async function PATCH(
 
   return NextResponse.json(updatedTeam);
 }
+
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ teamId: string }> }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { teamId } = await context.params;
+  const supabase = createServerClient();
+
+  // Get team to check membership and role
+  const { data: team, error: teamError } = await supabase
+    .from('teams')
+    .select(`
+      *,
+      team_members(
+        *,
+        users(*)
+      )
+    `)
+    .eq('id', teamId)
+    .single();
+
+  if (teamError || !team) {
+    return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+  }
+
+  // Check if user is a member and is admin
+  const membership = team.team_members.find((m: any) => m.user_id === session.user.id);
+  if (!membership) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  if (membership.role !== 'admin') {
+    return NextResponse.json({ error: 'Only admins can delete groups' }, { status: 403 });
+  }
+
+  // Delete the team (cascade will handle team_members, watchlist_items, logs, etc.)
+  const { error: deleteError } = await supabase
+    .from('teams')
+    .delete()
+    .eq('id', teamId);
+
+  if (deleteError) {
+    return NextResponse.json({ error: deleteError.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
+}

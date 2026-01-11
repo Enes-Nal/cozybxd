@@ -1,6 +1,9 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { Group, Movie } from '@/lib/types';
 import MovieGrid from './MovieGrid';
 import InvitePeopleModal from './InvitePeopleModal';
@@ -60,42 +63,87 @@ const GroupView: React.FC<GroupViewProps> = ({
   onSchedule = () => {},
   onSelect = () => {}
 }) => {
+  const { data: session } = useSession();
+  const queryClient = useQueryClient();
+  const router = useRouter();
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isEditPictureModalOpen, setIsEditPictureModalOpen] = useState(false);
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
+  const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [movies, setMovies] = useState(initialMovies);
+  
+  // Get current user's role in the group
+  const currentUser = group.members.find(m => m.id === session?.user?.id);
+  const isAdmin = currentUser?.role === 'Admin';
   
   // Update movies when initialMovies changes
   useEffect(() => {
     setMovies(initialMovies);
   }, [initialMovies]);
   
-  // Enhanced vote handler with optimistic UI update
-  const handleVote = async (id: string) => {
+  // Helper function to sync media if needed
+  const syncMediaIfNeeded = async (id: string): Promise<string> => {
+    let mediaId = id.startsWith('tmdb-') ? id.replace('tmdb-', '') : id;
+    
+    // If it's a TMDB ID, sync it first
+    if (id.startsWith('tmdb-')) {
+      const syncRes = await fetch('/api/media/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tmdbId: mediaId, type: 'movie' }),
+      });
+      if (syncRes.ok) {
+        const media = await syncRes.json();
+        mediaId = media.id;
+      }
+    }
+    
+    return mediaId;
+  };
+
+
+  // Upvote handler with optimistic UI update
+  const handleUpvote = async (id: string) => {
+    const currentMovie = movies.find(m => m.id === id);
+    const currentUpvotes = currentMovie?.upvotes || 0;
+    const currentDownvotes = currentMovie?.downvotes || 0;
+    const currentUserVote = currentMovie?.userVote;
+    
     // Optimistic update
     setMovies(prevMovies => 
-      prevMovies.map(m => 
-        m.id === id ? { ...m, votes: (m.votes || 0) + 1 } : m
-      )
+      prevMovies.map(m => {
+        if (m.id !== id) return m;
+        let newUpvotes = currentUpvotes;
+        let newDownvotes = currentDownvotes;
+        let newUserVote: 'upvote' | 'downvote' | null = 'upvote';
+        
+        if (currentUserVote === 'upvote') {
+          // Toggle off
+          newUpvotes = Math.max(0, newUpvotes - 1);
+          newUserVote = null;
+        } else if (currentUserVote === 'downvote') {
+          // Switch from downvote to upvote
+          newDownvotes = Math.max(0, newDownvotes - 1);
+          newUpvotes = newUpvotes + 1;
+        } else {
+          // Add upvote
+          newUpvotes = newUpvotes + 1;
+        }
+        
+        return { 
+          ...m, 
+          upvotes: newUpvotes,
+          downvotes: newDownvotes,
+          votes: newUpvotes - newDownvotes,
+          userVote: newUserVote
+        };
+      })
     );
     
     try {
-      let mediaId = id.startsWith('tmdb-') ? id.replace('tmdb-', '') : id;
+      const mediaId = await syncMediaIfNeeded(id);
       
-      // If it's a TMDB ID, sync it first
-      if (id.startsWith('tmdb-')) {
-        const syncRes = await fetch('/api/media/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tmdbId: mediaId, type: 'movie' }),
-        });
-        if (syncRes.ok) {
-          const media = await syncRes.json();
-          mediaId = media.id;
-        }
-      }
-      
-      // Try to upvote first
       let res = await fetch(`/api/watchlist/${mediaId}/upvote?teamId=${group.id}`, {
         method: 'POST',
       });
@@ -120,23 +168,146 @@ const GroupView: React.FC<GroupViewProps> = ({
         const data = await res.json();
         setMovies(prevMovies => 
           prevMovies.map(m => 
-            m.id === id ? { ...m, votes: data.upvotes } : m
+            m.id === id ? { 
+              ...m, 
+              upvotes: data.upvotes,
+              downvotes: data.downvotes,
+              votes: data.upvotes - data.downvotes,
+              userVote: data.userVote
+            } : m
           )
         );
       } else {
         // Revert optimistic update on error
         setMovies(prevMovies => 
           prevMovies.map(m => 
-            m.id === id ? { ...m, votes: Math.max(0, (m.votes || 1) - 1) } : m
+            m.id === id ? { 
+              ...m, 
+              upvotes: currentUpvotes,
+              downvotes: currentDownvotes,
+              votes: currentUpvotes - currentDownvotes,
+              userVote: currentUserVote
+            } : m
           )
         );
       }
     } catch (error) {
-      console.error('Failed to vote:', error);
+      console.error('Failed to upvote:', error);
       // Revert optimistic update on error
       setMovies(prevMovies => 
         prevMovies.map(m => 
-          m.id === id ? { ...m, votes: Math.max(0, (m.votes || 1) - 1) } : m
+          m.id === id ? { 
+            ...m, 
+            upvotes: currentUpvotes,
+            downvotes: currentDownvotes,
+            votes: currentUpvotes - currentDownvotes,
+            userVote: currentUserVote
+          } : m
+        )
+      );
+    }
+  };
+
+  // Downvote handler with optimistic UI update
+  const handleDownvote = async (id: string) => {
+    const currentMovie = movies.find(m => m.id === id);
+    const currentUpvotes = currentMovie?.upvotes || 0;
+    const currentDownvotes = currentMovie?.downvotes || 0;
+    const currentUserVote = currentMovie?.userVote;
+    
+    // Optimistic update
+    setMovies(prevMovies => 
+      prevMovies.map(m => {
+        if (m.id !== id) return m;
+        let newUpvotes = currentUpvotes;
+        let newDownvotes = currentDownvotes;
+        let newUserVote: 'upvote' | 'downvote' | null = 'downvote';
+        
+        if (currentUserVote === 'downvote') {
+          // Toggle off
+          newDownvotes = Math.max(0, newDownvotes - 1);
+          newUserVote = null;
+        } else if (currentUserVote === 'upvote') {
+          // Switch from upvote to downvote
+          newUpvotes = Math.max(0, newUpvotes - 1);
+          newDownvotes = newDownvotes + 1;
+        } else {
+          // Add downvote
+          newDownvotes = newDownvotes + 1;
+        }
+        
+        return { 
+          ...m, 
+          upvotes: newUpvotes,
+          downvotes: newDownvotes,
+          votes: newUpvotes - newDownvotes,
+          userVote: newUserVote
+        };
+      })
+    );
+    
+    try {
+      const mediaId = await syncMediaIfNeeded(id);
+      
+      let res = await fetch(`/api/watchlist/${mediaId}/downvote?teamId=${group.id}`, {
+        method: 'POST',
+      });
+      
+      // If not in watchlist, add it first then downvote
+      if (!res.ok && res.status === 404) {
+        const addRes = await fetch('/api/watchlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mediaId, teamId: group.id }),
+        });
+        if (addRes.ok) {
+          // Now downvote
+          res = await fetch(`/api/watchlist/${mediaId}/downvote?teamId=${group.id}`, {
+            method: 'POST',
+          });
+        }
+      }
+      
+      // Update with actual response
+      if (res.ok) {
+        const data = await res.json();
+        setMovies(prevMovies => 
+          prevMovies.map(m => 
+            m.id === id ? { 
+              ...m, 
+              upvotes: data.upvotes,
+              downvotes: data.downvotes,
+              votes: data.upvotes - data.downvotes,
+              userVote: data.userVote
+            } : m
+          )
+        );
+      } else {
+        // Revert optimistic update on error
+        setMovies(prevMovies => 
+          prevMovies.map(m => 
+            m.id === id ? { 
+              ...m, 
+              upvotes: currentUpvotes,
+              downvotes: currentDownvotes,
+              votes: currentUpvotes - currentDownvotes,
+              userVote: currentUserVote
+            } : m
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Failed to downvote:', error);
+      // Revert optimistic update on error
+      setMovies(prevMovies => 
+        prevMovies.map(m => 
+          m.id === id ? { 
+            ...m, 
+            upvotes: currentUpvotes,
+            downvotes: currentDownvotes,
+            votes: currentUpvotes - currentDownvotes,
+            userVote: currentUserVote
+          } : m
         )
       );
     }
@@ -158,6 +329,54 @@ const GroupView: React.FC<GroupViewProps> = ({
     if (group.inviteCode) {
       navigator.clipboard.writeText(group.inviteCode);
       // You could add a toast notification here
+    }
+  };
+
+  // Leave group mutation
+  const leaveGroupMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/teams/${group.id}/members`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to leave group');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      router.push('/?tab=Home');
+    },
+  });
+
+  // Delete group mutation
+  const deleteGroupMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/teams/${group.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to delete group');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      router.push('/?tab=Home');
+    },
+  });
+
+  const handleLeaveGroup = () => {
+    if (confirm(`Are you sure you want to leave "${group.name}"?`)) {
+      leaveGroupMutation.mutate();
+    }
+  };
+
+  const handleDeleteGroup = () => {
+    if (confirm(`Are you sure you want to delete "${group.name}"? This action cannot be undone.`)) {
+      deleteGroupMutation.mutate();
     }
   };
 
@@ -227,12 +446,29 @@ const GroupView: React.FC<GroupViewProps> = ({
             </button>
             <button 
               onClick={() => setIsInviteModalOpen(true)}
-              className="bg-white/5 hover:bg-white/10 p-3 rounded-xl transition-all"
+              className="bg-white/5 hover:bg-white/10 p-3 rounded-xl transition-all overflow-hidden"
               title="Invite people"
             >
               <i className="fa-solid fa-user-plus text-gray-400"></i>
             </button>
-            <button className="bg-white/5 hover:bg-white/10 p-3 rounded-xl transition-all"><i className="fa-solid fa-gear text-gray-400"></i></button>
+            {isAdmin && (
+              <button 
+                onClick={handleDeleteGroup}
+                className="bg-white/5 hover:bg-red-500/20 p-3 rounded-xl transition-all overflow-hidden"
+                title="Delete group"
+                disabled={deleteGroupMutation.isPending}
+              >
+                <i className="fa-solid fa-trash text-red-400"></i>
+              </button>
+            )}
+            <button 
+              onClick={handleLeaveGroup}
+              className="bg-white/5 hover:bg-white/10 p-3 rounded-xl transition-all overflow-hidden"
+              title="Leave group"
+              disabled={leaveGroupMutation.isPending}
+            >
+              <i className="fa-solid fa-sign-out-alt text-gray-400"></i>
+            </button>
           </div>
         </div>
 
@@ -306,7 +542,8 @@ const GroupView: React.FC<GroupViewProps> = ({
       {movies.length > 0 ? (
         <MovieGrid 
           movies={movies} 
-          onVote={handleVote}
+          onUpvote={handleUpvote}
+          onDownvote={handleDownvote}
           onSchedule={(id) => {
             const movie = movies.find(m => m.id === id);
             if (movie) onSchedule(movie);

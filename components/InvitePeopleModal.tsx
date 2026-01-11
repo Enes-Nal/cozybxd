@@ -16,23 +16,36 @@ const InvitePeopleModal: React.FC<InvitePeopleModalProps> = ({
   inviteCode,
   onClose 
 }) => {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
   const queryClient = useQueryClient();
 
   const inviteMutation = useMutation({
-    mutationFn: async (email: string) => {
-      // For now, we'll just show the invite code since we don't have an email invite system
-      // In the future, this could call an API to send an email invite
-      return { success: true };
+    mutationFn: async (username: string) => {
+      const res = await fetch(`/api/teams/${groupId}/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'Failed to invite user' }));
+        throw new Error(errorData.error || 'Failed to invite user');
+      }
+      return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      setSuccessMessage(`Successfully invited ${data.user.username || data.user.name || 'user'}!`);
       setSuccess(true);
+      setUsername('');
+      queryClient.invalidateQueries({ queryKey: ['teams', groupId] });
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
       setTimeout(() => {
-        onClose();
-      }, 2000);
+        setSuccess(false);
+        setSuccessMessage('');
+      }, 3000);
     },
     onError: (error: Error) => {
       setError(error.message);
@@ -42,18 +55,21 @@ const InvitePeopleModal: React.FC<InvitePeopleModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) {
-      setError('Email is required');
+    if (!username.trim()) {
+      setError('Username is required');
       return;
     }
     
     setError(null);
+    setSuccess(false);
+    setSuccessMessage('');
     setIsSubmitting(true);
-    inviteMutation.mutate(email.trim());
+    inviteMutation.mutate(username.trim());
   };
 
   const copyInviteCode = () => {
     navigator.clipboard.writeText(inviteCode);
+    setSuccessMessage('');
     setSuccess(true);
     setTimeout(() => setSuccess(false), 2000);
   };
@@ -72,7 +88,12 @@ const InvitePeopleModal: React.FC<InvitePeopleModalProps> = ({
         <h2 className="text-2xl font-black mb-2">Invite People</h2>
         <p className="text-sm text-gray-400 mb-8">Invite friends to join <span className="text-accent font-bold">{groupName}</span>.</p>
 
-        {success && (
+        {success && successMessage && (
+          <div className="bg-green-500/10 border border-green-500/50 rounded-xl px-4 py-3 text-sm text-green-400 mb-6">
+            {successMessage}
+          </div>
+        )}
+        {success && !successMessage && (
           <div className="bg-green-500/10 border border-green-500/50 rounded-xl px-4 py-3 text-sm text-green-400 mb-6">
             Invite code copied to clipboard!
           </div>
@@ -103,19 +124,19 @@ const InvitePeopleModal: React.FC<InvitePeopleModalProps> = ({
             <p className="text-xs text-gray-500 mt-2 text-center">Share this code with friends to let them join</p>
           </div>
 
-          {/* Email Invite Section (Future feature) */}
+          {/* Username Invite Section */}
           <div className="border-t border-white/10 pt-6">
             <label className="block text-[10px] uppercase font-black text-accent tracking-widest mb-3">
-              Send Email Invite (Coming Soon)
+              Invite by Username
             </label>
             <form onSubmit={handleSubmit} className="space-y-4">
               <input 
-                type="email" 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="friend@example.com"
+                type="text" 
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter username"
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-sm font-medium focus:border-accent/50 focus:bg-white/[0.08] transition-all outline-none"
-                disabled={true}
+                disabled={isSubmitting}
               />
               {error && (
                 <div className="bg-red-500/10 border border-red-500/50 rounded-xl px-4 py-3 text-sm text-red-400">
@@ -124,10 +145,10 @@ const InvitePeopleModal: React.FC<InvitePeopleModalProps> = ({
               )}
               <button 
                 type="submit"
-                disabled={true}
-                className="w-full bg-white/5 text-gray-500 px-4 py-4 rounded-2xl text-xs font-black uppercase tracking-widest cursor-not-allowed"
+                disabled={isSubmitting || !username.trim()}
+                className="w-full bg-accent text-white px-4 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all no-glow shadow-lg shadow-accent/20 disabled:bg-white/5 disabled:text-gray-500 disabled:cursor-not-allowed disabled:hover:brightness-100 disabled:active:scale-100"
               >
-                Email invites coming soon
+                {isSubmitting ? 'Inviting...' : 'Send Invite'}
               </button>
             </form>
           </div>
