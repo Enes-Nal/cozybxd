@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Group, Movie } from '@/lib/types';
 import MovieGrid from './MovieGrid';
 import InvitePeopleModal from './InvitePeopleModal';
+import EditGroupPictureModal from './EditGroupPictureModal';
 
 interface GroupViewProps {
   group: Group;
@@ -60,10 +61,19 @@ const GroupView: React.FC<GroupViewProps> = ({
   onSelect = () => {}
 }) => {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
-  const budgetProgress = group.budgetHours > 0 ? (group.usedHours / group.budgetHours) * 100 : 0;
-  const remainingHours = Math.max(0, group.budgetHours - group.usedHours);
+  const [isEditPictureModalOpen, setIsEditPictureModalOpen] = useState(false);
+  
+  // Find most watchlisted movie (highest votes)
+  const mostWatchlistedMovie = useMemo(() => {
+    if (movies.length === 0) return null;
+    return movies.reduce((prev, current) => 
+      (current.votes > prev.votes) ? current : prev
+    );
+  }, [movies]);
+
   const nextMovie = movies.length > 0 ? movies[0] : null;
-  const readyMembers = group.members.filter(m => m.status === 'Ready' || m.status === 'Online').length;
+  const totalMovies = movies.length;
+  const totalVotes = movies.reduce((sum, m) => sum + m.votes, 0);
 
   const copyInviteCode = () => {
     if (group.inviteCode) {
@@ -77,17 +87,30 @@ const GroupView: React.FC<GroupViewProps> = ({
       <div className="py-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-12">
           <div className="flex items-start gap-4">
-            {group.pictureUrl && (
-              <img 
-                src={group.pictureUrl} 
-                alt={group.name}
-                className="w-20 h-20 rounded-2xl object-cover border border-white/10"
-              />
-            )}
+            <div className="relative group">
+              {group.pictureUrl ? (
+                <img 
+                  src={group.pictureUrl} 
+                  alt={group.name}
+                  className="w-20 h-20 rounded-2xl object-cover border border-white/10 cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => setIsEditPictureModalOpen(true)}
+                />
+              ) : (
+                <div 
+                  className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center cursor-pointer hover:bg-white/10 transition-colors"
+                  onClick={() => setIsEditPictureModalOpen(true)}
+                  title="Add group picture"
+                >
+                  <i className="fa-solid fa-image text-gray-500"></i>
+                </div>
+              )}
+              <div className="absolute inset-0 bg-black/0 hover:bg-black/20 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => setIsEditPictureModalOpen(true)}>
+                <i className="fa-solid fa-camera text-white text-xs"></i>
+              </div>
+            </div>
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <h2 className="text-4xl font-black tracking-tight">{group.name}</h2>
-                <span className="px-3 py-1 rounded-full bg-white/5 text-accent text-[10px] font-bold border border-white/10 uppercase tracking-widest">Active Sprint</span>
               </div>
               <p className="text-gray-400 max-w-md">{group.description || `${group.name} shared watchlist and viewing history.`}</p>
               {group.inviteCode && (
@@ -127,15 +150,26 @@ const GroupView: React.FC<GroupViewProps> = ({
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
         <div className="glass p-8 rounded-[2rem] border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent">
-          <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest mb-4">Current Goal</p>
-          <h4 className="text-xl font-bold mb-2">{remainingHours > 0 ? `${remainingHours.toFixed(1)} hours remaining` : 'Budget used'}</h4>
-          <p className="text-xs text-gray-400 mb-6">{group.usedHours.toFixed(1)} / {group.budgetHours} hours used this month</p>
-          <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-accent rounded-full transition-all duration-500" 
-              style={{ width: `${Math.min(100, budgetProgress)}%` }}
-            ></div>
-          </div>
+          <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest mb-4">Most Watchlisted</p>
+          {mostWatchlistedMovie ? (
+            <div className="flex items-center gap-4">
+              <img src={mostWatchlistedMovie.poster} className="w-12 h-16 rounded-lg object-cover" alt={mostWatchlistedMovie.title} />
+              <div>
+                <h4 className="text-sm font-bold">{mostWatchlistedMovie.title}</h4>
+                <p className="text-xs text-accent">{mostWatchlistedMovie.votes} {mostWatchlistedMovie.votes === 1 ? 'vote' : 'votes'}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-16 rounded-lg bg-white/5 flex items-center justify-center">
+                <i className="fa-solid fa-film text-gray-500 text-xs"></i>
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-gray-500">No movies yet</h4>
+                <p className="text-xs text-gray-400">Add movies to see favorites</p>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="glass p-8 rounded-[2rem] border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent">
@@ -161,12 +195,22 @@ const GroupView: React.FC<GroupViewProps> = ({
           )}
         </div>
 
-        <div className="glass p-8 rounded-[2rem] border-white/5 flex flex-col items-center justify-center text-center">
-          <button className="w-12 h-12 rounded-full bg-accent flex items-center justify-center mb-3 hover:scale-110 transition-transform shadow-lg shadow-accent/20">
-            <i className="fa-solid fa-play text-white text-xs ml-1"></i>
-          </button>
-          <h4 className="text-sm font-bold">Start Watch Party</h4>
-          <p className="text-[10px] text-gray-500 mt-1">{readyMembers} {readyMembers === 1 ? 'member is' : 'members are'} currently ready</p>
+        <div className="glass p-8 rounded-[2rem] border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent">
+          <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest mb-4">Group Stats</p>
+          <div className="space-y-3">
+            <div>
+              <h4 className="text-xl font-bold">{totalMovies}</h4>
+              <p className="text-xs text-gray-400">Movies in watchlist</p>
+            </div>
+            <div className="pt-3 border-t border-white/10">
+              <h4 className="text-xl font-bold">{totalVotes}</h4>
+              <p className="text-xs text-gray-400">Total votes</p>
+            </div>
+            <div className="pt-3 border-t border-white/10">
+              <h4 className="text-xl font-bold">{group.members.length}</h4>
+              <p className="text-xs text-gray-400">Members</p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -198,6 +242,14 @@ const GroupView: React.FC<GroupViewProps> = ({
           groupName={group.name}
           inviteCode={group.inviteCode}
           onClose={() => setIsInviteModalOpen(false)}
+        />
+      )}
+
+      {isEditPictureModalOpen && (
+        <EditGroupPictureModal
+          groupId={group.id}
+          currentPictureUrl={group.pictureUrl}
+          onClose={() => setIsEditPictureModalOpen(false)}
         />
       )}
     </>
