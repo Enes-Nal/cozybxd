@@ -227,31 +227,20 @@ export const authOptions: NextAuthOptions = {
 
 const handler = NextAuth(authOptions);
 
-// Wrap handlers to ensure NEXTAUTH_URL is used for redirect URI construction
-export async function GET(request: Request) {
-  // Ensure NEXTAUTH_URL is set and normalized for this request
-  if (nextAuthUrl) {
-    // NextAuth will use this from process.env, which we've already normalized
-    // But we also need to ensure the request context knows about it
-    const url = new URL(request.url);
-    // If NEXTAUTH_URL is set, ensure we're using it
-    if (nextAuthUrl && !url.origin.includes(nextAuthUrl.replace(/^https?:\/\//, ''))) {
-      // Log for debugging
-      console.log('[AUTH REQUEST] Using NEXTAUTH_URL:', nextAuthUrl);
-      console.log('[AUTH REQUEST] Request origin:', url.origin);
-    }
-  }
-  return handler(request);
+// NextAuth v4 in App Router needs route params passed correctly
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ nextauth: string[] }> }
+) {
+  const { nextauth } = await context.params;
+  // NextAuth expects the route segments in the query
+  return handler(request, { query: { nextauth } } as any);
 }
 
-export async function POST(request: Request) {
-  // Same as GET
-  if (nextAuthUrl) {
-    const url = new URL(request.url);
-    if (nextAuthUrl && !url.origin.includes(nextAuthUrl.replace(/^https?:\/\//, ''))) {
-      console.log('[AUTH REQUEST] Using NEXTAUTH_URL:', nextAuthUrl);
-      console.log('[AUTH REQUEST] Request origin:', url.origin);
-    }
-  }
-  return handler(request);
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ nextauth: string[] }> }
+) {
+  const { nextauth } = await context.params;
+  return handler(request, { query: { nextauth } } as any);
 }
