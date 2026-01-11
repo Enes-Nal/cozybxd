@@ -6,13 +6,14 @@ import { transformUserToFrontend } from '@/lib/utils/transformers';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const { userId } = await params;
   const supabase = createServerClient();
 
   try {
@@ -20,7 +21,7 @@ export async function GET(
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('*')
-      .eq('id', params.userId)
+      .eq('id', userId)
       .single();
 
     if (userError || !user) {
@@ -34,7 +35,7 @@ export async function GET(
         *,
         teams(*)
       `)
-      .eq('user_id', params.userId);
+      .eq('user_id', userId);
 
     // Get user's reviews
     const { data: reviews } = await supabase
@@ -43,7 +44,7 @@ export async function GET(
         *,
         media(*)
       `)
-      .eq('user_id', params.userId)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(10);
 
@@ -51,13 +52,13 @@ export async function GET(
     const { count: watchedCount } = await supabase
       .from('log_attendees')
       .select('*', { count: 'exact', head: true })
-      .eq('user_id', params.userId);
+      .eq('user_id', userId);
 
     // Get review count
     const { count: reviewCount } = await supabase
       .from('reviews')
       .select('*', { count: 'exact', head: true })
-      .eq('user_id', params.userId);
+      .eq('user_id', userId);
 
     const transformedUser = transformUserToFrontend(user);
 

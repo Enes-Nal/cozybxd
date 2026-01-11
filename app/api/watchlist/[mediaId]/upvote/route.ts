@@ -5,13 +5,14 @@ import { createServerClient } from '@/lib/supabase';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { mediaId: string } }
+  { params }: { params: Promise<{ mediaId: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const { mediaId } = await params;
   const searchParams = request.nextUrl.searchParams;
   const teamId = searchParams.get('teamId');
 
@@ -22,7 +23,7 @@ export async function POST(
     let query = supabase
       .from('watchlist_items')
       .select('*')
-      .eq('media_id', params.mediaId);
+      .eq('media_id', mediaId);
 
     if (teamId) {
       query = query.eq('team_id', teamId).is('user_id', null);

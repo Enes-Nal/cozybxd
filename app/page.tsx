@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -27,7 +27,7 @@ import { transformTMDBMovieToMovieSync, transformTeamToGroup, transformMediaToMo
 import { TMDBMovie, getGenres } from '@/lib/api/tmdb';
 import { getPosterUrl } from '@/lib/api/tmdb';
 
-export default function Home() {
+function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status: sessionStatus } = useSession();
@@ -438,7 +438,7 @@ export default function Home() {
                         if (!currentMovie) return;
                         
                         // Check if already in watchlist
-                        const isInWatchlist = personalWatchlist.some(m => {
+                        const isInWatchlist = personalWatchlist.some((m: Movie) => {
                           if (m.id === id) return true;
                           if (id.startsWith('tmdb-')) {
                             const tmdbId = id.replace('tmdb-', '');
@@ -454,7 +454,7 @@ export default function Home() {
                         
                         if (isInWatchlist) {
                           // Optimistically remove
-                          newWatchlist = personalWatchlist.filter(m => {
+                          newWatchlist = personalWatchlist.filter((m: Movie) => {
                             if (m.id === id) return false;
                             if (id.startsWith('tmdb-')) {
                               const tmdbId = id.replace('tmdb-', '');
@@ -624,3 +624,17 @@ export default function Home() {
     </div>
   );
 }
+
+const Home = () => {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
+  );
+};
+
+export default Home;

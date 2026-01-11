@@ -191,7 +191,7 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {movies.map(movie => (
+          {movies.map((movie: Movie) => (
           <div key={movie.id} className="glass rounded-[2rem] p-5 flex gap-5 hover:border-accent/40 transition-all group">
             {movie.poster ? (
               <img src={movie.poster} className="w-20 h-28 rounded-xl object-cover shadow-sm" alt={movie.title} onError={(e) => { e.currentTarget.style.display = 'none'; }} />

@@ -4,16 +4,17 @@ import { transformMediaToMovie } from '@/lib/utils/transformers';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { mediaId: string } }
+  { params }: { params: Promise<{ mediaId: string }> }
 ) {
   try {
+    const { mediaId } = await params;
     const supabase = createServerClient();
 
     // Get media with related data
     const { data: media, error: mediaError } = await supabase
       .from('media')
       .select('*')
-      .eq('id', params.mediaId)
+      .eq('id', mediaId)
       .single();
 
     if (mediaError || !media) {
@@ -24,7 +25,7 @@ export async function GET(
     const { data: watchlistItems } = await supabase
       .from('watchlist_items')
       .select('*')
-      .eq('media_id', params.mediaId);
+      .eq('media_id', mediaId);
 
     // Get logs for this media
     const { data: logs } = await supabase
@@ -36,7 +37,7 @@ export async function GET(
           users(*)
         )
       `)
-      .eq('media_id', params.mediaId)
+      .eq('media_id', mediaId)
       .order('watched_at', { ascending: false });
 
     // Get reviews
@@ -46,7 +47,7 @@ export async function GET(
         *,
         users(*)
       `)
-      .eq('media_id', params.mediaId)
+      .eq('media_id', mediaId)
       .order('created_at', { ascending: false });
 
     // Transform to front-end format

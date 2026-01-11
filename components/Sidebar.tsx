@@ -257,7 +257,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               </div>
             </div>
             {workspaces.length > 0 ? (
-              workspaces.map(ws => (
+              workspaces.map((ws: { id: string; name: string; color: string }) => (
                 <button
                   key={ws.id}
                   onClick={() => onGroupSelect(ws.id)}

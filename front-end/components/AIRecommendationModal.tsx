@@ -9,9 +9,13 @@ interface AIRecommendationModalProps {
   groupContext: { members: User[], history: Movie[] };
 }
 
+interface MovieSuggestion extends Partial<Movie> {
+  reason?: string;
+}
+
 const AIRecommendationModal: React.FC<AIRecommendationModalProps> = ({ onClose, onAdd, groupContext }) => {
   const [loading, setLoading] = useState(false);
-  const [suggestion, setSuggestion] = useState<Partial<Movie> | null>(null);
+  const [suggestion, setSuggestion] = useState<MovieSuggestion | null>(null);
 
   const handleGroupAnalysis = async () => {
     setLoading(true);

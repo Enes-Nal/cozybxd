@@ -6,13 +6,14 @@ import { transformMediaToMovie } from '@/lib/utils/transformers';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { teamId: string } }
+  { params }: { params: Promise<{ teamId: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const { teamId } = await params;
   const supabase = createServerClient();
 
   try {
@@ -20,7 +21,7 @@ export async function GET(
     const { data: membership } = await supabase
       .from('team_members')
       .select('*')
-      .eq('team_id', params.teamId)
+      .eq('team_id', teamId)
       .eq('user_id', session.user.id)
       .single();
 
@@ -35,7 +36,7 @@ export async function GET(
         *,
         media(*)
       `)
-      .eq('team_id', params.teamId)
+      .eq('team_id', teamId)
       .is('user_id', null)
       .order('upvotes', { ascending: false })
       .order('added_at', { ascending: false });
@@ -52,7 +53,7 @@ export async function GET(
         *,
         log_attendees(*)
       `)
-      .eq('team_id', params.teamId)
+      .eq('team_id', teamId)
       .in('media_id', mediaIds);
 
     // Group logs by media_id

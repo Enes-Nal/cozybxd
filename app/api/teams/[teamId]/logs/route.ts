@@ -5,13 +5,14 @@ import { createServerClient } from '@/lib/supabase';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { teamId: string } }
+  { params }: { params: Promise<{ teamId: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const { teamId } = await params;
   const body = await request.json();
   const { mediaId, attendees, notes, isRobloxNight, watchedAt } = body;
 
@@ -28,7 +29,7 @@ export async function POST(
   const { data: membership, error: memberError } = await supabase
     .from('team_members')
     .select('*')
-    .eq('team_id', params.teamId)
+    .eq('team_id', teamId)
     .eq('user_id', session.user.id)
     .single();
 
@@ -40,7 +41,7 @@ export async function POST(
   const { data: log, error: logError } = await supabase
     .from('logs')
     .insert({
-      team_id: params.teamId,
+      team_id: teamId,
       media_id: mediaId,
       notes,
       is_roblox_night: isRobloxNight || false,

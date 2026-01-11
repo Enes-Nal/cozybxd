@@ -1,10 +1,10 @@
 'use client';
 
 import { signIn, getProviders } from 'next-auth/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-export default function SignInPage() {
+function SignInContent() {
   const searchParams = useSearchParams();
   const [providers, setProviders] = useState<Record<string, any> | null>(null);
   const [isLoading, setIsLoading] = useState<string | null>(null);
@@ -66,5 +66,24 @@ export default function SignInPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="bg-white border rounded-lg p-8 space-y-6 shadow-lg">
+            <div className="text-center">
+              <h1 className="text-2xl font-semibold mb-2">Sign in</h1>
+              <p className="text-sm text-gray-600">Loading...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    }>
+      <SignInContent />
+    </Suspense>
   );
 }
