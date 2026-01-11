@@ -6,6 +6,10 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   // Explicitly set the base URL for OAuth callbacks
   url: process.env.NEXTAUTH_URL,
+  pages: {
+    signIn: '/api/auth/signin',
+    error: '/api/auth/error',
+  },
   providers: [
     // Discord provider - mandatory
     DiscordProvider({

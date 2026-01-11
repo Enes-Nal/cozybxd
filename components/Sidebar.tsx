@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { User } from '@/lib/types';
 import Logo from './Logo';
@@ -375,6 +375,18 @@ const Sidebar: React.FC<SidebarProps> = ({
                 >
                   <i className="fa-solid fa-user text-xs text-gray-400 w-4"></i>
                   <span className="text-xs font-semibold text-main">View Profile</span>
+                </button>
+              </div>
+              <div className="border-t border-main p-1">
+                <button
+                  onClick={() => {
+                    setIsStatusMenuOpen(false);
+                    signOut({ callbackUrl: '/api/auth/signin' });
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-red-500/10 transition-all text-left"
+                >
+                  <i className="fa-solid fa-sign-out-alt text-xs text-red-500 w-4"></i>
+                  <span className="text-xs font-semibold text-red-500">Sign Out</span>
                 </button>
               </div>
             </div>
