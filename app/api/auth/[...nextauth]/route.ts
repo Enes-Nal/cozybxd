@@ -79,33 +79,35 @@ export const authOptions: NextAuthOptions = {
           
           // Update account asynchronously (fire and forget) - don't wait for it
           if (account) {
-            // Don't await - let it run in background
-            supabase
-              .from('accounts')
-              .upsert({
-                user_id: existingUser.id,
-                type: account.type,
-                provider: account.provider,
-                provider_account_id: account.providerAccountId,
-                access_token: account.access_token || null,
-                refresh_token: account.refresh_token || null,
-                expires_at: account.expires_at || null,
-                token_type: account.token_type || null,
-                scope: account.scope || null,
-                id_token: account.id_token || null,
-              }, {
-                onConflict: 'provider,provider_account_id',
-              })
-              .then(({ error }) => {
+            // Use IIFE to run async operation in background
+            (async () => {
+              try {
+                const { error } = await supabase
+                  .from('accounts')
+                  .upsert({
+                    user_id: existingUser.id,
+                    type: account.type,
+                    provider: account.provider,
+                    provider_account_id: account.providerAccountId,
+                    access_token: account.access_token || null,
+                    refresh_token: account.refresh_token || null,
+                    expires_at: account.expires_at || null,
+                    token_type: account.token_type || null,
+                    scope: account.scope || null,
+                    id_token: account.id_token || null,
+                  }, {
+                    onConflict: 'provider,provider_account_id',
+                  });
+
                 if (error) {
                   console.error('[AUTH] Background account update error:', JSON.stringify(error, null, 2));
                 } else {
                   console.log('[AUTH] Background account update successful');
                 }
-              })
-              .catch((err) => {
+              } catch (err) {
                 console.error('[AUTH] Background account update exception:', err);
-              });
+              }
+            })();
           }
           
           console.log('[AUTH] LOGIN: Sign in successful for existing user!');
