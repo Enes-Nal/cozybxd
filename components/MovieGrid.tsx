@@ -10,12 +10,13 @@ interface MovieGridProps {
   onDownvote?: (id: string) => void;
   onSchedule: (id: string) => void;
   onSelect: (movie: Movie) => void;
+  onRemove?: (id: string) => void; // Remove from queue
   users: User[];
   personalWatchlist?: Movie[];
   isGroupWatchlist?: boolean; // Indicates if this is a group watchlist
 }
 
-const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownvote, onSchedule, onSelect, users, personalWatchlist = [], isGroupWatchlist = false }) => {
+const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownvote, onSchedule, onSelect, onRemove, users, personalWatchlist = [], isGroupWatchlist = false }) => {
   // Helper to check if movie is in personal watchlist
   const isInWatchlist = (movieId: string) => {
     if (!personalWatchlist || personalWatchlist.length === 0) return false;
@@ -119,6 +120,23 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
                     movie.userVote === 'upvote' ? 'text-white' : 'text-white/70'
                   }`}>{movie.upvotes || 0}</span>
                 </button>
+
+                {/* Remove button */}
+                {onRemove && (
+                  <button 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (confirm(`Remove "${movie.title}" from queue?`)) {
+                        onRemove(movie.id);
+                      }
+                    }}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-transform bg-red-600/90 border border-red-400/50 hover:bg-red-600"
+                    title={`Remove ${movie.title} from queue`}
+                  >
+                    <i className="fa-solid fa-trash-can text-[10px] text-white"></i>
+                  </button>
+                )}
               </div>
             ) : (
               <div className="absolute bottom-3 right-3 z-10 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>

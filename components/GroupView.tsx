@@ -312,6 +312,54 @@ const GroupView: React.FC<GroupViewProps> = ({
       );
     }
   };
+
+  // Remove handler with optimistic UI update
+  const handleRemove = async (id: string) => {
+    const movieToRemove = movies.find(m => m.id === id);
+    if (!movieToRemove) return;
+
+    // Optimistic update: remove from local state immediately
+    const previousMovies = [...movies];
+    setMovies(prevMovies => prevMovies.filter(m => m.id !== id));
+
+    try {
+      const mediaId = await syncMediaIfNeeded(id);
+      
+      // Make DELETE request
+      const url = `/api/watchlist?mediaId=${mediaId}&teamId=${group.id}`;
+      const res = await fetch(url, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        // Revert optimistic update on error
+        setMovies(previousMovies);
+        let errorMessage = 'Failed to remove from queue. Please try again.';
+        try {
+          const contentType = res.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const errorData = await res.json();
+            if (errorData && errorData.error) {
+              errorMessage = errorData.error;
+            }
+          }
+        } catch (e) {
+          console.error('Failed to read error response:', e);
+        }
+        alert(errorMessage);
+        return;
+      }
+
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['watchlist', 'shared', group.id] });
+    } catch (error) {
+      // Revert optimistic update on error
+      setMovies(previousMovies);
+      console.error('Error removing from queue:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to remove from queue. Please try again.';
+      alert(errorMessage);
+    }
+  };
   
   // Find most watchlisted movie (highest votes)
   const mostWatchlistedMovie = useMemo(() => {
@@ -544,6 +592,7 @@ const GroupView: React.FC<GroupViewProps> = ({
           movies={movies} 
           onUpvote={handleUpvote}
           onDownvote={handleDownvote}
+          onRemove={handleRemove}
           onSchedule={(id) => {
             const movie = movies.find(m => m.id === id);
             if (movie) onSchedule(movie);
