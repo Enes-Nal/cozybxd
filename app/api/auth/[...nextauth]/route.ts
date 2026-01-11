@@ -73,64 +73,48 @@ export const authOptions: NextAuthOptions = {
 
         console.log('[AUTH] User check result:', { exists: !!existingUser, userId: existingUser?.id });
 
-        // If user exists, allow sign-in even if account update fails
+        // LOGIN: If user exists, allow sign-in immediately (don't block on account update)
         if (existingUser) {
-          console.log('[AUTH] Existing user found, allowing sign-in');
+          console.log('[AUTH] LOGIN: Existing user found, allowing sign-in immediately');
           
-          // Try to update account if provided, but don't fail if it doesn't work
+          // Update account asynchronously (fire and forget) - don't wait for it
           if (account) {
-            try {
-              console.log('[AUTH] Updating account record...', {
-                userId: existingUser.id,
-                provider: account.provider,
-                providerAccountId: account.providerAccountId,
-              });
-              
-              // Prepare account data, filtering out undefined values
-              const accountData: any = {
+            // Don't await - let it run in background
+            supabase
+              .from('accounts')
+              .upsert({
                 user_id: existingUser.id,
                 type: account.type,
                 provider: account.provider,
                 provider_account_id: account.providerAccountId,
-              };
-              
-              // Only include optional fields if they exist
-              if (account.access_token) accountData.access_token = account.access_token;
-              if (account.refresh_token) accountData.refresh_token = account.refresh_token;
-              if (account.expires_at) accountData.expires_at = account.expires_at;
-              if (account.token_type) accountData.token_type = account.token_type;
-              if (account.scope) accountData.scope = account.scope;
-              if (account.id_token) accountData.id_token = account.id_token;
-              
-              const { error: accountError } = await supabase
-                .from('accounts')
-                .upsert(accountData, {
-                  onConflict: 'provider,provider_account_id',
-                });
-
-              if (accountError) {
-                console.error('[AUTH] Error updating account:', JSON.stringify(accountError, null, 2));
-                console.error('[AUTH] Account data attempted:', JSON.stringify(accountData, null, 2));
-                console.warn('[AUTH] Continuing despite account update error - user exists');
-              } else {
-                console.log('[AUTH] Account updated successfully');
-              }
-            } catch (accountUpdateError) {
-              console.error('[AUTH] Exception during account update:', accountUpdateError);
-              console.warn('[AUTH] Continuing despite account update exception - user exists');
-            }
-          } else {
-            console.warn('[AUTH] No account object provided, but user exists - allowing sign-in');
+                access_token: account.access_token || null,
+                refresh_token: account.refresh_token || null,
+                expires_at: account.expires_at || null,
+                token_type: account.token_type || null,
+                scope: account.scope || null,
+                id_token: account.id_token || null,
+              }, {
+                onConflict: 'provider,provider_account_id',
+              })
+              .then(({ error }) => {
+                if (error) {
+                  console.error('[AUTH] Background account update error:', JSON.stringify(error, null, 2));
+                } else {
+                  console.log('[AUTH] Background account update successful');
+                }
+              })
+              .catch((err) => {
+                console.error('[AUTH] Background account update exception:', err);
+              });
           }
           
-          console.log('[AUTH] Sign in successful for existing user!');
+          console.log('[AUTH] LOGIN: Sign in successful for existing user!');
           return true;
         }
 
-        // Create new user if they don't exist
+        // SIGN-UP: Create new user if they don't exist
         if (!existingUser) {
-          // Create new user
-          console.log('[AUTH] Creating new user...');
+          console.log('[AUTH] SIGN-UP: Creating new user...');
           const { data: newUser, error: createUserError } = await supabase
             .from('users')
             .insert({
@@ -178,8 +162,9 @@ export const authOptions: NextAuthOptions = {
             console.log('[AUTH] Account created successfully');
           }
 
-          console.log('[AUTH] Sign in successful for new user!');
+          console.log('[AUTH] SIGN-UP: Sign in successful for new user!');
           return true;
+        }
       } catch (error) {
         console.error('[AUTH] Unexpected error in signIn callback:', error);
         if (error instanceof Error) {
