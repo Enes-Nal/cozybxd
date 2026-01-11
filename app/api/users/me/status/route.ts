@@ -18,24 +18,29 @@ export async function PATCH(request: NextRequest) {
 
     const supabase = createServerClient();
 
+    // Map frontend status to database status
+    // Frontend uses: 'Online', 'Idle', 'Do Not Disturb', 'Invisible'
+    // Database stores: 'Online', 'Idle', 'Do Not Disturb', 'Invisible', 'Offline'
+    const dbStatus = status === 'Invisible' ? 'Offline' : status;
+
     // Update user status in database
-    // Note: We'll need to add a status column to the users table
-    // For now, we'll store it in a user_preferences table or similar
-    // Since we don't have a status column yet, we'll use a metadata approach
-    
-    // Check if user_preferences table exists, if not we'll just return success
-    // and the client will handle localStorage
     const { error } = await supabase
       .from('users')
       .update({ 
-        // We'll add status to metadata or create a separate table
-        // For now, just return success - the client handles localStorage
+        status: dbStatus,
+        updated_at: new Date().toISOString()
       })
       .eq('id', session.user.id);
 
-    // For now, we'll just return success since we're using localStorage
-    // In the future, you can add a status column to the users table
-    return NextResponse.json({ status, success: true });
+    if (error) {
+      console.error('Status update error:', error);
+      return NextResponse.json(
+        { error: 'Failed to update status' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ status: dbStatus, success: true });
   } catch (error) {
     console.error('Status update error:', error);
     return NextResponse.json(

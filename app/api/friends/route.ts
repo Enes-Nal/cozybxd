@@ -130,16 +130,67 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const trimmedUsername = username.trim().toLowerCase();
+    const trimmedUsername = username.trim();
+    const lowerUsername = trimmedUsername.toLowerCase();
 
-    // Find user by username
-    const { data: friendUser, error: userError } = await supabase
+    // Find user by username (case-insensitive exact match)
+    // Try exact match first with lowercase
+    let { data: friendUser, error: userError } = await supabase
       .from('users')
       .select('id, name, email, username')
-      .ilike('username', trimmedUsername)
-      .single();
+      .eq('username', lowerUsername)
+      .maybeSingle();
 
-    if (userError || !friendUser) {
+    // If not found, try with original case
+    if (!friendUser && !userError) {
+      const { data: userWithCase, error: caseError } = await supabase
+        .from('users')
+        .select('id, name, email, username')
+        .eq('username', trimmedUsername)
+        .maybeSingle();
+      
+      if (!caseError && userWithCase) {
+        friendUser = userWithCase;
+      } else if (caseError && caseError.code !== 'PGRST116') {
+        userError = caseError;
+      }
+    }
+
+    // If still not found, do a broader search and filter in memory
+    // This handles case-insensitive matching when usernames have mixed case
+    if (!friendUser && !userError && trimmedUsername.length > 0) {
+      const { data: allUsersWithUsernames, error: fetchError } = await supabase
+        .from('users')
+        .select('id, name, email, username')
+        .not('username', 'is', null)
+        .limit(1000); // Reasonable limit for username search
+      
+      if (!fetchError && allUsersWithUsernames) {
+        // Find exact case-insensitive match
+        friendUser = allUsersWithUsernames.find((u: any) => 
+          u.username && u.username.toLowerCase() === lowerUsername
+        );
+      } else if (fetchError) {
+        userError = fetchError;
+      }
+    }
+
+    if (userError) {
+      console.error('User lookup error:', userError);
+      return NextResponse.json(
+        { error: 'Failed to search for user' },
+        { status: 500 }
+      );
+    }
+
+    if (!friendUser) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    if (!friendUser) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }

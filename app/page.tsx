@@ -620,7 +620,65 @@ function HomeContent() {
       {isCustomSortOpen && <CustomSortModal onClose={() => setIsCustomSortOpen(false)} />}
       {isAIModalOpen && <AIRecommendationModal onClose={() => setIsAIModalOpen(false)} onAdd={(m) => setMovies([m, ...movies])} groupContext={{ members: currentUser ? [currentUser] : [], history: movies }} />}
       {isRandomModalOpen && <RandomPickerModal movies={movies} onClose={() => setIsRandomModalOpen(false)} onSelect={(m) => { setSchedulingMovie(m); setSelectedMovie(null); }} />}
-      {schedulingMovie && <SchedulingModal movie={schedulingMovie} onClose={() => setSchedulingMovie(null)} onConfirm={() => setSchedulingMovie(null)} />}
+      {schedulingMovie && (
+        <SchedulingModal 
+          movie={schedulingMovie} 
+          onClose={() => setSchedulingMovie(null)} 
+          onConfirm={async (groupId: string, interestLevel: number) => {
+            try {
+              let mediaId = schedulingMovie.id.startsWith('tmdb-') 
+                ? schedulingMovie.id.replace('tmdb-', '') 
+                : schedulingMovie.id;
+              let actualMediaId = mediaId;
+              
+              // If it's a TMDB ID, sync it first to get the database media ID
+              if (schedulingMovie.id.startsWith('tmdb-')) {
+                const syncRes = await fetch('/api/media/sync', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ tmdbId: mediaId, type: 'movie' }),
+                });
+                
+                if (!syncRes.ok) {
+                  const errorData = await syncRes.json().catch(() => ({ error: 'Failed to sync' }));
+                  console.error('Failed to sync media:', errorData);
+                  alert('Failed to add movie. Please try again.');
+                  return;
+                }
+                
+                const media = await syncRes.json();
+                actualMediaId = media.id;
+              }
+              
+              // Add to group watchlist
+              const addRes = await fetch('/api/watchlist', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mediaId: actualMediaId, teamId: groupId }),
+              });
+              
+              if (!addRes.ok) {
+                const errorData = await addRes.json().catch(() => ({ error: 'Failed to add' }));
+                console.error('Failed to add to watchlist:', errorData);
+                alert(errorData.error || 'Failed to add movie to watchlist. Please try again.');
+                return;
+              }
+              
+              // Refresh watchlist if viewing that group
+              if (activeGroup === groupId) {
+                queryClient.invalidateQueries({ queryKey: ['groupWatchlist', groupId] });
+                queryClient.invalidateQueries({ queryKey: ['group', groupId] });
+              }
+              
+              // Close modal on success
+              setSchedulingMovie(null);
+            } catch (error) {
+              console.error('Error adding to watchlist:', error);
+              alert('An error occurred. Please try again.');
+            }
+          }} 
+        />
+      )}
     </div>
   );
 }

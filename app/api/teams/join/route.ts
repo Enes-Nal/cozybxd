@@ -19,14 +19,65 @@ export async function POST(request: NextRequest) {
   const supabase = createServerClient();
 
   try {
-    // Find team by invite code
-    const { data: team, error: teamError } = await supabase
+    // Find team by invite code (case-insensitive)
+    // Try exact match first
+    let { data: team, error: teamError } = await supabase
       .from('teams')
       .select('*')
       .eq('invite_code', inviteCode)
-      .single();
+      .maybeSingle();
 
-    if (teamError || !team) {
+    // If not found, try with different case variations
+    if (!team && !teamError) {
+      // Try uppercase version
+      const { data: teamUpper, error: upperError } = await supabase
+        .from('teams')
+        .select('*')
+        .eq('invite_code', inviteCode.toUpperCase())
+        .maybeSingle();
+      
+      if (!upperError && teamUpper) {
+        team = teamUpper;
+      } else if (!team) {
+        // Try lowercase version
+        const { data: teamLower, error: lowerError } = await supabase
+          .from('teams')
+          .select('*')
+          .eq('invite_code', inviteCode.toLowerCase())
+          .maybeSingle();
+        
+        if (!lowerError && teamLower) {
+          team = teamLower;
+        } else if (lowerError && lowerError.code !== 'PGRST116') {
+          teamError = lowerError;
+        }
+      }
+    }
+
+    // If still not found, do a broader case-insensitive search
+    if (!team && !teamError) {
+      const { data: allTeams, error: fetchError } = await supabase
+        .from('teams')
+        .select('*')
+        .not('invite_code', 'is', null)
+        .limit(1000); // Reasonable limit
+      
+      if (!fetchError && allTeams) {
+        // Find case-insensitive match
+        team = allTeams.find((t: any) => 
+          t.invite_code && t.invite_code.toLowerCase() === inviteCode.toLowerCase()
+        );
+      } else if (fetchError) {
+        teamError = fetchError;
+      }
+    }
+
+    if (teamError) {
+      console.error('Team lookup error:', teamError);
+      return NextResponse.json({ error: 'Failed to search for team' }, { status: 500 });
+    }
+
+    if (!team) {
       return NextResponse.json({ error: 'Invalid invite code' }, { status: 404 });
     }
 

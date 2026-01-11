@@ -62,6 +62,7 @@ const GroupView: React.FC<GroupViewProps> = ({
 }) => {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isEditPictureModalOpen, setIsEditPictureModalOpen] = useState(false);
+  const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
   
   // Find most watchlisted movie (highest votes)
   const mostWatchlistedMovie = useMemo(() => {
@@ -132,11 +133,20 @@ const GroupView: React.FC<GroupViewProps> = ({
           </div>
           
           <div className="flex items-center gap-4">
-            <div className="flex -space-x-3">
-              {group.members.map(m => (
-                <img key={m.id} src={m.avatar} className="w-10 h-10 rounded-full border-2 border-[#0a0a0a]" alt={m.name} title={m.name} />
+            <button
+              onClick={() => setIsMembersModalOpen(true)}
+              className="flex -space-x-3 hover:opacity-80 transition-opacity cursor-pointer group"
+              title="View all members"
+            >
+              {group.members.slice(0, 5).map(m => (
+                <img key={m.id} src={m.avatar} className="w-10 h-10 rounded-full border-2 border-[#0a0a0a] group-hover:border-accent/50 transition-colors" alt={m.name} title={m.name} />
               ))}
-            </div>
+              {group.members.length > 5 && (
+                <div className="w-10 h-10 rounded-full border-2 border-[#0a0a0a] bg-white/5 flex items-center justify-center text-xs font-bold text-gray-400 group-hover:border-accent/50 transition-colors">
+                  +{group.members.length - 5}
+                </div>
+              )}
+            </button>
             <button 
               onClick={() => setIsInviteModalOpen(true)}
               className="bg-white/5 hover:bg-white/10 p-3 rounded-xl transition-all"

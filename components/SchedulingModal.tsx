@@ -1,23 +1,38 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Movie } from '@/lib/types';
+import { transformTeamToGroup } from '@/lib/utils/transformers';
 
 interface AddToGroupModalProps {
   movie: Movie;
   onClose: () => void;
-  onConfirm: (groupId: string) => void;
+  onConfirm: (groupId: string, interestLevel: number) => void;
 }
 
 const SchedulingModal: React.FC<AddToGroupModalProps> = ({ movie, onClose, onConfirm }) => {
-  const [selectedGroup, setSelectedGroup] = useState('w1');
-  const [priority, setPriority] = useState('Medium');
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  const [interestLevel, setInterestLevel] = useState(50);
 
-  const groups = [
-    { id: 'w1', name: 'Family Night' },
-    { id: 'w2', name: 'Cinephiles' },
-    { id: 'w3', name: 'Horror Club' }
-  ];
+  // Fetch groups from API
+  const { data: teamsData, isLoading: groupsLoading } = useQuery({
+    queryKey: ['teams'],
+    queryFn: async () => {
+      const res = await fetch('/api/teams');
+      if (!res.ok) throw new Error('Failed to fetch groups');
+      return res.json();
+    },
+  });
+
+  const groups = teamsData ? teamsData.map((team: any) => transformTeamToGroup(team)) : [];
+  
+  // Set first group as default when groups load
+  useEffect(() => {
+    if (groups.length > 0 && !selectedGroup) {
+      setSelectedGroup(groups[0].id);
+    }
+  }, [groups, selectedGroup]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
@@ -31,41 +46,52 @@ const SchedulingModal: React.FC<AddToGroupModalProps> = ({ movie, onClose, onCon
         
         <div className="space-y-6">
           <div>
-            <label className="block text-[10px] uppercase font-black text-accent tracking-widest mb-3">Select Workspace</label>
-            <div className="space-y-2">
-              {groups.map(group => (
-                <button 
-                  key={group.id}
-                  onClick={() => setSelectedGroup(group.id)}
-                  className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${
-                    selectedGroup === group.id 
-                    ? 'bg-white/5 border-accent/40 text-white' 
-                    : 'bg-white/5 border-white/5 text-gray-500 hover:bg-white/10'
-                  }`}
-                >
-                  <span className="text-sm font-bold">{group.name}</span>
-                  {selectedGroup === group.id && <i className="fa-solid fa-circle-check text-accent"></i>}
-                </button>
-              ))}
-            </div>
+            <label className="block text-[10px] uppercase font-black text-accent tracking-widest mb-3">Select Group</label>
+            {groupsLoading ? (
+              <div className="text-center py-8 text-gray-500">Loading groups...</div>
+            ) : groups.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">No groups available. Create a group first.</div>
+            ) : (
+              <div className="space-y-2">
+                {groups.map(group => (
+                  <button 
+                    key={group.id}
+                    onClick={() => setSelectedGroup(group.id)}
+                    className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${
+                      selectedGroup === group.id 
+                      ? 'bg-white/5 border-accent/40 text-white' 
+                      : 'bg-white/5 border-white/5 text-gray-500 hover:bg-white/10'
+                    }`}
+                  >
+                    <span className="text-sm font-bold">{group.name}</span>
+                    {selectedGroup === group.id && <i className="fa-solid fa-circle-check text-accent"></i>}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>
-            <label className="block text-[10px] uppercase font-black text-accent tracking-widest mb-3">Set Priority</label>
-            <div className="flex gap-2">
-              {['Low', 'Medium', 'High'].map(p => (
-                <button
-                  key={p}
-                  onClick={() => setPriority(p)}
-                  className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
-                    priority === p 
-                    ? 'bg-white/10 border-white/40 text-white' 
-                    : 'bg-white/5 border-white/5 text-gray-600'
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
+            <label className="block text-[10px] uppercase font-black text-accent tracking-widest mb-3">
+              How much do you want to watch this?
+            </label>
+            <div className="space-y-3">
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={interestLevel}
+                onChange={(e) => setInterestLevel(Number(e.target.value))}
+                className="w-full h-2 bg-white/5 rounded-lg appearance-none cursor-pointer accent-accent"
+                style={{
+                  background: `linear-gradient(to right, rgb(139, 92, 246) 0%, rgb(139, 92, 246) ${interestLevel}%, rgba(255, 255, 255, 0.05) ${interestLevel}%, rgba(255, 255, 255, 0.05) 100%)`
+                }}
+              />
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Not interested</span>
+                <span className="text-accent font-bold">{interestLevel}%</span>
+                <span>Very interested</span>
+              </div>
             </div>
           </div>
           
@@ -77,8 +103,13 @@ const SchedulingModal: React.FC<AddToGroupModalProps> = ({ movie, onClose, onCon
               Cancel
             </button>
             <button 
-              onClick={() => onConfirm(selectedGroup)}
-              className="flex-1 bg-accent text-white px-4 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all no-glow shadow-lg shadow-accent/20"
+              onClick={() => {
+                if (selectedGroup) {
+                  onConfirm(selectedGroup, interestLevel);
+                }
+              }}
+              disabled={!selectedGroup || groupsLoading}
+              className="flex-1 bg-accent text-white px-4 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all no-glow shadow-lg shadow-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Add to Queue
             </button>

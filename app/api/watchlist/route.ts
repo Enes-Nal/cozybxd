@@ -169,25 +169,38 @@ export async function DELETE(request: NextRequest) {
   }
 
   const searchParams = request.nextUrl.searchParams;
-  const mediaId = searchParams.get('mediaId');
+  const mediaIdParam = searchParams.get('mediaId');
   const teamId = searchParams.get('teamId');
 
-  if (!mediaId) {
+  if (!mediaIdParam) {
     return NextResponse.json({ error: 'Media ID required' }, { status: 400 });
   }
 
   const supabase = createServerClient();
 
   try {
-    let query = supabase
-      .from('watchlist_items')
-      .delete()
-      .eq('media_id', mediaId);
+    // Handle both UUID and tmdb-{id} formats
+    let actualMediaId: string;
+    if (mediaIdParam.startsWith('tmdb-')) {
+      // Extract tmdb_id and look up the media
+      const tmdbId = mediaIdParam.replace('tmdb-', '');
+      const { data: media, error: mediaError } = await supabase
+        .from('media')
+        .select('id')
+        .eq('tmdb_id', parseInt(tmdbId))
+        .single();
 
+      if (mediaError || !media) {
+        return NextResponse.json({ error: 'Media not found' }, { status: 404 });
+      }
+      actualMediaId = media.id;
+    } else {
+      // Assume it's a UUID
+      actualMediaId = mediaIdParam;
+    }
+
+    // If team watchlist, verify user is a team member first
     if (teamId) {
-      query = query.eq('team_id', teamId).is('user_id', null);
-      
-      // Verify user is a team member
       const { data: membership } = await supabase
         .from('team_members')
         .select('*')
@@ -198,17 +211,47 @@ export async function DELETE(request: NextRequest) {
       if (!membership) {
         return NextResponse.json({ error: 'Not a team member' }, { status: 403 });
       }
+
+      // Delete team watchlist item
+      const { data, error } = await supabase
+        .from('watchlist_items')
+        .delete()
+        .eq('media_id', actualMediaId)
+        .eq('team_id', teamId)
+        .is('user_id', null)
+        .select();
+
+      if (error) {
+        console.error('Delete error:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      if (!data || data.length === 0) {
+        return NextResponse.json({ error: 'Watchlist item not found' }, { status: 404 });
+      }
+
+      return NextResponse.json({ success: true });
     } else {
-      query = query.eq('user_id', session.user.id).is('team_id', null);
+      // Delete personal watchlist item
+      const { data, error } = await supabase
+        .from('watchlist_items')
+        .delete()
+        .eq('media_id', actualMediaId)
+        .eq('user_id', session.user.id)
+        .is('team_id', null)
+        .select();
+
+      if (error) {
+        console.error('Delete error:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      if (!data || data.length === 0) {
+        return NextResponse.json({ error: 'Watchlist item not found' }, { status: 404 });
+      }
+
+      return NextResponse.json({ success: true });
     }
-
-    const { error } = await query;
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Watchlist delete error:', error);
     return NextResponse.json(

@@ -8,11 +8,60 @@ import { Movie } from '@/lib/types';
 const NewListModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [listName, setListName] = useState('');
   const [isShared, setIsShared] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const handleCreate = async () => {
+    if (!listName.trim()) {
+      setError('List name is required');
+      return;
+    }
+
+    // If collaborative, create a team
+    if (isShared) {
+      setError(null);
+      setIsSubmitting(true);
+      
+      try {
+        const res = await fetch('/api/teams', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: listName.trim(),
+            description: `A collaborative watchlist: ${listName.trim()}`,
+          }),
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({ error: 'Failed to create list' }));
+          throw new Error(errorData.error || 'Failed to create list');
+        }
+
+        // Invalidate and refetch teams
+        await queryClient.invalidateQueries({ queryKey: ['teams'] });
+        await queryClient.refetchQueries({ queryKey: ['teams'] });
+        
+        onClose();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to create list');
+        setIsSubmitting(false);
+      }
+    } else {
+      // Personal lists don't need to be created - they're just the user's watchlist
+      // Just close the modal
+      onClose();
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
       <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-in zoom-in-95 duration-300">
-        <button onClick={onClose} className="absolute top-8 right-8 text-gray-500 hover:text-white transition-colors">
+        <button 
+          onClick={onClose} 
+          className="absolute top-8 right-8 text-gray-500 hover:text-white transition-colors"
+          disabled={isSubmitting}
+        >
           <i className="fa-solid fa-xmark text-xl"></i>
         </button>
 
@@ -29,6 +78,12 @@ const NewListModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               onChange={(e) => setListName(e.target.value)}
               placeholder="e.g. 90s Cyberpunk Noir"
               className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-sm font-medium focus:border-accent/50 focus:bg-white/[0.08] transition-all outline-none"
+              disabled={isSubmitting}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !isSubmitting) {
+                  handleCreate();
+                }
+              }}
             />
           </div>
 
@@ -38,24 +93,33 @@ const NewListModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               <p className="text-[9px] text-gray-500 font-medium">Allow group members to add movies</p>
             </div>
             <div 
-              onClick={() => setIsShared(!isShared)}
-              className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${isShared ? 'bg-accent' : 'bg-gray-400/20'}`}
+              onClick={() => !isSubmitting && setIsShared(!isShared)}
+              className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${isShared ? 'bg-accent' : 'bg-gray-400/20'} ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${isShared ? 'right-1' : 'left-1'}`}></div>
             </div>
           </div>
 
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/50 rounded-xl px-4 py-3 text-sm text-red-400">
+              {error}
+            </div>
+          )}
+
           <div className="pt-4 flex gap-3">
             <button 
               onClick={onClose}
-              className="flex-1 px-4 py-4 rounded-2xl border border-white/10 text-xs font-black uppercase tracking-widest text-gray-400 hover:bg-white/5 transition-all"
+              disabled={isSubmitting}
+              className="flex-1 px-4 py-4 rounded-2xl border border-white/10 text-xs font-black uppercase tracking-widest text-gray-400 hover:bg-white/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button 
-              className="flex-1 bg-accent text-white px-4 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all no-glow shadow-lg shadow-accent/20"
+              onClick={handleCreate}
+              disabled={isSubmitting || !listName.trim()}
+              className="flex-1 bg-accent text-white px-4 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all no-glow shadow-lg shadow-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Create List
+              {isSubmitting ? 'Creating...' : 'Create List'}
             </button>
           </div>
         </div>
@@ -134,9 +198,40 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
       if (!res.ok) {
         // Revert optimistic update on error
         queryClient.setQueryData(queryKey, previousWatchlist);
-        const errorData = await res.json().catch(() => ({ error: 'Failed to delete' }));
-        console.error('Failed to remove from watchlist:', errorData);
-        alert('Failed to remove from watchlist. Please try again.');
+        let errorMessage = 'Failed to remove from watchlist. Please try again.';
+        try {
+          const contentType = res.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const errorData = await res.json();
+            if (errorData && errorData.error) {
+              errorMessage = errorData.error;
+            }
+            console.error('Failed to remove from watchlist:', {
+              status: res.status,
+              statusText: res.statusText,
+              error: errorData
+            });
+          } else {
+            // Response is not JSON
+            const text = await res.text();
+            console.error('Failed to remove from watchlist (non-JSON response):', {
+              status: res.status,
+              statusText: res.statusText,
+              body: text || '(empty)'
+            });
+            if (text) {
+              errorMessage = text;
+            }
+          }
+        } catch (e) {
+          // Failed to read response
+          console.error('Failed to remove from watchlist (read error):', {
+            status: res.status,
+            statusText: res.statusText,
+            error: e
+          });
+        }
+        alert(errorMessage);
         return;
       }
 
@@ -146,7 +241,8 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
       // Revert optimistic update on error
       queryClient.setQueryData(queryKey, previousWatchlist);
       console.error('Error removing from watchlist:', error);
-      alert('Failed to remove from watchlist. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to remove from watchlist. Please try again.';
+      alert(errorMessage);
     }
   }; 
 

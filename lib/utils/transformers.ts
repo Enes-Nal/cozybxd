@@ -58,8 +58,23 @@ export function transformMediaToMovie(media: any, watchlistItem?: any, logs?: an
 }
 
 export function transformUserToFrontend(user: any, teamMembership?: any): User {
-  // Determine status - this would ideally come from a presence system
+  // Get status from database, default to 'Offline' if not set
+  // Map database status to frontend status
+  // Database: 'Online', 'Idle', 'Do Not Disturb', 'Offline'
+  // Frontend: 'Online', 'Ready', 'Offline'
   let status: 'Online' | 'Ready' | 'Offline' = 'Offline';
+  
+  if (user.status) {
+    if (user.status === 'Online') {
+      status = 'Online';
+    } else if (user.status === 'Idle') {
+      status = 'Ready'; // Map Idle to Ready for frontend
+    } else if (user.status === 'Do Not Disturb') {
+      status = 'Online'; // Show as Online but with DND indicator
+    } else {
+      status = 'Offline';
+    }
+  }
   
   // Role from team membership or default
   const role = teamMembership?.role === 'admin' ? 'Admin' : 
