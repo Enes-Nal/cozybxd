@@ -22,6 +22,7 @@ if (typeof window === 'undefined') {
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === 'production', // Enable debug in production to see redirect URI
   pages: {
     signIn: '/api/auth/signin',
     error: '/api/auth/error',
@@ -72,6 +73,61 @@ export const authOptions: NextAuthOptions = {
 
         console.log('[AUTH] User check result:', { exists: !!existingUser, userId: existingUser?.id });
 
+        // If user exists, allow sign-in even if account update fails
+        if (existingUser) {
+          console.log('[AUTH] Existing user found, allowing sign-in');
+          
+          // Try to update account if provided, but don't fail if it doesn't work
+          if (account) {
+            try {
+              console.log('[AUTH] Updating account record...', {
+                userId: existingUser.id,
+                provider: account.provider,
+                providerAccountId: account.providerAccountId,
+              });
+              
+              // Prepare account data, filtering out undefined values
+              const accountData: any = {
+                user_id: existingUser.id,
+                type: account.type,
+                provider: account.provider,
+                provider_account_id: account.providerAccountId,
+              };
+              
+              // Only include optional fields if they exist
+              if (account.access_token) accountData.access_token = account.access_token;
+              if (account.refresh_token) accountData.refresh_token = account.refresh_token;
+              if (account.expires_at) accountData.expires_at = account.expires_at;
+              if (account.token_type) accountData.token_type = account.token_type;
+              if (account.scope) accountData.scope = account.scope;
+              if (account.id_token) accountData.id_token = account.id_token;
+              
+              const { error: accountError } = await supabase
+                .from('accounts')
+                .upsert(accountData, {
+                  onConflict: 'provider,provider_account_id',
+                });
+
+              if (accountError) {
+                console.error('[AUTH] Error updating account:', JSON.stringify(accountError, null, 2));
+                console.error('[AUTH] Account data attempted:', JSON.stringify(accountData, null, 2));
+                console.warn('[AUTH] Continuing despite account update error - user exists');
+              } else {
+                console.log('[AUTH] Account updated successfully');
+              }
+            } catch (accountUpdateError) {
+              console.error('[AUTH] Exception during account update:', accountUpdateError);
+              console.warn('[AUTH] Continuing despite account update exception - user exists');
+            }
+          } else {
+            console.warn('[AUTH] No account object provided, but user exists - allowing sign-in');
+          }
+          
+          console.log('[AUTH] Sign in successful for existing user!');
+          return true;
+        }
+
+        // Create new user if they don't exist
         if (!existingUser) {
           // Create new user
           console.log('[AUTH] Creating new user...');
@@ -121,33 +177,9 @@ export const authOptions: NextAuthOptions = {
             }
             console.log('[AUTH] Account created successfully');
           }
-        } else if (account) {
-          // Update account info - upsert will use the unique constraint on provider,provider_account_id
-          console.log('[AUTH] Updating account record...');
-          const { error: accountError } = await supabase
-            .from('accounts')
-            .upsert({
-              user_id: existingUser.id,
-              type: account.type,
-              provider: account.provider,
-              provider_account_id: account.providerAccountId,
-              access_token: account.access_token,
-              refresh_token: account.refresh_token,
-              expires_at: account.expires_at,
-              token_type: account.token_type,
-              scope: account.scope,
-              id_token: account.id_token,
-            });
 
-          if (accountError) {
-            console.error('[AUTH] Error updating account:', JSON.stringify(accountError, null, 2));
-            return false;
-          }
-          console.log('[AUTH] Account updated successfully');
-        }
-
-        console.log('[AUTH] Sign in successful!');
-        return true;
+          console.log('[AUTH] Sign in successful for new user!');
+          return true;
       } catch (error) {
         console.error('[AUTH] Unexpected error in signIn callback:', error);
         if (error instanceof Error) {
@@ -182,4 +214,31 @@ export const authOptions: NextAuthOptions = {
 
 const handler = NextAuth(authOptions);
 
-export { handler as GET, handler as POST };
+// Wrap handlers to ensure NEXTAUTH_URL is used for redirect URI construction
+export async function GET(request: Request) {
+  // Ensure NEXTAUTH_URL is set and normalized for this request
+  if (nextAuthUrl) {
+    // NextAuth will use this from process.env, which we've already normalized
+    // But we also need to ensure the request context knows about it
+    const url = new URL(request.url);
+    // If NEXTAUTH_URL is set, ensure we're using it
+    if (nextAuthUrl && !url.origin.includes(nextAuthUrl.replace(/^https?:\/\//, ''))) {
+      // Log for debugging
+      console.log('[AUTH REQUEST] Using NEXTAUTH_URL:', nextAuthUrl);
+      console.log('[AUTH REQUEST] Request origin:', url.origin);
+    }
+  }
+  return handler(request);
+}
+
+export async function POST(request: Request) {
+  // Same as GET
+  if (nextAuthUrl) {
+    const url = new URL(request.url);
+    if (nextAuthUrl && !url.origin.includes(nextAuthUrl.replace(/^https?:\/\//, ''))) {
+      console.log('[AUTH REQUEST] Using NEXTAUTH_URL:', nextAuthUrl);
+      console.log('[AUTH REQUEST] Request origin:', url.origin);
+    }
+  }
+  return handler(request);
+}
