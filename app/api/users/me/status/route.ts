@@ -3,6 +3,56 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { createServerClient } from '@/lib/supabase';
 
+export async function GET(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const supabase = createServerClient();
+
+    // Get user status from database
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('status')
+      .eq('id', session.user.id)
+      .single();
+
+    if (error) {
+      console.error('Status fetch error:', error);
+      return NextResponse.json(
+        { error: 'Failed to fetch status' },
+        { status: 500 }
+      );
+    }
+
+    // Map database status to frontend status
+    // Database: 'Online', 'Idle', 'Do Not Disturb', 'Offline'
+    // Frontend: 'Online', 'Idle', 'Do Not Disturb', 'Invisible'
+    let frontendStatus: string;
+    
+    if (!user.status) {
+      // No status set yet, default to 'Online'
+      frontendStatus = 'Online';
+    } else if (user.status === 'Offline') {
+      // 'Offline' in database means 'Invisible' in frontend
+      frontendStatus = 'Invisible';
+    } else {
+      // All other statuses map 1:1
+      frontendStatus = user.status;
+    }
+
+    return NextResponse.json({ status: frontendStatus });
+  } catch (error) {
+    console.error('Status fetch error:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch status' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PATCH(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {

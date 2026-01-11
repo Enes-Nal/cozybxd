@@ -10,9 +10,10 @@ interface MovieGridProps {
   onSelect: (movie: Movie) => void;
   users: User[];
   personalWatchlist?: Movie[];
+  isGroupWatchlist?: boolean; // Indicates if this is a group watchlist
 }
 
-const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onSchedule, onSelect, users, personalWatchlist = [] }) => {
+const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onSchedule, onSelect, users, personalWatchlist = [], isGroupWatchlist = false }) => {
   // Helper to check if movie is in personal watchlist
   const isInWatchlist = (movieId: string) => {
     if (!personalWatchlist || personalWatchlist.length === 0) return false;
@@ -43,45 +44,75 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onSchedule, onSel
       {movies.map((movie, idx) => (
         <div 
           key={`${movie.id}-${idx}`} 
-          className="group relative rounded-2xl transition-all duration-500 cubic-bezier(0.16, 1, 0.3, 1) cursor-pointer hover:-translate-y-2" 
+          className="relative rounded-2xl cursor-pointer" 
           onClick={() => onSelect(movie)}
         >
-          <div className="absolute top-3 right-3 z-10 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-300" onClick={(e) => e.stopPropagation()}>
-            <button 
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('Button clicked for movie:', movie.id);
-                onVote(movie.id);
-              }}
-              className={`w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-all group/btn ${
-                isInWatchlist(movie.id)
-                  ? 'bg-[var(--accent-color)] border-2 border-[var(--accent-color)]'
-                  : 'bg-transparent border-2 border-white hover:border-white/80'
-              }`}
-              title={isInWatchlist(movie.id) ? "Remove from Personal Watchlist" : "Add to Personal Watchlist"}
-            >
-              <i className={`text-[10px] transition-transform ${
-                isInWatchlist(movie.id)
-                  ? 'fa-solid fa-heart text-white group-hover/btn:scale-125'
-                  : 'fa-regular fa-heart text-white group-hover/btn:scale-125'
-              }`}></i>
-            </button>
-            <button 
-              onClick={() => onSchedule(movie.id)}
-              className="glass w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all border-main group/btn"
-              title="Add to Group Watchlist"
-            >
-              <i className="fa-solid fa-plus text-[10px] group-hover/btn:text-[var(--accent-color)] transition-colors"></i>
-            </button>
-          </div>
+          {/* Vote count badge - always visible for group watchlists */}
+          {isGroupWatchlist && (movie.votes || 0) > 0 && (
+            <div className="absolute top-3 left-3 z-10 bg-[var(--accent-color)]/90 backdrop-blur-sm px-2.5 py-1 rounded-lg flex items-center gap-1.5 border border-white/20">
+              <i className="fa-solid fa-thumbs-up text-[10px] text-white"></i>
+              <span className="text-[10px] font-bold text-white">{movie.votes || 0}</span>
+            </div>
+          )}
+
+          {/* Vote button - always visible for group watchlists, hover-only for personal */}
+          {isGroupWatchlist ? (
+            <div className="absolute top-3 right-3 z-10" onClick={(e) => e.stopPropagation()}>
+              <button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onVote(movie.id);
+                }}
+                className="bg-[var(--accent-color)]/90 backdrop-blur-sm px-3 py-2 rounded-lg flex items-center gap-2 active:scale-95 transition-transform border border-white/20 shadow-lg"
+                title={`Vote for ${movie.title} (${movie.votes || 0} votes)`}
+              >
+                <i className="fa-solid fa-thumbs-up text-[11px] text-white"></i>
+                <span className="text-[11px] font-bold text-white">{movie.votes || 0}</span>
+              </button>
+            </div>
+          ) : (
+            <div className="absolute top-3 right-3 z-10 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+              {/* Personal watchlist: Show heart button */}
+              <button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onVote(movie.id);
+                }}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-transform ${
+                  isInWatchlist(movie.id)
+                    ? 'bg-[var(--accent-color)] border-2 border-[var(--accent-color)]'
+                    : 'bg-black/40 backdrop-blur-sm border-2 border-white/30'
+                }`}
+                title={isInWatchlist(movie.id) ? "Remove from Personal Watchlist" : "Add to Personal Watchlist"}
+              >
+                <i className={`text-[10px] ${
+                  isInWatchlist(movie.id)
+                    ? 'fa-solid fa-heart text-white'
+                    : 'fa-regular fa-heart text-white'
+                }`}></i>
+              </button>
+              <button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onSchedule(movie.id);
+                }}
+                className="glass w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-transform border-main bg-black/40 backdrop-blur-sm"
+                title="Add to Group Watchlist"
+              >
+                <i className="fa-solid fa-plus text-[10px] text-white"></i>
+              </button>
+            </div>
+          )}
 
           <div className="aspect-[2/3] overflow-hidden relative rounded-2xl border border-main bg-[#111]">
             {movie.poster ? (
               <img 
                 src={movie.poster} 
                 alt={movie.title} 
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                className="w-full h-full object-cover"
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                 }}
@@ -91,7 +122,7 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onSchedule, onSel
                 <i className="fa-solid fa-image text-gray-600 text-4xl"></i>
               </div>
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-100 transition-opacity"></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60"></div>
           </div>
 
           <div className="mt-4 px-1">
@@ -100,13 +131,22 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onSchedule, onSel
                 {movie.genre[0]}
               </span>
             </div>
-            <h3 className="text-sm font-bold leading-tight group-hover:text-[var(--accent-color)] transition-colors truncate mb-1 text-main">
+            <h3 className="text-sm font-bold leading-tight truncate mb-1 text-main">
               {movie.title}
             </h3>
             <div className="flex items-center gap-2 text-[10px] text-gray-600 font-medium">
               <span>{movie.year}</span>
               <span className="opacity-30">•</span>
               <span>{movie.runtime}</span>
+              {isGroupWatchlist && movie.votes > 0 && (
+                <>
+                  <span className="opacity-30">•</span>
+                  <span className="text-[var(--accent-color)] font-bold flex items-center gap-1">
+                    <i className="fa-solid fa-thumbs-up text-[9px]"></i>
+                    {movie.votes}
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>

@@ -550,7 +550,7 @@ function HomeContent() {
     }
 
     return (
-      <div key={key} className="page-transition flex-1 flex flex-col min-h-0">
+      <div key={key} className="page-transition flex-1 flex flex-col min-h-0 overflow-y-auto">
         {content}
       </div>
     );

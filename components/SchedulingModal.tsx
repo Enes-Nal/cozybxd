@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Movie } from '@/lib/types';
+import { Movie, Group } from '@/lib/types';
 import { transformTeamToGroup } from '@/lib/utils/transformers';
 
 interface AddToGroupModalProps {
@@ -53,7 +53,7 @@ const SchedulingModal: React.FC<AddToGroupModalProps> = ({ movie, onClose, onCon
               <div className="text-center py-8 text-gray-500">No groups available. Create a group first.</div>
             ) : (
               <div className="space-y-2">
-                {groups.map(group => (
+                {groups.map((group: Group) => (
                   <button 
                     key={group.id}
                     onClick={() => setSelectedGroup(group.id)}

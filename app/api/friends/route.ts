@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
         // Find exact case-insensitive match
         friendUser = allUsersWithUsernames.find((u: any) => 
           u.username && u.username.toLowerCase() === lowerUsername
-        );
+        ) || null;
       } else if (fetchError) {
         userError = fetchError;
       }

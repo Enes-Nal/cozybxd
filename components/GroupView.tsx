@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Group, Movie } from '@/lib/types';
 import MovieGrid from './MovieGrid';
 import InvitePeopleModal from './InvitePeopleModal';
@@ -16,7 +16,7 @@ interface GroupViewProps {
 
 const GroupView: React.FC<GroupViewProps> = ({ 
   group, 
-  movies, 
+  movies: initialMovies, 
   onVote = async (id) => {
     try {
       let mediaId = id.startsWith('tmdb-') ? id.replace('tmdb-', '') : id;
@@ -63,18 +63,96 @@ const GroupView: React.FC<GroupViewProps> = ({
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isEditPictureModalOpen, setIsEditPictureModalOpen] = useState(false);
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
+  const [movies, setMovies] = useState(initialMovies);
+  
+  // Update movies when initialMovies changes
+  useEffect(() => {
+    setMovies(initialMovies);
+  }, [initialMovies]);
+  
+  // Enhanced vote handler with optimistic UI update
+  const handleVote = async (id: string) => {
+    // Optimistic update
+    setMovies(prevMovies => 
+      prevMovies.map(m => 
+        m.id === id ? { ...m, votes: (m.votes || 0) + 1 } : m
+      )
+    );
+    
+    try {
+      let mediaId = id.startsWith('tmdb-') ? id.replace('tmdb-', '') : id;
+      
+      // If it's a TMDB ID, sync it first
+      if (id.startsWith('tmdb-')) {
+        const syncRes = await fetch('/api/media/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tmdbId: mediaId, type: 'movie' }),
+        });
+        if (syncRes.ok) {
+          const media = await syncRes.json();
+          mediaId = media.id;
+        }
+      }
+      
+      // Try to upvote first
+      let res = await fetch(`/api/watchlist/${mediaId}/upvote?teamId=${group.id}`, {
+        method: 'POST',
+      });
+      
+      // If not in watchlist, add it first then upvote
+      if (!res.ok && res.status === 404) {
+        const addRes = await fetch('/api/watchlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mediaId, teamId: group.id }),
+        });
+        if (addRes.ok) {
+          // Now upvote
+          res = await fetch(`/api/watchlist/${mediaId}/upvote?teamId=${group.id}`, {
+            method: 'POST',
+          });
+        }
+      }
+      
+      // Update with actual response
+      if (res.ok) {
+        const data = await res.json();
+        setMovies(prevMovies => 
+          prevMovies.map(m => 
+            m.id === id ? { ...m, votes: data.upvotes } : m
+          )
+        );
+      } else {
+        // Revert optimistic update on error
+        setMovies(prevMovies => 
+          prevMovies.map(m => 
+            m.id === id ? { ...m, votes: Math.max(0, (m.votes || 1) - 1) } : m
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Failed to vote:', error);
+      // Revert optimistic update on error
+      setMovies(prevMovies => 
+        prevMovies.map(m => 
+          m.id === id ? { ...m, votes: Math.max(0, (m.votes || 1) - 1) } : m
+        )
+      );
+    }
+  };
   
   // Find most watchlisted movie (highest votes)
   const mostWatchlistedMovie = useMemo(() => {
     if (movies.length === 0) return null;
     return movies.reduce((prev, current) => 
-      (current.votes > prev.votes) ? current : prev
+      ((current.votes || 0) > (prev.votes || 0)) ? current : prev
     );
   }, [movies]);
 
   const nextMovie = movies.length > 0 ? movies[0] : null;
   const totalMovies = movies.length;
-  const totalVotes = movies.reduce((sum, m) => sum + m.votes, 0);
+  const totalVotes = movies.reduce((sum, m) => sum + (m.votes || 0), 0);
 
   const copyInviteCode = () => {
     if (group.inviteCode) {
@@ -166,7 +244,7 @@ const GroupView: React.FC<GroupViewProps> = ({
               <img src={mostWatchlistedMovie.poster} className="w-12 h-16 rounded-lg object-cover" alt={mostWatchlistedMovie.title} />
               <div>
                 <h4 className="text-sm font-bold">{mostWatchlistedMovie.title}</h4>
-                <p className="text-xs text-accent">{mostWatchlistedMovie.votes} {mostWatchlistedMovie.votes === 1 ? 'vote' : 'votes'}</p>
+                <p className="text-xs text-accent">{(mostWatchlistedMovie.votes || 0)} {(mostWatchlistedMovie.votes || 0) === 1 ? 'vote' : 'votes'}</p>
               </div>
             </div>
           ) : (
@@ -189,7 +267,7 @@ const GroupView: React.FC<GroupViewProps> = ({
               <img src={nextMovie.poster} className="w-12 h-16 rounded-lg object-cover" alt={nextMovie.title} />
               <div>
                 <h4 className="text-sm font-bold">{nextMovie.title}</h4>
-                <p className="text-xs text-accent">{nextMovie.votes} votes</p>
+                <p className="text-xs text-accent">{(nextMovie.votes || 0)} votes</p>
               </div>
             </div>
           ) : (
@@ -228,13 +306,14 @@ const GroupView: React.FC<GroupViewProps> = ({
       {movies.length > 0 ? (
         <MovieGrid 
           movies={movies} 
-          onVote={onVote}
+          onVote={handleVote}
           onSchedule={(id) => {
             const movie = movies.find(m => m.id === id);
             if (movie) onSchedule(movie);
           }}
           users={group.members} 
-          onSelect={onSelect} 
+          onSelect={onSelect}
+          isGroupWatchlist={true}
         />
       ) : (
         <div className="flex items-center justify-center h-64">
@@ -261,6 +340,62 @@ const GroupView: React.FC<GroupViewProps> = ({
           currentPictureUrl={group.pictureUrl}
           onClose={() => setIsEditPictureModalOpen(false)}
         />
+      )}
+
+      {isMembersModalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
+          <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-in zoom-in-95 duration-300">
+            <button 
+              onClick={() => setIsMembersModalOpen(false)} 
+              className="absolute top-8 right-8 text-gray-500 hover:text-white transition-colors"
+            >
+              <i className="fa-solid fa-xmark text-xl"></i>
+            </button>
+
+            <h2 className="text-2xl font-black mb-2">Group Members</h2>
+            <p className="text-sm text-gray-400 mb-8">{group.members.length} {group.members.length === 1 ? 'member' : 'members'}</p>
+
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+              {group.members.map((member) => {
+                const getStatusColor = (status: string) => {
+                  if (status === 'Offline') return 'bg-[#747f8d]';
+                  if (status === 'Ready') return 'bg-[#faa61a]';
+                  return 'bg-[#23a55a]';
+                };
+
+                return (
+                  <div 
+                    key={member.id} 
+                    className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors"
+                  >
+                    <div className="relative">
+                      <img 
+                        src={member.avatar} 
+                        alt={member.name}
+                        className="w-12 h-12 rounded-full"
+                      />
+                      <div 
+                        className={`absolute bottom-0 right-0 w-3 h-3 ${getStatusColor(member.status)} rounded-full border-2 border-[#0a0a0a]`}
+                        title={member.status}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-sm">{member.name}</h4>
+                        {member.role && (
+                          <span className="text-xs px-2 py-0.5 bg-accent/20 text-accent rounded-full font-medium">
+                            {member.role}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400 capitalize">{member.status.toLowerCase()}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

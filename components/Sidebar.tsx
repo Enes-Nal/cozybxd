@@ -34,14 +34,37 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
   const statusMenuRef = useRef<HTMLDivElement>(null);
   
-  // Get user status from localStorage or default to 'Online'
-  const [userStatus, setUserStatus] = useState<UserStatus>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('userStatus') as UserStatus;
-      return saved || 'Online';
-    }
-    return 'Online';
+  // Get user status from database, with localStorage fallback
+  const [userStatus, setUserStatus] = useState<UserStatus>('Online');
+  
+  // Fetch status from database on mount
+  const { data: userStatusData } = useQuery({
+    queryKey: ['userStatus'],
+    queryFn: async () => {
+      const res = await fetch('/api/users/me/status');
+      if (res.ok) {
+        const data = await res.json();
+        return data.status || 'Online';
+      }
+      // Fallback to localStorage if API fails
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('userStatus') as UserStatus;
+        return saved || 'Online';
+      }
+      return 'Online';
+    },
+    enabled: !!session,
   });
+
+  // Update status when data changes (replaces onSuccess callback)
+  useEffect(() => {
+    if (userStatusData) {
+      setUserStatus(userStatusData);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('userStatus', userStatusData);
+      }
+    }
+  }, [userStatusData]);
   
   // Fetch friends
   const { data: friendsData = [] } = useQuery({
@@ -111,7 +134,10 @@ const Sidebar: React.FC<SidebarProps> = ({
     onSuccess: (data, newStatus) => {
       setUserStatus(newStatus);
       localStorage.setItem('userStatus', newStatus);
+      // Invalidate friends query to refresh their status display
       queryClient.invalidateQueries({ queryKey: ['friends'] });
+      // Also refetch user status to ensure sync
+      queryClient.invalidateQueries({ queryKey: ['userStatus'] });
     },
     onError: (error, newStatus) => {
       // Fallback: update locally even if API fails

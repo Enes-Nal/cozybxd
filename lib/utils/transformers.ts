@@ -70,8 +70,8 @@ export function transformUserToFrontend(user: any, teamMembership?: any): User {
     } else if (user.status === 'Idle') {
       status = 'Ready'; // Map Idle to Ready for frontend
     } else if (user.status === 'Do Not Disturb') {
-      status = 'Online'; // Show as Online but with DND indicator
-    } else {
+      status = 'Online'; // Show as Online but with DND indicator (handled in UI)
+    } else if (user.status === 'Offline') {
       status = 'Offline';
     }
   }
