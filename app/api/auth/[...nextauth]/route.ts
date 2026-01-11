@@ -1,6 +1,7 @@
 import NextAuth, { NextAuthOptions } from 'next-auth';
 import DiscordProvider from 'next-auth/providers/discord';
 import { createServerClient } from '@/lib/supabase';
+import type { NextRequest } from 'next/server';
 
 // Normalize NEXTAUTH_URL to remove trailing slashes BEFORE NextAuth reads it
 // This ensures NextAuth uses the correct base URL even if there's a trailing slash in Vercel
@@ -227,20 +228,29 @@ export const authOptions: NextAuthOptions = {
 
 const handler = NextAuth(authOptions);
 
-// NextAuth v4 in App Router needs route params passed correctly
+// NextAuth v4 App Router handler
+// Extract route segments from URL and pass as query.nextauth
 export async function GET(
-  request: Request,
+  req: NextRequest,
   context: { params: Promise<{ nextauth: string[] }> }
 ) {
   const { nextauth } = await context.params;
-  // NextAuth expects the route segments in the query
-  return handler(request, { query: { nextauth } } as any);
+  // NextAuth expects query.nextauth to be an array of route segments
+  const url = new URL(req.url);
+  // Pass the route segments to NextAuth
+  return handler(req, { 
+    query: { nextauth },
+    params: { nextauth }
+  } as any);
 }
 
 export async function POST(
-  request: Request,
+  req: NextRequest,
   context: { params: Promise<{ nextauth: string[] }> }
 ) {
   const { nextauth } = await context.params;
-  return handler(request, { query: { nextauth } } as any);
+  return handler(req, { 
+    query: { nextauth },
+    params: { nextauth }
+  } as any);
 }
