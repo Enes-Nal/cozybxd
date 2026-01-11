@@ -5,7 +5,10 @@ import { TMDBMovie, getPosterUrl, getGenres } from '@/lib/api/tmdb';
 
 export function transformMediaToMovie(media: any, watchlistItem?: any, logs?: any[]): Movie {
   const runtime = media.runtime ? `${Math.floor(media.runtime / 60)}h ${media.runtime % 60}m` : 'N/A';
-  const year = media.releaseDate ? new Date(media.releaseDate).getFullYear() : new Date().getFullYear();
+  
+  // Handle both snake_case (Supabase) and camelCase (Prisma) formats
+  const releaseDate = media.releaseDate || media.release_date;
+  const year = releaseDate ? new Date(releaseDate).getFullYear() : new Date().getFullYear();
   
   // Determine status based on logs
   let status: 'Watchlist' | 'Ongoing' | 'Seen' = 'Watchlist';
@@ -29,10 +32,19 @@ export function transformMediaToMovie(media: any, watchlistItem?: any, logs?: an
   if (upvotes >= 5) priority = 'High';
   else if (upvotes >= 2) priority = 'Medium';
 
+  // If media has tmdb_id, use tmdb-{id} format for consistency with grid movies
+  // Otherwise use the UUID
+  // Handle both snake_case (Supabase) and camelCase (Prisma) formats
+  const tmdbId = media.tmdb_id || media.tmdbId;
+  const movieId = tmdbId ? `tmdb-${tmdbId}` : media.id;
+  
+  // Handle both snake_case (Supabase) and camelCase (Prisma) formats for poster URLs
+  const poster = media.posterUrl || media.poster_url || media.thumbnailUrl || media.thumbnail_url || '';
+  
   return {
-    id: media.id,
+    id: movieId,
     title: media.title,
-    poster: media.posterUrl || media.thumbnailUrl || '',
+    poster,
     year,
     runtime,
     genre: media.genres || [],
@@ -83,6 +95,9 @@ export function transformTeamToGroup(team: any): Group {
     members,
     budgetHours,
     usedHours: Math.round(usedHours * 10) / 10,
+    pictureUrl: team.picture_url || team.pictureUrl,
+    inviteCode: team.invite_code || team.inviteCode,
+    description: team.description,
   };
 }
 

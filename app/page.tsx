@@ -20,8 +20,10 @@ import SchedulingModal from '@/components/SchedulingModal';
 import RandomPickerModal from '@/components/RandomPickerModal';
 import FilterDrawer from '@/components/FilterDrawer';
 import AddFriendModal from '@/components/AddFriendModal';
+import CreateGroupModal from '@/components/CreateGroupModal';
+import JoinGroupModal from '@/components/JoinGroupModal';
 import { Movie, User, Group } from '@/lib/types';
-import { transformTMDBMovieToMovieSync, transformTeamToGroup } from '@/lib/utils/transformers';
+import { transformTMDBMovieToMovieSync, transformTeamToGroup, transformMediaToMovie } from '@/lib/utils/transformers';
 import { TMDBMovie, getGenres } from '@/lib/api/tmdb';
 import { getPosterUrl } from '@/lib/api/tmdb';
 
@@ -42,6 +44,8 @@ export default function Home() {
   const [isCustomSortOpen, setIsCustomSortOpen] = useState(false);
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [isAddFriendOpen, setIsAddFriendOpen] = useState(false);
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const [isJoinGroupOpen, setIsJoinGroupOpen] = useState(false);
   const [schedulingMovie, setSchedulingMovie] = useState<Movie | null>(null);
   const [sortBy, setSortBy] = useState<string>('Trending');
   const [searchQuery, setSearchQuery] = useState('');
@@ -91,7 +95,11 @@ export default function Home() {
         );
       }
       
-      // If it's already our media format, transform it
+      // If it's database media format, transform it
+      if (data.type === 'media' && data.results) {
+        return data.results.map((media: any) => transformMediaToMovie(media));
+      }
+      
       return data.results || [];
     },
     enabled: genreMap.size > 0,
@@ -133,16 +141,26 @@ export default function Home() {
   }, [searchResults, searchQuery, moviesData]);
 
   // Fetch group data when activeGroup changes
-  const { data: groupDataResponse, isLoading: groupLoading } = useQuery({
+  const { data: groupDataResponse, isLoading: groupLoading, error: groupError, refetch: refetchGroup } = useQuery({
     queryKey: ['group', activeGroup],
     queryFn: async () => {
       if (!activeGroup) return null;
       const res = await fetch(`/api/teams/${activeGroup}`);
-      if (!res.ok) throw new Error('Failed to fetch group');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'Failed to fetch group' }));
+        throw new Error(errorData.error || 'Failed to fetch group');
+      }
       return res.json();
     },
     enabled: !!activeGroup && sessionStatus === 'authenticated',
+    retry: 2,
+    retryDelay: 1000,
   });
+
+  // Reset group data when activeGroup changes
+  useEffect(() => {
+    setGroupData(null);
+  }, [activeGroup]);
 
   // Transform group data
   useEffect(() => {
@@ -171,7 +189,7 @@ export default function Home() {
   }, [groupWatchlistData]);
 
   // Fetch personal watchlist for MovieGrid
-  const { data: personalWatchlist = [] } = useQuery({
+  const { data: personalWatchlist = [], refetch: refetchPersonalWatchlist } = useQuery({
     queryKey: ['watchlist', 'personal'],
     queryFn: async () => {
       const res = await fetch('/api/watchlist');
@@ -261,6 +279,18 @@ export default function Home() {
         content = (
           <div className="flex items-center justify-center h-64">
             <div className="text-gray-500">Loading group...</div>
+          </div>
+        );
+      } else if (groupError) {
+        content = (
+          <div className="flex flex-col items-center justify-center h-64 gap-4">
+            <div className="text-red-400">Failed to load group</div>
+            <button
+              onClick={() => refetchGroup()}
+              className="px-4 py-2 bg-accent text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all"
+            >
+              Retry
+            </button>
           </div>
         );
       } else if (groupData) {
@@ -403,15 +433,51 @@ export default function Home() {
                     personalWatchlist={personalWatchlist}
                     onVote={async (id) => {
                       try {
-                        console.log('Heart clicked for movie:', id);
+                        // Find the current movie
+                        const currentMovie = filteredAndSortedMovies.find(mov => mov.id === id);
+                        if (!currentMovie) return;
                         
+                        // Check if already in watchlist
+                        const isInWatchlist = personalWatchlist.some(m => {
+                          if (m.id === id) return true;
+                          if (id.startsWith('tmdb-')) {
+                            const tmdbId = id.replace('tmdb-', '');
+                            if (m.id === `tmdb-${tmdbId}`) return true;
+                          }
+                          if (m.title === currentMovie.title) return true;
+                          return false;
+                        });
+                        
+                        // Optimistic update - update UI immediately
+                        const previousWatchlist = personalWatchlist;
+                        let newWatchlist: Movie[];
+                        
+                        if (isInWatchlist) {
+                          // Optimistically remove
+                          newWatchlist = personalWatchlist.filter(m => {
+                            if (m.id === id) return false;
+                            if (id.startsWith('tmdb-')) {
+                              const tmdbId = id.replace('tmdb-', '');
+                              if (m.id === `tmdb-${tmdbId}`) return false;
+                            }
+                            if (m.title === currentMovie.title) return false;
+                            return true;
+                          });
+                        } else {
+                          // Optimistically add
+                          newWatchlist = [...personalWatchlist, currentMovie];
+                        }
+                        
+                        // Update the query cache immediately
+                        queryClient.setQueryData(['watchlist', 'personal'], newWatchlist);
+                        
+                        // Now do the actual API call in the background
                         // Extract mediaId from id (could be tmdb-123 or uuid)
                         let mediaId = id.startsWith('tmdb-') ? id.replace('tmdb-', '') : id;
                         let actualMediaId = mediaId;
                         
                         // If it's a TMDB ID, sync it first to get the database media ID
                         if (id.startsWith('tmdb-')) {
-                          console.log('Syncing TMDB movie:', mediaId);
                           const syncRes = await fetch('/api/media/sync', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -419,6 +485,8 @@ export default function Home() {
                           });
                           
                           if (!syncRes.ok) {
+                            // Revert optimistic update on error
+                            queryClient.setQueryData(['watchlist', 'personal'], previousWatchlist);
                             const errorData = await syncRes.json().catch(() => ({ error: 'Failed to sync' }));
                             console.error('Failed to sync media:', errorData);
                             alert('Failed to add movie. Please try again.');
@@ -427,38 +495,24 @@ export default function Home() {
                           
                           const media = await syncRes.json();
                           actualMediaId = media.id;
-                          console.log('Synced media ID:', actualMediaId);
                         }
-                        
-                        // Check if already in watchlist using the actual media ID
-                        const isInWatchlist = personalWatchlist.some(m => {
-                          // Check both the original ID and the actual media ID
-                          return m.id === id || m.id === actualMediaId || 
-                                 (id.startsWith('tmdb-') && m.id === `tmdb-${mediaId}`);
-                        });
-                        
-                        console.log('Is in watchlist:', isInWatchlist);
                         
                         if (isInWatchlist) {
                           // Remove from watchlist
-                          console.log('Removing from watchlist:', actualMediaId);
                           const deleteRes = await fetch(`/api/watchlist?mediaId=${actualMediaId}`, {
                             method: 'DELETE',
                           });
                           
                           if (!deleteRes.ok) {
+                            // Revert optimistic update on error
+                            queryClient.setQueryData(['watchlist', 'personal'], previousWatchlist);
                             const errorData = await deleteRes.json().catch(() => ({ error: 'Failed to delete' }));
                             console.error('Failed to remove from watchlist:', errorData);
                             alert('Failed to remove from watchlist. Please try again.');
                             return;
                           }
-                          
-                          console.log('Removed from watchlist successfully');
-                          // Invalidate and refetch watchlist
-                          await queryClient.invalidateQueries({ queryKey: ['watchlist', 'personal'] });
                         } else {
                           // Add to watchlist
-                          console.log('Adding to watchlist:', actualMediaId);
                           const addRes = await fetch('/api/watchlist', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -466,17 +520,20 @@ export default function Home() {
                           });
                           
                           if (!addRes.ok) {
+                            // Revert optimistic update on error
+                            queryClient.setQueryData(['watchlist', 'personal'], previousWatchlist);
                             const errorData = await addRes.json().catch(() => ({ error: 'Failed to add' }));
                             console.error('Failed to add to watchlist:', errorData);
                             alert(errorData.error || 'Failed to add to watchlist. Please try again.');
                             return;
                           }
-                          
-                          console.log('Added to watchlist successfully');
-                          // Invalidate and refetch watchlist
-                          await queryClient.invalidateQueries({ queryKey: ['watchlist', 'personal'] });
                         }
+                        
+                        // Refetch to ensure we have the latest data (with correct IDs)
+                        await refetchPersonalWatchlist();
                       } catch (error) {
+                        // Revert optimistic update on error
+                        queryClient.setQueryData(['watchlist', 'personal'], personalWatchlist);
                         console.error('Failed to toggle watchlist:', error);
                         alert('An error occurred. Please try again.');
                       }
@@ -508,6 +565,8 @@ export default function Home() {
         onFriendSelect={handleProfileSelect}
         onProfileClick={() => currentUser && handleProfileSelect(currentUser)}
         onAddFriendClick={() => setIsAddFriendOpen(true)}
+        onCreateGroupClick={() => setIsCreateGroupOpen(true)}
+        onJoinGroupClick={() => setIsJoinGroupOpen(true)}
       />
 
       <main className="flex-1 flex flex-col px-8 pt-6 transition-all duration-300 overflow-hidden">
@@ -534,7 +593,30 @@ export default function Home() {
       </main>
 
       <FilterDrawer isOpen={isFilterDrawerOpen} onClose={() => setIsFilterDrawerOpen(false)} />
-      {isAddFriendOpen && <AddFriendModal onClose={() => setIsAddFriendOpen(false)} />}
+      {isAddFriendOpen && (
+        <AddFriendModal 
+          onClose={() => setIsAddFriendOpen(false)}
+          onFriendAdded={() => {
+            queryClient.invalidateQueries({ queryKey: ['friends'] });
+          }}
+        />
+      )}
+      {isCreateGroupOpen && (
+        <CreateGroupModal 
+          onClose={() => setIsCreateGroupOpen(false)} 
+          onSuccess={(groupId) => {
+            handleGroupSelect(groupId);
+          }}
+        />
+      )}
+      {isJoinGroupOpen && (
+        <JoinGroupModal 
+          onClose={() => setIsJoinGroupOpen(false)} 
+          onSuccess={(groupId) => {
+            handleGroupSelect(groupId);
+          }}
+        />
+      )}
       {isCustomSortOpen && <CustomSortModal onClose={() => setIsCustomSortOpen(false)} />}
       {isAIModalOpen && <AIRecommendationModal onClose={() => setIsAIModalOpen(false)} onAdd={(m) => setMovies([m, ...movies])} groupContext={{ members: currentUser ? [currentUser] : [], history: movies }} />}
       {isRandomModalOpen && <RandomPickerModal movies={movies} onClose={() => setIsRandomModalOpen(false)} onSelect={(m) => { setSchedulingMovie(m); setSelectedMovie(null); }} />}

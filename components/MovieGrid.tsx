@@ -15,12 +15,27 @@ interface MovieGridProps {
 const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onSchedule, onSelect, users, personalWatchlist = [] }) => {
   // Helper to check if movie is in personal watchlist
   const isInWatchlist = (movieId: string) => {
+    if (!personalWatchlist || personalWatchlist.length === 0) return false;
+    
     return personalWatchlist.some(m => {
-      // Handle both regular IDs and TMDB IDs
+      // Direct ID match
+      if (m.id === movieId) return true;
+      
+      // Handle TMDB IDs - check if the movie ID matches the watchlist item's ID
+      // The watchlist item might have a UUID but the movie in grid has tmdb-{id}
       if (movieId.startsWith('tmdb-')) {
-        return m.id === movieId || m.id === `tmdb-${movieId.replace('tmdb-', '')}`;
+        const tmdbId = movieId.replace('tmdb-', '');
+        // Check if watchlist item ID matches tmdb format
+        if (m.id === movieId || m.id === `tmdb-${tmdbId}`) return true;
+        // Also check if the watchlist item's title matches (fallback)
+        // This handles cases where the ID format differs
       }
-      return m.id === movieId;
+      
+      // Check by title as fallback (less reliable but helps with ID mismatches)
+      const currentMovie = movies.find(mov => mov.id === movieId);
+      if (currentMovie && m.title === currentMovie.title) return true;
+      
+      return false;
     });
   };
   return (
@@ -62,11 +77,20 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onSchedule, onSel
           </div>
 
           <div className="aspect-[2/3] overflow-hidden relative rounded-2xl border border-main bg-[#111]">
-            <img 
-              src={movie.poster} 
-              alt={movie.title} 
-              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
-            />
+            {movie.poster ? (
+              <img 
+                src={movie.poster} 
+                alt={movie.title} 
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+                <i className="fa-solid fa-image text-gray-600 text-4xl"></i>
+              </div>
+            )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-100 transition-opacity"></div>
           </div>
 

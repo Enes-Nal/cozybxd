@@ -56,7 +56,13 @@ const TitleDetailView: React.FC<TitleDetailViewProps> = ({ movie, onBack }) => {
           {/* Poster Section - Compact */}
           <div className="w-48 aspect-[2/3] relative hidden md:block shrink-0 shadow-2xl self-center animate-in slide-in-from-left duration-500">
             <div className="absolute inset-0 rounded-[1.2rem] overflow-hidden border-[3px] border-white/90">
-              <img src={movie.poster} className="w-full h-full object-cover" alt={movie.title} />
+              {movie.poster ? (
+                <img src={movie.poster} className="w-full h-full object-cover" alt={movie.title} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+                  <i className="fa-solid fa-image text-gray-600 text-3xl"></i>
+                </div>
+              )}
               <div className="absolute top-2 right-2 glass px-1.5 py-0.5 rounded-md text-[9px] font-black text-main border-main bg-black/60 backdrop-blur-md">
                 <i className="fa-solid fa-star text-yellow-500 mr-1"></i> 8.9
               </div>

@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Group, Movie } from '@/lib/types';
 import MovieGrid from './MovieGrid';
+import InvitePeopleModal from './InvitePeopleModal';
 
 interface GroupViewProps {
   group: Group;
@@ -58,31 +59,71 @@ const GroupView: React.FC<GroupViewProps> = ({
   onSchedule = () => {},
   onSelect = () => {}
 }) => {
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const budgetProgress = group.budgetHours > 0 ? (group.usedHours / group.budgetHours) * 100 : 0;
   const remainingHours = Math.max(0, group.budgetHours - group.usedHours);
   const nextMovie = movies.length > 0 ? movies[0] : null;
   const readyMembers = group.members.filter(m => m.status === 'Ready' || m.status === 'Online').length;
 
+  const copyInviteCode = () => {
+    if (group.inviteCode) {
+      navigator.clipboard.writeText(group.inviteCode);
+      // You could add a toast notification here
+    }
+  };
+
   return (
-    <div className="py-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-12">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <h2 className="text-4xl font-black tracking-tight">{group.name}</h2>
-            <span className="px-3 py-1 rounded-full bg-white/5 text-accent text-[10px] font-bold border border-white/10 uppercase tracking-widest">Active Sprint</span>
+    <>
+      <div className="py-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-12">
+          <div className="flex items-start gap-4">
+            {group.pictureUrl && (
+              <img 
+                src={group.pictureUrl} 
+                alt={group.name}
+                className="w-20 h-20 rounded-2xl object-cover border border-white/10"
+              />
+            )}
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <h2 className="text-4xl font-black tracking-tight">{group.name}</h2>
+                <span className="px-3 py-1 rounded-full bg-white/5 text-accent text-[10px] font-bold border border-white/10 uppercase tracking-widest">Active Sprint</span>
+              </div>
+              <p className="text-gray-400 max-w-md">{group.description || `${group.name} shared watchlist and viewing history.`}</p>
+              {group.inviteCode && (
+                <div className="flex items-center gap-2 mt-3">
+                  <span className="text-xs text-gray-500">Invite Code:</span>
+                  <code className="px-3 py-1 bg-white/5 border border-white/10 rounded-lg text-xs font-mono tracking-widest uppercase">
+                    {group.inviteCode}
+                  </code>
+                  <button
+                    onClick={copyInviteCode}
+                    className="text-accent hover:text-accent/80 transition-colors"
+                    title="Copy invite code"
+                  >
+                    <i className="fa-solid fa-copy text-xs"></i>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-          <p className="text-gray-400 max-w-md">{group.name} shared watchlist and viewing history.</p>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="flex -space-x-3">
-            {group.members.map(m => (
-              <img key={m.id} src={m.avatar} className="w-10 h-10 rounded-full border-2 border-[#0a0a0a]" alt={m.name} title={m.name} />
-            ))}
+          
+          <div className="flex items-center gap-4">
+            <div className="flex -space-x-3">
+              {group.members.map(m => (
+                <img key={m.id} src={m.avatar} className="w-10 h-10 rounded-full border-2 border-[#0a0a0a]" alt={m.name} title={m.name} />
+              ))}
+            </div>
+            <button 
+              onClick={() => setIsInviteModalOpen(true)}
+              className="bg-white/5 hover:bg-white/10 p-3 rounded-xl transition-all"
+              title="Invite people"
+            >
+              <i className="fa-solid fa-user-plus text-gray-400"></i>
+            </button>
+            <button className="bg-white/5 hover:bg-white/10 p-3 rounded-xl transition-all"><i className="fa-solid fa-gear text-gray-400"></i></button>
           </div>
-          <button className="bg-white/5 hover:bg-white/10 p-3 rounded-xl transition-all"><i className="fa-solid fa-gear text-gray-400"></i></button>
         </div>
-      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
         <div className="glass p-8 rounded-[2rem] border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent">
@@ -149,7 +190,17 @@ const GroupView: React.FC<GroupViewProps> = ({
           </div>
         </div>
       )}
-    </div>
+      </div>
+
+      {isInviteModalOpen && group.inviteCode && (
+        <InvitePeopleModal
+          groupId={group.id}
+          groupName={group.name}
+          inviteCode={group.inviteCode}
+          onClose={() => setIsInviteModalOpen(false)}
+        />
+      )}
+    </>
   );
 };
 

@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
 import { User } from '@/lib/types';
+import EditProfileModal from './EditProfileModal';
 
 const SettingsView: React.FC = () => {
   const { data: session } = useSession();
@@ -21,6 +22,7 @@ const SettingsView: React.FC = () => {
   });
 
   const currentUser: User | null = currentUserData || null;
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // Default to dark mode - check localStorage first, then fallback to checking body class
   const [isLightMode, setIsLightMode] = useState(() => {
@@ -89,7 +91,12 @@ const SettingsView: React.FC = () => {
                 {session?.user?.email || 'No email'}
               </p>
             </div>
-            <button className="glass px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:brightness-125 text-main border-main">Edit</button>
+            <button 
+              onClick={() => setIsEditModalOpen(true)}
+              className="glass px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:brightness-125 text-main border-main transition-all"
+            >
+              Edit
+            </button>
           </div>
         </section>
 
@@ -133,6 +140,14 @@ const SettingsView: React.FC = () => {
           </button>
         </section>
       </div>
+
+      {isEditModalOpen && (
+        <EditProfileModal
+          onClose={() => setIsEditModalOpen(false)}
+          currentUser={currentUser}
+          currentEmail={session?.user?.email || undefined}
+        />
+      )}
     </div>
   );
 };

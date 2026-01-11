@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Movie } from '@/lib/types';
 
 const NewListModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
@@ -68,6 +68,7 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
   const { data: session, status: sessionStatus } = useSession();
   const [tab, setTab] = useState('Personal');
   const [isNewListModalOpen, setIsNewListModalOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   // Fetch personal watchlist
   const { data: personalWatchlist = [], isLoading: personalLoading } = useQuery({
@@ -106,7 +107,48 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
 
   // Use prop movies if provided (for backwards compatibility), otherwise use fetched data
   const movies = propMovies || (tab === 'Personal' ? personalWatchlist : sharedWatchlist);
-  const isLoading = tab === 'Personal' ? personalLoading : sharedLoading; 
+  const isLoading = tab === 'Personal' ? personalLoading : sharedLoading;
+
+  const handleDelete = async (movie: Movie) => {
+    if (!session?.user?.id) return;
+
+    const isPersonal = tab === 'Personal';
+    const teamId = isPersonal ? null : firstTeamId;
+    const queryKey = isPersonal 
+      ? ['watchlist', 'personal']
+      : ['watchlist', 'shared', firstTeamId];
+
+    // Optimistic update: remove from cache immediately
+    const previousWatchlist = queryClient.getQueryData<Movie[]>(queryKey) || [];
+    queryClient.setQueryData<Movie[]>(queryKey, (old = []) => 
+      old.filter(m => m.id !== movie.id)
+    );
+
+    try {
+      // Make DELETE request
+      const url = `/api/watchlist?mediaId=${movie.id}${teamId ? `&teamId=${teamId}` : ''}`;
+      const res = await fetch(url, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        // Revert optimistic update on error
+        queryClient.setQueryData(queryKey, previousWatchlist);
+        const errorData = await res.json().catch(() => ({ error: 'Failed to delete' }));
+        console.error('Failed to remove from watchlist:', errorData);
+        alert('Failed to remove from watchlist. Please try again.');
+        return;
+      }
+
+      // Refetch to ensure consistency
+      await queryClient.invalidateQueries({ queryKey });
+    } catch (error) {
+      // Revert optimistic update on error
+      queryClient.setQueryData(queryKey, previousWatchlist);
+      console.error('Error removing from watchlist:', error);
+      alert('Failed to remove from watchlist. Please try again.');
+    }
+  }; 
 
   return (
     <div className="py-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -151,7 +193,13 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {movies.map(movie => (
           <div key={movie.id} className="glass rounded-[2rem] p-5 flex gap-5 hover:border-accent/40 transition-all group">
-            <img src={movie.poster} className="w-20 h-28 rounded-xl object-cover shadow-sm" alt={movie.title} />
+            {movie.poster ? (
+              <img src={movie.poster} className="w-20 h-28 rounded-xl object-cover shadow-sm" alt={movie.title} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+            ) : (
+              <div className="w-20 h-28 rounded-xl bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center shadow-sm">
+                <i className="fa-solid fa-image text-gray-600 text-xl"></i>
+              </div>
+            )}
             <div className="flex-1 flex flex-col justify-between py-1">
               <div>
                 <h4 className="font-black text-sm text-main group-hover:text-accent transition-colors">{movie.title}</h4>
@@ -161,7 +209,15 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
                 <button className="flex-1 bg-accent text-white text-[10px] font-black uppercase tracking-widest py-2 rounded-xl hover:brightness-110 transition-all">
                   Watch
                 </button>
-                <button className="px-3 text-gray-400 hover:text-accent transition-colors">
+                <button 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleDelete(movie);
+                  }}
+                  className="px-3 text-gray-400 hover:text-accent transition-colors"
+                  title="Remove from watchlist"
+                >
                   <i className="fa-solid fa-trash-can text-xs"></i>
                 </button>
               </div>

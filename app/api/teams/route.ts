@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { name, description } = body;
+  const { name, description, pictureUrl } = body;
 
   if (!name) {
     return NextResponse.json({ error: 'Team name required' }, { status: 400 });
@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
       name,
       description,
       invite_code: inviteCode,
+      picture_url: pictureUrl || null,
     })
     .select()
     .single();
@@ -101,6 +102,6 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     ...team,
-    members: [member],
+    team_members: [member],
   });
 }

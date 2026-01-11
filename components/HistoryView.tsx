@@ -54,7 +54,13 @@ const HistoryView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) => 
             
             <div className="flex flex-col md:flex-row gap-8 glass p-6 rounded-[2rem] border-main hover:bg-black/[0.02] transition-all">
               <div className="w-32 h-48 rounded-2xl overflow-hidden shadow-lg shrink-0">
-                <img src={movie.poster} className="w-full h-full object-cover" alt={movie.title} />
+                {movie.poster ? (
+                  <img src={movie.poster} className="w-full h-full object-cover" alt={movie.title} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+                    <i className="fa-solid fa-image text-gray-600 text-2xl"></i>
+                  </div>
+                )}
               </div>
               
               <div className="py-2 flex-1">

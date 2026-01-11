@@ -27,5 +27,8 @@ export interface Group {
   members: User[];
   budgetHours: number;
   usedHours: number;
+  pictureUrl?: string;
+  inviteCode?: string;
+  description?: string;
 }
 
