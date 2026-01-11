@@ -2,18 +2,17 @@ import NextAuth, { NextAuthOptions } from 'next-auth';
 import DiscordProvider from 'next-auth/providers/discord';
 import { createServerClient } from '@/lib/supabase';
 
-// Normalize NEXTAUTH_URL to remove trailing slashes
-const normalizeUrl = (url: string | undefined): string | undefined => {
-  if (!url) return undefined;
-  return url.replace(/\/+$/, ''); // Remove trailing slashes
-};
+// Normalize NEXTAUTH_URL to remove trailing slashes BEFORE NextAuth reads it
+// This ensures NextAuth uses the correct base URL even if there's a trailing slash in Vercel
+if (process.env.NEXTAUTH_URL) {
+  process.env.NEXTAUTH_URL = process.env.NEXTAUTH_URL.replace(/\/+$/, '');
+}
 
-const nextAuthUrl = normalizeUrl(process.env.NEXTAUTH_URL);
+const nextAuthUrl = process.env.NEXTAUTH_URL;
 
 // Log configuration on startup (only in server environment)
 if (typeof window === 'undefined') {
-  console.log('[AUTH CONFIG] NEXTAUTH_URL (raw):', process.env.NEXTAUTH_URL || 'NOT SET');
-  console.log('[AUTH CONFIG] NEXTAUTH_URL (normalized):', nextAuthUrl || 'NOT SET');
+  console.log('[AUTH CONFIG] NEXTAUTH_URL:', nextAuthUrl || 'NOT SET');
   console.log('[AUTH CONFIG] Expected redirect URI:', 
     nextAuthUrl 
       ? `${nextAuthUrl}/api/auth/callback/discord`
