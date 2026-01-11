@@ -14,12 +14,15 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const redirectUri = process.env.NEXTAUTH_URL 
-    ? `${process.env.NEXTAUTH_URL}/api/auth/callback/discord`
+  // Normalize URL (remove trailing slashes)
+  const normalizedUrl = process.env.NEXTAUTH_URL?.replace(/\/+$/, '') || null;
+  const redirectUri = normalizedUrl
+    ? `${normalizedUrl}/api/auth/callback/discord`
     : 'NOT SET';
 
   return NextResponse.json({
-    NEXTAUTH_URL: process.env.NEXTAUTH_URL || 'NOT SET',
+    NEXTAUTH_URL_raw: process.env.NEXTAUTH_URL || 'NOT SET',
+    NEXTAUTH_URL_normalized: normalizedUrl || 'NOT SET',
     expectedRedirectUri: redirectUri,
     hasDiscordClientId: !!process.env.DISCORD_CLIENT_ID,
     hasDiscordClientSecret: !!process.env.DISCORD_CLIENT_SECRET,

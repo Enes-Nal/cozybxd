@@ -2,19 +2,27 @@ import NextAuth, { NextAuthOptions } from 'next-auth';
 import DiscordProvider from 'next-auth/providers/discord';
 import { createServerClient } from '@/lib/supabase';
 
+// Normalize NEXTAUTH_URL to remove trailing slashes
+const normalizeUrl = (url: string | undefined): string | undefined => {
+  if (!url) return undefined;
+  return url.replace(/\/+$/, ''); // Remove trailing slashes
+};
+
+const nextAuthUrl = normalizeUrl(process.env.NEXTAUTH_URL);
+
 // Log configuration on startup (only in server environment)
 if (typeof window === 'undefined') {
-  console.log('[AUTH CONFIG] NEXTAUTH_URL:', process.env.NEXTAUTH_URL || 'NOT SET');
+  console.log('[AUTH CONFIG] NEXTAUTH_URL (raw):', process.env.NEXTAUTH_URL || 'NOT SET');
+  console.log('[AUTH CONFIG] NEXTAUTH_URL (normalized):', nextAuthUrl || 'NOT SET');
   console.log('[AUTH CONFIG] Expected redirect URI:', 
-    process.env.NEXTAUTH_URL 
-      ? `${process.env.NEXTAUTH_URL}/api/auth/callback/discord`
+    nextAuthUrl 
+      ? `${nextAuthUrl}/api/auth/callback/discord`
       : 'NOT SET - NEXTAUTH_URL is missing'
   );
 }
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
-  url: process.env.NEXTAUTH_URL,
   pages: {
     signIn: '/api/auth/signin',
     error: '/api/auth/error',
