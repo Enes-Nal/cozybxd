@@ -113,7 +113,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         // SIGN-UP: Create new user if they don't exist
-        if (!existingUser) {
+        else {
           console.log('[AUTH] SIGN-UP: Creating new user...');
           const { data: newUser, error: createUserError } = await supabase
             .from('users')
