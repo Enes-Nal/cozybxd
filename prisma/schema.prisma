@@ -1,0 +1,205 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Auth
+  accounts Account[]
+  sessions Session[]
+
+  // Teams
+  teamMemberships TeamMember[]
+  
+  // Reviews
+  reviews Review[]
+  
+  // Log Attendees
+  logAttendees LogAttendee[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Team {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  inviteCode  String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members     TeamMember[]
+  logs        Log[]
+  watchlist   WatchlistItem[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  userId    String
+  role      String   @default("member") // member, admin
+  joinedAt  DateTime @default(now())
+
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@map("team_members")
+}
+
+model Media {
+  id              String   @id @default(cuid())
+  tmdbId          Int?     @unique
+  imdbId          String?
+  title           String
+  type            String   // movie, tv, youtube, roblox, game
+  posterUrl       String?
+  backdropUrl     String?
+  overview        String?  @db.Text
+  releaseDate     DateTime?
+  runtime         Int?     // in minutes
+  genres          String[] // array of genre names
+  imdbRating      Float?
+  rottenTomatoesScore Int?
+  rottenTomatoesAudience Int?
+  youtubeUrl      String?
+  robloxUrl       String?
+  gameUrl         String?
+  thumbnailUrl   String?
+  duration        Int?     // for YouTube videos in seconds
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  logs            Log[]
+  reviews         Review[]
+  watchlistItems  WatchlistItem[]
+
+  @@map("media")
+}
+
+model Log {
+  id          String   @id @default(cuid())
+  teamId      String
+  mediaId     String
+  watchedAt   DateTime @default(now())
+  notes       String?  @db.Text
+  isRobloxNight Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  media       Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  attendees   LogAttendee[]
+  reviews     Review[]
+
+  @@map("logs")
+}
+
+model LogAttendee {
+  id        String   @id @default(cuid())
+  logId     String
+  userId    String
+  slept     Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  log       Log      @relation(fields: [logId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([logId, userId])
+  @@map("log_attendees")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  logId     String?
+  mediaId   String
+  userId    String
+  rating    Int      // 1-5 stars
+  comment   String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  log       Log?     @relation(fields: [logId], references: [id], onDelete: Cascade)
+  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("reviews")
+}
+
+model WatchlistItem {
+  id        String   @id @default(cuid())
+  teamId    String?
+  userId    String?  // null if team watchlist, set if personal
+  mediaId   String
+  upvotes   Int      @default(0)
+  addedAt   DateTime @default(now())
+
+  team      Team?    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@map("watchlist_items")
+}
+
+model ViewCount {
+  id        String   @id @default(cuid())
+  mediaId   String
+  viewedAt  DateTime @default(now())
+
+  @@index([mediaId, viewedAt])
+  @@map("view_counts")
+}

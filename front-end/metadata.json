@@ -1,0 +1,8 @@
+
+{
+  "name": "cozybxd",
+  "description": "A collaborative film discovery platform for groups to synchronize watchlists, vote on movie nights, and maintain shared cinematic histories.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

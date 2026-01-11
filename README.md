@@ -1,36 +1,161 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cozybxd
+
+**What did we watch?** - A social tracking platform for group movie nights and digital hangouts.
+
+## Overview
+
+Cozybxd shifts the focus from "What did I watch?" to "What did we watch?". It solves the fragmentation of group movie nights where friends struggle to remember what they've seen together, what's on their shared wishlist, and who was actually present for the viewing.
+
+## Features
+
+### Core Features
+
+- **Squad System**: Create teams, track attendance, and see who was actually there for each viewing
+- **Unified Media Search**: Movies (TMDB), YouTube videos, and Roblox games all in one place
+- **Shared Watchlist (The Nest)**: Collaborative watchlist with voting and "seen by" badges
+- **Group Reviews**: Multi-rating system where each attendee can rate and comment
+- **Attendance Tracking**: Mark who was present, who slept, and calculate squad averages
+
+### Design System
+
+- **Dark Mode Minimalist UI**: Deep charcoal backgrounds with subtle borders
+- **Layered Elevation**: Visual hierarchy through background colors
+- **Smooth Transitions**: 200ms ease-in-out animations throughout
+- **Dotted Separators**: Subtle section breaks using dotted borders
+
+## Tech Stack
+
+- **Frontend**: Next.js 16, React, TypeScript, Tailwind CSS
+- **Backend**: Next.js API Routes, Supabase Client
+- **Database**: Supabase (PostgreSQL)
+- **Authentication**: NextAuth.js with Supabase (Google/Discord OAuth)
+- **APIs**: TMDB, OMDb (IMDb/Rotten Tomatoes), YouTube Data API
+- **State Management**: TanStack Query (React Query)
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
+- Node.js 18+ 
+- PostgreSQL database
+- API keys for TMDB, OMDb, and YouTube (optional)
+
+### Installation
+
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <repository-url>
+cd cozybxd
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Set up environment variables:
+```bash
+node scripts/setup-env.js
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+This will create a `.env.local` file with your Supabase credentials. Then edit `.env.local` to add:
+- OAuth credentials (Google/Discord)
+- API keys for TMDB, OMDb, and YouTube
+- A random `NEXTAUTH_SECRET` (generate with: `openssl rand -base64 32`)
 
-## Learn More
+4. Set up the database:
+```bash
+npx prisma generate
+npx prisma db push
+```
 
-To learn more about Next.js, take a look at the following resources:
+5. Run the development server:
+```bash
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Supabase Setup
 
-## Deploy on Vercel
+This project uses Supabase as the database. The connection is already configured. See [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) for detailed information.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Project Structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+cozybxd/
+├── app/                    # Next.js app directory
+│   ├── api/               # API routes
+│   ├── teams/             # Team pages
+│   ├── discovery/         # Media search
+│   ├── vault/             # Personal history
+│   └── layout.tsx         # Root layout
+├── components/
+│   ├── ui/                # Reusable UI components
+│   └── providers.tsx      # React Query & Auth providers
+├── lib/
+│   ├── api/               # External API clients
+│   ├── prisma.ts          # Prisma client
+│   └── utils.ts           # Utility functions
+└── prisma/
+    └── schema.prisma      # Database schema
+```
+
+## Database Schema
+
+- **Users**: User accounts with OAuth integration
+- **Teams**: Groups/squads for collaborative tracking
+- **Media**: Movies, YouTube videos, games
+- **Logs**: Watch sessions with attendance
+- **Reviews**: Individual ratings and comments
+- **WatchlistItems**: Shared and personal watchlists
+
+## API Routes
+
+- `GET/POST /api/teams` - List/create teams
+- `GET /api/teams/[teamId]` - Get team details
+- `POST /api/teams/[teamId]/logs` - Create a watch log
+- `GET /api/media/search` - Search for media
+
+## Design Tokens
+
+The design system uses CSS variables defined in `app/globals.css`:
+
+- `--bg-void`: #101213 (App background)
+- `--bg-surface`: #1A1C1E (Cards/Modals)
+- `--bg-highlight`: #2D2F31 (Hover states)
+- `--border-color`: #36393C (Borders)
+- `--text-primary`: #FFFFFF (Primary text)
+- `--text-secondary`: #94969C (Secondary text)
+
+## Development
+
+### Running Prisma Studio
+
+```bash
+npx prisma studio
+```
+
+### Database Migrations
+
+```bash
+# Create a new migration
+npx prisma migrate dev --name migration-name
+
+# Apply migrations
+npx prisma migrate deploy
+```
+
+## Roadmap
+
+- [ ] Complete logging UI with media search
+- [ ] Watchlist voting system
+- [ ] "Who Slept?" feature
+- [ ] Drinking game/Bingo integration
+- [ ] "Vibe" filter for watchlist
+- [ ] Trending algorithm implementation
+- [ ] Mobile responsive improvements
+
+## License
+
+MIT

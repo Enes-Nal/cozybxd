@@ -1,0 +1,127 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>cozybxd - Discovery Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0a0a0a;
+            --sidebar-bg: #050505;
+            --text-main: #ffffff;
+            --text-dim: #9ca3af;
+            --panel-bg: #141414;
+            --border-color: #222222;
+            --card-bg: #111111;
+            --accent-color: #6366f1;
+            --sidebar-hover: rgba(255, 255, 255, 0.05);
+        }
+
+        body.light-mode {
+            --bg-color: #ffffff;
+            --sidebar-bg: #ffffff;
+            --text-main: #111827;
+            --text-dim: #6b7280;
+            --panel-bg: #f9fafb;
+            --border-color: #f1f1f1;
+            --card-bg: #ffffff;
+            --sidebar-hover: #f3f4f6;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            overflow: hidden;
+            transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1), color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .glass {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .bg-accent {
+            background-color: var(--accent-color) !important;
+        }
+        .text-accent {
+            color: var(--accent-color) !important;
+        }
+        .border-accent {
+            border-color: var(--accent-color) !important;
+        }
+        .shadow-accent {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px var(--accent-color);
+        }
+
+        /* Smooth Transitions */
+        .page-transition {
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        /* Hide Scrollbars globally */
+        * {
+            scrollbar-width: none !important;
+            -ms-overflow-style: none !important;
+        }
+        *::-webkit-scrollbar {
+            display: none !important;
+        }
+
+        .no-glow {
+            box-shadow: none !important;
+        }
+
+        .bg-main { background-color: var(--bg-color); }
+        .bg-sidebar { background-color: var(--sidebar-bg); }
+        .text-main { color: var(--text-main); }
+        .border-main { border-color: var(--border-color); }
+        
+        /* Light mode specific overrides for input and buttons */
+        body.light-mode input {
+            background-color: #f3f4f6;
+            color: #111827;
+            border-color: #e5e7eb;
+        }
+        body.light-mode .glass {
+            background-color: #ffffff;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.35.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="dark-mode">
+    <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
