@@ -203,7 +203,7 @@ export const authOptions: NextAuthOptions = {
             return false;
           }
 
-          console.log('[AUTH] User created successfully:', { userId: newUser.id, username: usernameToSet });
+          console.log('[AUTH] User created successfully:', { userId: newUser.id, username: newUser.username, discordUsername });
 
           // Store account info
           if (account) {
