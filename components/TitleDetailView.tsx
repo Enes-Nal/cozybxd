@@ -646,11 +646,6 @@ const TitleDetailView: React.FC<TitleDetailViewProps> = ({ movie, onBack }) => {
           <div className="flex-1 flex flex-col justify-center animate-in slide-in-from-right duration-500">
             <div className="flex items-center gap-3 mb-2">
               <h1 className="text-4xl font-black text-main tracking-tight leading-none">{movie.title}</h1>
-              {movieDetails?.certification && (
-                <span className="glass px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest text-gray-400 border-main bg-black/20">
-                  {movieDetails.certification}
-                </span>
-              )}
             </div>
             
             <div className="flex items-center gap-3 mb-4 flex-wrap">
