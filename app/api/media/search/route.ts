@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { searchMovies, TMDBMovie } from '@/lib/api/tmdb';
+import { searchMovies, TMDBMovie, findMovieByImdbId } from '@/lib/api/tmdb';
 import { extractYouTubeId, getYouTubeVideoData } from '@/lib/api/youtube';
+import { extractImdbId } from '@/lib/api/omdb';
 import { createServerClient } from '@/lib/supabase';
 import Fuse from 'fuse.js';
 
@@ -14,6 +15,21 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Check for IMDB URL
+    const imdbId = extractImdbId(query);
+    if (imdbId) {
+      const movie = await findMovieByImdbId(imdbId);
+      if (movie) {
+        return NextResponse.json({
+          type: 'movie',
+          results: [movie],
+        });
+      } else {
+        return NextResponse.json({ error: 'Movie not found for this IMDB ID' }, { status: 404 });
+      }
+    }
+
+    // Check for YouTube URL
     if (type === 'youtube' || query.includes('youtube.com') || query.includes('youtu.be')) {
       const videoId = extractYouTubeId(query);
       if (!videoId) {
@@ -60,26 +76,34 @@ export async function GET(request: NextRequest) {
       uniqueResults.push(result);
     }
 
+    // Check for exact or near-exact title matches first (case-insensitive)
+    const queryLower = query.toLowerCase().trim();
+    const exactMatches = uniqueResults.filter(movie => {
+      const titleLower = movie.title.toLowerCase().trim();
+      return titleLower === queryLower || titleLower.includes(queryLower) || queryLower.includes(titleLower);
+    });
+
     // Use fuzzy search to rank results
     // Threshold: 0.0 = exact match, 1.0 = match anything
-    // 0.4 allows for typos while still being reasonably strict
+    // 0.6 allows for more flexible matching while still being reasonable
     const fuse = new Fuse(uniqueResults, {
       keys: [
-        { name: 'title', weight: 0.8 },
-        { name: 'overview', weight: 0.2 },
+        { name: 'title', weight: 0.9 },
+        { name: 'overview', weight: 0.1 },
       ],
-      threshold: 0.5, // Allow for typos and partial matches
+      threshold: 0.6, // More lenient threshold for better matching
       ignoreLocation: true,
       includeScore: true,
-      minMatchCharLength: Math.max(2, Math.floor(query.length * 0.5)), // Require at least half the query length to match
+      minMatchCharLength: 2, // Reduced from requiring half query length
+      findAllMatches: true, // Find all matches, not just the first
     });
 
     const fuzzyResults = fuse.search(query);
     
     // Extract results, prioritizing exact matches and high scores
-    // Score < 0.6 means reasonably good match (lower is better)
+    // Score < 0.8 means reasonably good match (lower is better, increased threshold)
     const rankedResults = fuzzyResults
-      .filter(result => result.score !== undefined && result.score < 0.7) // Include good fuzzy matches
+      .filter(result => result.score !== undefined && result.score < 0.8) // More lenient score threshold
       .sort((a, b) => {
         // Sort by score (lower is better), then by popularity (vote_average)
         if (Math.abs(a.score! - b.score!) < 0.1) {
@@ -97,9 +121,31 @@ export async function GET(request: NextRequest) {
         return movie;
       });
 
-    // If fuzzy search didn't find good matches, fall back to original results
-    const finalResults = rankedResults.length > 0 
-      ? rankedResults 
+    // Always include all TMDB results (they were already filtered by TMDB's search API)
+    // This ensures movies like "Homunculus" appear even if fuzzy search doesn't rank them well
+    const tmdbOnlyResults = tmdbResults
+      .filter(m => {
+        const id = m.id;
+        const title = m.title.toLowerCase().trim();
+        // Check if it's already in exact matches or ranked results
+        const inExact = exactMatches.some(exact => exact.id === id || exact.title.toLowerCase().trim() === title);
+        const inRanked = rankedResults.some(ranked => ranked.id === id);
+        return !inExact && !inRanked;
+      })
+      .slice(0, 10); // Limit additional TMDB results to avoid too many
+
+    // Combine exact matches with fuzzy results, prioritizing exact matches
+    const exactMatchIds = new Set(exactMatches.map(m => m.id));
+    const fuzzyWithoutExact = rankedResults.filter(m => !exactMatchIds.has(m.id));
+    const combinedResults = [
+      ...exactMatches.map(({ source, ...movie }) => movie),
+      ...fuzzyWithoutExact,
+      ...tmdbOnlyResults
+    ];
+
+    // If we have combined results, use them; otherwise fall back to all unique results
+    const finalResults = combinedResults.length > 0 
+      ? combinedResults.slice(0, 20) // Limit to top 20
       : uniqueResults.slice(0, 20).map(({ source, ...movie }) => movie);
     
     return NextResponse.json({

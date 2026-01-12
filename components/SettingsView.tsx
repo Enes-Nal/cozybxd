@@ -146,6 +146,7 @@ const SettingsView: React.FC = () => {
           onClose={() => setIsEditModalOpen(false)}
           currentUser={currentUser}
           currentEmail={session?.user?.email || undefined}
+          currentUsername={currentUserData?.username || null}
         />
       )}
     </div>

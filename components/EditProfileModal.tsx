@@ -3,16 +3,20 @@
 import React, { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { User } from '@/lib/types';
+import { checkProfanity } from '@/lib/utils/profanity';
 
 interface EditProfileModalProps {
   onClose: () => void;
   currentUser: User | null;
   currentEmail?: string;
+  currentUsername?: string | null;
 }
 
-const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose, currentUser, currentEmail }) => {
+const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose, currentUser, currentEmail, currentUsername }) => {
   const [name, setName] = useState(currentUser?.name || '');
   const [avatar, setAvatar] = useState(currentUser?.avatar || '');
+  const [banner, setBanner] = useState(currentUser?.banner || '');
+  const [username, setUsername] = useState(currentUsername || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -21,8 +25,12 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose, currentUse
     if (currentUser) {
       setName(currentUser.name || '');
       setAvatar(currentUser.avatar || '');
+      setBanner(currentUser.banner || '');
     }
-  }, [currentUser]);
+    if (currentUsername !== undefined) {
+      setUsername(currentUsername || '');
+    }
+  }, [currentUser, currentUsername]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,6 +38,24 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose, currentUse
     if (!name.trim()) {
       setError('Name is required');
       return;
+    }
+
+    // Check for profanity and slurs in name
+    const trimmedName = name.trim();
+    const nameProfanityCheck = checkProfanity(trimmedName);
+    if (!nameProfanityCheck.isValid) {
+      setError(nameProfanityCheck.error || 'Name contains inappropriate language');
+      return;
+    }
+
+    // Check for profanity and slurs in username if provided
+    const trimmedUsername = username.trim();
+    if (trimmedUsername) {
+      const profanityCheck = checkProfanity(trimmedUsername);
+      if (!profanityCheck.isValid) {
+        setError(profanityCheck.error || 'Username contains inappropriate language');
+        return;
+      }
     }
 
     setLoading(true);
@@ -44,6 +70,8 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose, currentUse
         body: JSON.stringify({
           name: name.trim(),
           image: avatar.trim() || null,
+          banner: banner.trim() || null,
+          username: username.trim() || null,
         }),
       });
 
@@ -85,10 +113,28 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose, currentUse
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-[10px] uppercase font-black text-[var(--accent-color)] tracking-widest mb-3">
-              Name
+              Username
             </label>
             <input 
               autoFocus
+              type="text" 
+              value={username}
+              onChange={(e) => {
+                setUsername(e.target.value);
+                setError(null);
+              }}
+              placeholder="your-username"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-sm font-medium focus:border-[var(--accent-color)]/50 focus:bg-white/[0.08] transition-all outline-none text-main"
+              disabled={loading}
+            />
+            <p className="mt-2 text-xs text-gray-500">Your unique username (lowercase, no spaces)</p>
+          </div>
+
+          <div>
+            <label className="block text-[10px] uppercase font-black text-[var(--accent-color)] tracking-widest mb-3">
+              Name
+            </label>
+            <input 
               type="text" 
               value={name}
               onChange={(e) => {
@@ -117,6 +163,24 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose, currentUse
               disabled={loading}
             />
             <p className="mt-2 text-xs text-gray-500">Leave empty to use default avatar</p>
+          </div>
+
+          <div>
+            <label className="block text-[10px] uppercase font-black text-[var(--accent-color)] tracking-widest mb-3">
+              Banner URL
+            </label>
+            <input 
+              type="url" 
+              value={banner}
+              onChange={(e) => {
+                setBanner(e.target.value);
+                setError(null);
+              }}
+              placeholder="https://example.com/banner.jpg"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-sm font-medium focus:border-[var(--accent-color)]/50 focus:bg-white/[0.08] transition-all outline-none text-main"
+              disabled={loading}
+            />
+            <p className="mt-2 text-xs text-gray-500">Optional banner image for your profile</p>
           </div>
 
           {currentEmail && (

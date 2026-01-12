@@ -227,3 +227,40 @@ export async function discoverMovies(options: DiscoverOptions = {}): Promise<TMD
   return data.results || [];
 }
 
+export interface TMDBFindResult {
+  movie_results: TMDBMovie[];
+  tv_results: any[];
+  person_results: any[];
+}
+
+/**
+ * Find a movie by IMDB ID using TMDB's find API
+ */
+export async function findMovieByImdbId(imdbId: string): Promise<TMDBMovie | null> {
+  if (!TMDB_API_KEY) {
+    throw new Error('TMDB API key is not configured');
+  }
+  
+  try {
+    const response = await fetch(
+      `${TMDB_BASE_URL}/find/${imdbId}?api_key=${TMDB_API_KEY}&external_source=imdb_id`
+    );
+    
+    if (!response.ok) {
+      return null;
+    }
+    
+    const data: TMDBFindResult = await response.json();
+    
+    // Return the first movie result if available
+    if (data.movie_results && data.movie_results.length > 0) {
+      return data.movie_results[0];
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Failed to find movie by IMDB ID:', error);
+    return null;
+  }
+}
+

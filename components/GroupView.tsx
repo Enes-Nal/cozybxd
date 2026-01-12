@@ -24,7 +24,8 @@ const GroupView: React.FC<GroupViewProps> = ({
   onProfileSelect,
   onVote = async (id) => {
     try {
-      let mediaId = id.startsWith('tmdb-') ? id.replace('tmdb-', '') : id;
+      let mediaId = id.startsWith('tmdb-') ? id.replace('tmdb-', '') : 
+                   id.startsWith('youtube-') ? id.replace('youtube-', '') : id;
       
       // If it's a TMDB ID, sync it first
       if (id.startsWith('tmdb-')) {
@@ -32,6 +33,17 @@ const GroupView: React.FC<GroupViewProps> = ({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tmdbId: mediaId, type: 'movie' }),
+        });
+        if (syncRes.ok) {
+          const media = await syncRes.json();
+          mediaId = media.id;
+        }
+      } else if (id.startsWith('youtube-')) {
+        // If it's a YouTube video, sync it first
+        const syncRes = await fetch('/api/media/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ youtubeId: mediaId }),
         });
         if (syncRes.ok) {
           const media = await syncRes.json();

@@ -182,6 +182,21 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
 
   return (
     <div className="py-8 max-w-5xl animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-y-auto pb-20">
+      {/* Banner */}
+      {user.banner && (
+        <div className="w-full h-64 rounded-[2.5rem] overflow-hidden mb-8 border-2 border-main/20 shadow-xl">
+          <img 
+            src={user.banner} 
+            className="w-full h-full object-cover" 
+            alt={`${user.name}'s banner`}
+            onError={(e) => {
+              // Hide banner if image fails to load
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        </div>
+      )}
+      
       <div className="flex flex-col md:flex-row items-center gap-10 mb-16">
         <div className="w-40 h-40 rounded-[3rem] overflow-hidden border-4 border-main shadow-xl shrink-0">
            <img src={user.avatar} className="w-full h-full object-cover" alt={user.name} />
@@ -259,8 +274,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
           <section>
             <h3 className="text-sm font-black uppercase tracking-[0.2em] text-accent mb-8">RECENT ACTIVITY</h3>
             {recentReviews.length === 0 ? (
-              <div className="glass p-8 rounded-[2.5rem] text-center">
-                <p className="text-gray-500">No recent reviews</p>
+              <div className="glass p-5 rounded-3xl border-main text-center">
+                <p className="text-sm text-gray-500">No recent reviews</p>
               </div>
             ) : (
               <div className="space-y-6">

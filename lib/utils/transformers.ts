@@ -56,6 +56,13 @@ export function transformMediaToMovie(media: any, watchlistItem?: any, logs?: an
   // Get user vote from watchlistItem if provided
   const userVote = watchlistItem?.userVote || null;
   
+  // For YouTube videos, add the YouTube URL to availability
+  const availability: string[] = [];
+  const youtubeUrl = media.youtubeUrl || media.youtube_url;
+  if (media.type === 'youtube' && youtubeUrl) {
+    availability.push(youtubeUrl);
+  }
+  
   return {
     id: movieId,
     title: media.title,
@@ -71,7 +78,7 @@ export function transformMediaToMovie(media: any, watchlistItem?: any, logs?: an
     downvotes,
     userVote,
     seenBy: [...new Set(seenBy)],
-    availability: [],
+    availability,
     imdbRating,
   };
 }
@@ -85,6 +92,7 @@ export function transformUserToFrontend(user: any, teamMembership?: any): User {
     id: user.id,
     name: user.name || 'Unknown',
     avatar: user.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}`,
+    banner: user.banner_url || user.bannerUrl || undefined,
     role,
   };
 }
@@ -256,6 +264,69 @@ export function transformTMDBMovieToMovieSync(tmdbMovie: TMDBMovie, genreMap: Ma
     userVote,
     seenBy: [...new Set(seenBy)],
     availability: [],
+  };
+}
+
+export function transformYouTubeVideoToMovie(youtubeVideo: any, watchlistItem?: any, logs?: any[]): Movie {
+  const duration = youtubeVideo.duration || 0;
+  const runtime = duration > 0
+    ? (() => {
+        const hours = Math.floor(duration / 3600);
+        const minutes = Math.floor((duration % 3600) / 60);
+        const seconds = duration % 60;
+        if (hours > 0) {
+          return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+        }
+        return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+      })()
+    : '';
+
+  // Determine status based on logs
+  let status: 'Watchlist' | 'Ongoing' | 'Seen' = 'Watchlist';
+  if (logs && logs.length > 0) {
+    const hasRecentLog = logs.some(log => {
+      const logDate = new Date(log.watched_at || log.created_at);
+      const daysSince = (Date.now() - logDate.getTime()) / (1000 * 60 * 60 * 24);
+      return daysSince < 7; // Ongoing if watched in last 7 days
+    });
+    status = hasRecentLog ? 'Ongoing' : 'Seen';
+  }
+
+  // Get seenBy from logs
+  const seenBy = logs?.flatMap(log => 
+    log.log_attendees?.map((attendee: any) => attendee.user_id) || []
+  ) || [];
+
+  // Priority based on upvotes
+  let priority: 'High' | 'Medium' | 'Low' = 'Low';
+  const upvotes = watchlistItem?.upvotes || 0;
+  const downvotes = watchlistItem?.downvotes || 0;
+  if (upvotes >= 5) priority = 'High';
+  else if (upvotes >= 2) priority = 'Medium';
+
+  // Get user vote from watchlistItem if provided
+  const userVote = watchlistItem?.userVote || null;
+
+  // Get YouTube URL - could be in youtubeUrl or constructed from id
+  const youtubeUrl = youtubeVideo.youtubeUrl || youtubeVideo.youtube_url || 
+                     (youtubeVideo.id ? `https://www.youtube.com/watch?v=${youtubeVideo.id}` : null);
+
+  return {
+    id: `youtube-${youtubeVideo.id}`,
+    title: youtubeVideo.title,
+    poster: youtubeVideo.thumbnail || '',
+    year: new Date().getFullYear(), // YouTube videos don't have a release year
+    runtime,
+    genre: ['YouTube'],
+    description: youtubeVideo.channelTitle ? `Channel: ${youtubeVideo.channelTitle}` : undefined,
+    priority,
+    status,
+    votes: upvotes - downvotes,
+    upvotes,
+    downvotes,
+    userVote,
+    seenBy: [...new Set(seenBy)],
+    availability: youtubeUrl ? [youtubeUrl] : [],
   };
 }
 

@@ -36,3 +36,30 @@ export function parseRottenTomatoesScore(ratings: Array<{ Source: string; Value:
   return { tomatometer, audience };
 }
 
+/**
+ * Extract IMDB ID from an IMDB URL
+ * Supports formats like:
+ * - https://www.imdb.com/title/tt1234567/
+ * - https://imdb.com/title/tt1234567
+ * - http://www.imdb.com/title/tt1234567/?ref_=fn_al_tt_1
+ */
+export function extractImdbId(url: string): string | null {
+  // Match patterns like /title/tt1234567/ or /title/tt1234567
+  const patterns = [
+    /(?:imdb\.com\/title\/)(tt\d+)/i,
+    /(?:www\.imdb\.com\/title\/)(tt\d+)/i,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  
+  // Also check if it's already just an IMDB ID (tt1234567)
+  if (/^tt\d+$/i.test(url.trim())) {
+    return url.trim();
+  }
+  
+  return null;
+}
+

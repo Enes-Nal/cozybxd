@@ -45,7 +45,16 @@ export async function POST(
       .select('*')
       .eq('watchlist_item_id', watchlistItem.id)
       .eq('user_id', session.user.id)
-      .single();
+      .maybeSingle();
+
+    if (voteError) {
+      console.error('Error checking existing vote:', voteError);
+      return NextResponse.json({ 
+        error: 'Failed to check existing vote', 
+        details: voteError.message,
+        code: voteError.code 
+      }, { status: 500 });
+    }
 
     let newUpvotes = watchlistItem.upvotes || 0;
     let newDownvotes = watchlistItem.downvotes || 0;
@@ -58,10 +67,19 @@ export async function POST(
         voteAction = 'removed';
         
         // Delete the vote record
-        await supabase
+        const { error: deleteError } = await supabase
           .from('watchlist_votes')
           .delete()
           .eq('id', existingVote.id);
+        
+        if (deleteError) {
+          console.error('Error deleting vote:', deleteError);
+          return NextResponse.json({ 
+            error: 'Failed to remove vote', 
+            details: deleteError.message,
+            code: deleteError.code 
+          }, { status: 500 });
+        }
       } else if (existingVote.vote_type === 'upvote') {
         // User upvoted, switch to downvote
         newUpvotes = Math.max(0, newUpvotes - 1);
@@ -69,23 +87,41 @@ export async function POST(
         voteAction = 'switched';
         
         // Update the vote record
-        await supabase
+        const { error: updateVoteError } = await supabase
           .from('watchlist_votes')
           .update({ vote_type: 'downvote' })
           .eq('id', existingVote.id);
+        
+        if (updateVoteError) {
+          console.error('Error updating vote:', updateVoteError);
+          return NextResponse.json({ 
+            error: 'Failed to update vote', 
+            details: updateVoteError.message,
+            code: updateVoteError.code 
+          }, { status: 500 });
+        }
       }
     } else {
       // User hasn't voted, add downvote
       newDownvotes = (newDownvotes || 0) + 1;
       
       // Create vote record
-      await supabase
+      const { error: insertError } = await supabase
         .from('watchlist_votes')
         .insert({
           watchlist_item_id: watchlistItem.id,
           user_id: session.user.id,
           vote_type: 'downvote'
         });
+      
+      if (insertError) {
+        console.error('Error inserting vote:', insertError);
+        return NextResponse.json({ 
+          error: 'Failed to create vote', 
+          details: insertError.message,
+          code: insertError.code 
+        }, { status: 500 });
+      }
     }
 
     // Update watchlist item counts
@@ -100,7 +136,12 @@ export async function POST(
       .single();
 
     if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
+      console.error('Error updating watchlist item:', updateError);
+      return NextResponse.json({ 
+        error: 'Failed to update watchlist item', 
+        details: updateError.message,
+        code: updateError.code 
+      }, { status: 500 });
     }
 
     const score = (updated.upvotes || 0) - (updated.downvotes || 0);
@@ -114,7 +155,10 @@ export async function POST(
   } catch (error) {
     console.error('Downvote error:', error);
     return NextResponse.json(
-      { error: 'Failed to downvote' },
+      { 
+        error: 'Failed to downvote', 
+        details: error instanceof Error ? error.message : 'Unknown error' 
+      },
       { status: 500 }
     );
   }

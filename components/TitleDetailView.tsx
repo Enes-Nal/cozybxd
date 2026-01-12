@@ -801,11 +801,39 @@ const TitleDetailView: React.FC<TitleDetailViewProps> = ({ movie, onBack }) => {
                 <h2 className="text-lg font-black text-main mb-4">Streaming Availability</h2>
                 {movie.availability && movie.availability.length > 0 ? (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {movie.availability.map((service, idx) => (
-                      <div key={idx} className="glass p-4 rounded-xl border-main bg-white/[0.02] text-center">
-                        <div className="text-sm font-black text-main">{service}</div>
-                      </div>
-                    ))}
+                    {movie.availability.map((service, idx) => {
+                      // Check if it's a YouTube URL
+                      const isYouTube = service.includes('youtube.com') || service.includes('youtu.be');
+                      // Extract channel name from description if available
+                      const channelMatch = movie.description?.match(/Channel:\s*(.+)/);
+                      const channelName = channelMatch ? channelMatch[1] : null;
+                      
+                      if (isYouTube) {
+                        return (
+                          <a
+                            key={idx}
+                            href={service}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="glass p-4 rounded-xl border-main bg-white/[0.02] text-center hover:bg-white/[0.05] transition-colors cursor-pointer"
+                          >
+                            <div className="flex flex-col items-center gap-2">
+                              <i className="fa-brands fa-youtube text-red-500 text-xl"></i>
+                              <div className="text-sm font-black text-main">YouTube</div>
+                              {channelName && (
+                                <div className="text-xs text-main/70 truncate w-full">{channelName}</div>
+                              )}
+                            </div>
+                          </a>
+                        );
+                      }
+                      
+                      return (
+                        <div key={idx} className="glass p-4 rounded-xl border-main bg-white/[0.02] text-center">
+                          <div className="text-sm font-black text-main">{service}</div>
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-sm text-main/50">No streaming information available.</p>

@@ -5,6 +5,7 @@ import { createServerClient } from '@/lib/supabase';
 import { getMovieDetails, getPosterUrl, getBackdropUrl } from '@/lib/api/tmdb';
 import { getGenres } from '@/lib/api/tmdb';
 import { getOMDbData } from '@/lib/api/omdb';
+import { extractYouTubeId, getYouTubeVideoData } from '@/lib/api/youtube';
 
 // Helper to get genre names from IDs
 async function getGenreNames(genreIds: number[]): Promise<string[]> {
@@ -24,15 +25,61 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { tmdbId, type = 'movie' } = body;
-
-  if (!tmdbId) {
-    return NextResponse.json({ error: 'TMDB ID required' }, { status: 400 });
-  }
+  const { tmdbId, type = 'movie', youtubeId, youtubeUrl } = body;
 
   const supabase = createServerClient();
 
   try {
+    // Handle YouTube videos
+    if (youtubeId || youtubeUrl) {
+      const videoId = youtubeId || extractYouTubeId(youtubeUrl);
+      if (!videoId) {
+        return NextResponse.json({ error: 'Invalid YouTube URL or ID' }, { status: 400 });
+      }
+
+      // Check if media already exists (by YouTube URL)
+      const { data: existing } = await supabase
+        .from('media')
+        .select('*')
+        .eq('youtube_url', `https://www.youtube.com/watch?v=${videoId}`)
+        .single();
+
+      if (existing) {
+        return NextResponse.json(existing);
+      }
+
+      // Fetch YouTube video data
+      const videoData = await getYouTubeVideoData(videoId);
+      if (!videoData) {
+        return NextResponse.json({ error: 'Could not fetch YouTube video' }, { status: 404 });
+      }
+
+      // Create media record for YouTube video
+      const { data: media, error } = await supabase
+        .from('media')
+        .insert({
+          title: videoData.title,
+          type: 'youtube',
+          youtube_url: `https://www.youtube.com/watch?v=${videoId}`,
+          thumbnail_url: videoData.thumbnail,
+          duration: videoData.duration,
+          overview: `Channel: ${videoData.channelTitle}`,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json(media);
+    }
+
+    // Handle TMDB movies (existing logic)
+    if (!tmdbId) {
+      return NextResponse.json({ error: 'TMDB ID or YouTube ID/URL required' }, { status: 400 });
+    }
+
     // Check if media already exists
     const { data: existing } = await supabase
       .from('media')

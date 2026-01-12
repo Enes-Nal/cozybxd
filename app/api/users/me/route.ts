@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { createServerClient } from '@/lib/supabase';
 import { transformUserToFrontend } from '@/lib/utils/transformers';
+import { checkProfanity } from '@/lib/utils/profanity';
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -88,20 +89,44 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, image, username } = body;
+    const { name, image, banner, username } = body;
 
     // Build update object with only provided fields
-    const updateData: { name?: string; image?: string; username?: string } = {};
+    const updateData: { name?: string | null; image?: string | null; banner_url?: string | null; username?: string } = {};
     if (name !== undefined) {
-      updateData.name = name.trim() || null;
+      const trimmedName = typeof name === 'string' ? name.trim() : String(name).trim();
+      if (trimmedName) {
+        // Check for profanity and slurs
+        const profanityCheck = checkProfanity(trimmedName);
+        if (!profanityCheck.isValid) {
+          return NextResponse.json(
+            { error: profanityCheck.error || 'Name contains inappropriate language' },
+            { status: 400 }
+          );
+        }
+        updateData.name = trimmedName;
+      } else {
+        updateData.name = null;
+      }
     }
     if (image !== undefined) {
       updateData.image = image.trim() || null;
+    }
+    if (banner !== undefined) {
+      updateData.banner_url = banner.trim() || null;
     }
     if (username !== undefined && username !== null) {
       // Username must be lowercase and trimmed
       const trimmedUsername = typeof username === 'string' ? username.trim() : String(username).trim();
       if (trimmedUsername) {
+        // Check for profanity and slurs
+        const profanityCheck = checkProfanity(trimmedUsername);
+        if (!profanityCheck.isValid) {
+          return NextResponse.json(
+            { error: profanityCheck.error || 'Username contains inappropriate language' },
+            { status: 400 }
+          );
+        }
         updateData.username = trimmedUsername.toLowerCase();
       }
       // If empty, don't include in update (shouldn't happen from modal, but handle gracefully)

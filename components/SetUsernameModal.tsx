@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
+import { checkProfanity } from '@/lib/utils/profanity';
 
 interface SetUsernameModalProps {
   onClose: () => void;
@@ -36,6 +37,13 @@ const SetUsernameModal: React.FC<SetUsernameModalProps> = ({ onClose, defaultDis
     
     if (!usernameToSet) {
       setError('Please enter a username');
+      return;
+    }
+
+    // Check for profanity and slurs
+    const profanityCheck = checkProfanity(usernameToSet);
+    if (!profanityCheck.isValid) {
+      setError(profanityCheck.error || 'Username contains inappropriate language');
       return;
     }
 
@@ -78,6 +86,13 @@ const SetUsernameModal: React.FC<SetUsernameModalProps> = ({ onClose, defaultDis
     const defaultUsername = defaultDiscordUsername || session?.user?.name || '';
     if (!defaultUsername) {
       setError('No default username available');
+      return;
+    }
+
+    // Check for profanity and slurs in default username
+    const profanityCheck = checkProfanity(defaultUsername);
+    if (!profanityCheck.isValid) {
+      setError(profanityCheck.error || 'Default username contains inappropriate language. Please set a custom username.');
       return;
     }
 

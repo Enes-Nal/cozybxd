@@ -24,7 +24,7 @@ import CreateGroupModal from '@/components/CreateGroupModal';
 import JoinGroupModal from '@/components/JoinGroupModal';
 import SetUsernameModal from '@/components/SetUsernameModal';
 import { Movie, User, Group } from '@/lib/types';
-import { transformTMDBMovieToMovieSync, transformTeamToGroup, transformMediaToMovie } from '@/lib/utils/transformers';
+import { transformTMDBMovieToMovieSync, transformTeamToGroup, transformMediaToMovie, transformYouTubeVideoToMovie } from '@/lib/utils/transformers';
 import { TMDBMovie, getGenres } from '@/lib/api/tmdb';
 import { getPosterUrl } from '@/lib/api/tmdb';
 
@@ -176,9 +176,14 @@ function HomeContent() {
           transformTMDBMovieToMovieSync(tmdbMovie, genreMap)
         );
       }
+      
+      if (data.type === 'youtube' && data.data) {
+        return [transformYouTubeVideoToMovie(data.data)];
+      }
+      
       return [];
     },
-    enabled: searchQuery.trim().length > 0 && genreMap.size > 0,
+    enabled: searchQuery.trim().length > 0 && (genreMap.size > 0 || searchQuery.includes('youtube.com') || searchQuery.includes('youtu.be')),
   });
 
   // Use search results if available
@@ -547,8 +552,9 @@ function HomeContent() {
                         queryClient.setQueryData(['watchlist', 'personal'], newWatchlist);
                         
                         // Now do the actual API call in the background
-                        // Extract mediaId from id (could be tmdb-123 or uuid)
-                        let mediaId = id.startsWith('tmdb-') ? id.replace('tmdb-', '') : id;
+                        // Extract mediaId from id (could be tmdb-123, youtube-123, or uuid)
+                        let mediaId = id.startsWith('tmdb-') ? id.replace('tmdb-', '') : 
+                                     id.startsWith('youtube-') ? id.replace('youtube-', '') : id;
                         let actualMediaId = mediaId;
                         
                         // If it's a TMDB ID, sync it first to get the database media ID
@@ -565,6 +571,25 @@ function HomeContent() {
                             const errorData = await syncRes.json().catch(() => ({ error: 'Failed to sync' }));
                             console.error('Failed to sync media:', errorData);
                             alert('Failed to add movie. Please try again.');
+                            return;
+                          }
+                          
+                          const media = await syncRes.json();
+                          actualMediaId = media.id;
+                        } else if (id.startsWith('youtube-')) {
+                          // If it's a YouTube video, sync it first to get the database media ID
+                          const syncRes = await fetch('/api/media/sync', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ youtubeId: mediaId }),
+                          });
+                          
+                          if (!syncRes.ok) {
+                            // Revert optimistic update on error
+                            queryClient.setQueryData(['watchlist', 'personal'], previousWatchlist);
+                            const errorData = await syncRes.json().catch(() => ({ error: 'Failed to sync' }));
+                            console.error('Failed to sync YouTube video:', errorData);
+                            alert('Failed to add YouTube video. Please try again.');
                             return;
                           }
                           
@@ -652,6 +677,7 @@ function HomeContent() {
           isHome={activeTab === 'Home' && !activeGroup && !activeProfile && !selectedMovie}
           onNotificationClick={() => handleTabChange('Inbox')}
           onProfileClick={() => currentUser && handleProfileSelect(currentUser)}
+          onMovieSelect={handleMovieSelect}
         />
         {sessionStatus === 'loading' || userLoading ? (
           <div className="flex-1 flex items-center justify-center">
@@ -721,7 +747,9 @@ function HomeContent() {
           onConfirm={async (groupId: string, interestLevel: number) => {
             try {
               let mediaId = schedulingMovie.id.startsWith('tmdb-') 
-                ? schedulingMovie.id.replace('tmdb-', '') 
+                ? schedulingMovie.id.replace('tmdb-', '')
+                : schedulingMovie.id.startsWith('youtube-')
+                ? schedulingMovie.id.replace('youtube-', '')
                 : schedulingMovie.id;
               let actualMediaId = mediaId;
               
@@ -737,6 +765,23 @@ function HomeContent() {
                   const errorData = await syncRes.json().catch(() => ({ error: 'Failed to sync' }));
                   console.error('Failed to sync media:', errorData);
                   alert('Failed to add movie. Please try again.');
+                  return;
+                }
+                
+                const media = await syncRes.json();
+                actualMediaId = media.id;
+              } else if (schedulingMovie.id.startsWith('youtube-')) {
+                // If it's a YouTube video, sync it first to get the database media ID
+                const syncRes = await fetch('/api/media/sync', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ youtubeId: mediaId }),
+                });
+                
+                if (!syncRes.ok) {
+                  const errorData = await syncRes.json().catch(() => ({ error: 'Failed to sync' }));
+                  console.error('Failed to sync YouTube video:', errorData);
+                  alert('Failed to add YouTube video. Please try again.');
                   return;
                 }
                 

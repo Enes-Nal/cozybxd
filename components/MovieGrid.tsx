@@ -1,8 +1,41 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Movie, User } from '@/lib/types';
 import RemoveMovieModal from './RemoveMovieModal';
+
+// Animated number component for smooth vote count transitions
+const AnimatedVoteCount: React.FC<{ value: number; className?: string }> = ({ value, className = '' }) => {
+  const [displayValue, setDisplayValue] = useState(value);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const prevValueRef = useRef(value);
+
+  useEffect(() => {
+    if (prevValueRef.current !== value) {
+      setIsAnimating(true);
+      // Animate the number change
+      const timer = setTimeout(() => {
+        setDisplayValue(value);
+        setIsAnimating(false);
+        prevValueRef.current = value;
+      }, 150);
+      return () => clearTimeout(timer);
+    } else {
+      setDisplayValue(value);
+    }
+  }, [value]);
+
+  return (
+    <span 
+      key={`vote-${value}`}
+      className={`${className} transition-all duration-300 ease-out ${
+        isAnimating ? 'scale-110 opacity-80' : 'scale-100 opacity-100'
+      }`}
+    >
+      {displayValue > 0 ? `+${displayValue}` : displayValue}
+    </span>
+  );
+};
 
 interface MovieGridProps {
   movies: Movie[];
@@ -105,11 +138,14 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
         >
           {/* Vote count badge - always visible for group watchlists (Reddit-style score) */}
           {isGroupWatchlist && (movie.votes !== undefined && movie.votes !== 0) && (
-            <div className={`absolute top-3 left-3 z-10 backdrop-blur-sm px-2.5 py-1 rounded-lg flex items-center gap-1.5 border border-white/20 ${
-              movie.votes > 0 ? 'bg-[var(--accent-color)]/90' : movie.votes < 0 ? 'bg-red-600/90' : 'bg-gray-600/90'
-            }`}>
-              <i className={`fa-solid ${movie.votes > 0 ? 'fa-arrow-up' : movie.votes < 0 ? 'fa-arrow-down' : 'fa-minus'} text-[10px] text-white`}></i>
-              <span className="text-[10px] font-bold text-white">{movie.votes > 0 ? `+${movie.votes}` : movie.votes}</span>
+            <div 
+              key={`badge-${movie.id}-${movie.votes}`}
+              className={`absolute top-3 left-3 z-10 backdrop-blur-sm px-2.5 py-1 rounded-lg flex items-center gap-1.5 border border-white/20 transition-all duration-300 ${
+                movie.votes > 0 ? 'bg-[var(--accent-color)]/90' : movie.votes < 0 ? 'bg-red-600/90' : 'bg-gray-600/90'
+              }`}
+            >
+              <i className={`fa-solid ${movie.votes > 0 ? 'fa-arrow-up' : movie.votes < 0 ? 'fa-arrow-down' : 'fa-minus'} text-[10px] text-white transition-all duration-300`}></i>
+              <AnimatedVoteCount value={movie.votes} className="text-[10px] font-bold text-white" />
             </div>
           )}
 
@@ -137,7 +173,7 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
                     }
                   }}
                   disabled={votingMovieId === movie.id}
-                  className={`px-2.5 py-2 rounded-lg flex items-center gap-1.5 active:scale-95 transition-all duration-200 border shadow-lg hover:scale-110 ${
+                  className={`px-2.5 py-2 rounded-lg flex items-center justify-center gap-1.5 active:scale-95 transition-all duration-200 border shadow-lg hover:scale-110 ${
                     movie.userVote === 'upvote'
                       ? 'bg-[var(--accent-color)]/90 border-[var(--accent-color)]/50'
                       : 'bg-black/60 backdrop-blur-sm border-white/20 hover:bg-[var(--accent-color)]/30'
@@ -162,7 +198,7 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
                     }
                   }}
                   disabled={votingMovieId === movie.id}
-                  className={`px-2.5 py-2 rounded-lg flex items-center gap-1.5 active:scale-95 transition-all duration-200 border shadow-lg hover:scale-110 ${
+                  className={`px-2.5 py-2 rounded-lg flex items-center justify-center gap-1.5 active:scale-95 transition-all duration-200 border shadow-lg hover:scale-110 ${
                     movie.userVote === 'downvote'
                       ? 'bg-red-600/90 border-red-400/50'
                       : 'bg-black/60 backdrop-blur-sm border-white/20 hover:bg-red-600/30'
@@ -269,11 +305,14 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
               {isGroupWatchlist && movie.votes !== undefined && movie.votes !== 0 && (
                 <>
                   <span className="opacity-30">•</span>
-                  <span className={`font-bold flex items-center gap-1 ${
-                    movie.votes > 0 ? 'text-[var(--accent-color)]' : movie.votes < 0 ? 'text-red-400' : 'text-gray-400'
-                  }`}>
-                    <i className={`fa-solid ${movie.votes > 0 ? 'fa-arrow-up' : 'fa-arrow-down'} text-[9px]`}></i>
-                    {movie.votes > 0 ? `+${movie.votes}` : movie.votes}
+                  <span 
+                    key={`inline-${movie.id}-${movie.votes}`}
+                    className={`font-bold flex items-center gap-1 transition-all duration-300 ${
+                      movie.votes > 0 ? 'text-[var(--accent-color)]' : movie.votes < 0 ? 'text-red-400' : 'text-gray-400'
+                    }`}
+                  >
+                    <i className={`fa-solid ${movie.votes > 0 ? 'fa-arrow-up' : 'fa-arrow-down'} text-[9px] transition-all duration-300`}></i>
+                    <AnimatedVoteCount value={movie.votes} className="text-[10px]" />
                   </span>
                 </>
               )}
