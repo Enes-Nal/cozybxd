@@ -27,12 +27,23 @@ const SchedulingModal: React.FC<AddToGroupModalProps> = ({ movie, onClose, onCon
 
   const groups = teamsData ? teamsData.map((team: any) => transformTeamToGroup(team)) : [];
   
+  // Get the selected group's voting enabled setting
+  const selectedGroupData = groups.find((g: Group) => g.id === selectedGroup);
+  const isInterestLevelVotingEnabled = selectedGroupData?.interestLevelVotingEnabled || false;
+  
   // Set first group as default when groups load
   useEffect(() => {
     if (groups.length > 0 && !selectedGroup) {
       setSelectedGroup(groups[0].id);
     }
   }, [groups, selectedGroup]);
+
+  // Reset interest level to 50 when voting is disabled or group changes
+  useEffect(() => {
+    if (!isInterestLevelVotingEnabled) {
+      setInterestLevel(50);
+    }
+  }, [isInterestLevelVotingEnabled, selectedGroup]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
@@ -71,7 +82,7 @@ const SchedulingModal: React.FC<AddToGroupModalProps> = ({ movie, onClose, onCon
             )}
           </div>
 
-          <div>
+          <div className={isInterestLevelVotingEnabled ? '' : 'opacity-30 brightness-50'}>
             <label className="block text-[10px] uppercase font-black text-accent tracking-widest mb-3">
               How much do you want to watch this?
             </label>
@@ -82,14 +93,18 @@ const SchedulingModal: React.FC<AddToGroupModalProps> = ({ movie, onClose, onCon
                 max="100"
                 value={interestLevel}
                 onChange={(e) => setInterestLevel(Number(e.target.value))}
-                className="w-full h-2 bg-white/5 rounded-lg appearance-none cursor-pointer accent-accent"
+                disabled={!isInterestLevelVotingEnabled}
+                className="w-full h-2 bg-white/5 rounded-lg appearance-none accent-accent disabled:cursor-not-allowed disabled:opacity-50"
                 style={{
-                  background: `linear-gradient(to right, rgb(139, 92, 246) 0%, rgb(139, 92, 246) ${interestLevel}%, rgba(255, 255, 255, 0.05) ${interestLevel}%, rgba(255, 255, 255, 0.05) 100%)`
+                  background: isInterestLevelVotingEnabled
+                    ? `linear-gradient(to right, rgb(139, 92, 246) 0%, rgb(139, 92, 246) ${interestLevel}%, rgba(255, 255, 255, 0.05) ${interestLevel}%, rgba(255, 255, 255, 0.05) 100%)`
+                    : `linear-gradient(to right, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0.3) ${interestLevel}%, rgba(255, 255, 255, 0.02) ${interestLevel}%, rgba(255, 255, 255, 0.02) 100%)`,
+                  cursor: isInterestLevelVotingEnabled ? 'pointer' : 'not-allowed'
                 }}
               />
               <div className="flex justify-between text-xs text-gray-500">
                 <span>Not interested</span>
-                <span className="text-accent font-bold">{interestLevel}%</span>
+                <span className={`font-bold ${isInterestLevelVotingEnabled ? 'text-accent' : 'text-gray-500'}`}>{interestLevel}%</span>
                 <span>Very interested</span>
               </div>
             </div>

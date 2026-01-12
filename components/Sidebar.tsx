@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { User } from '@/lib/types';
 import Logo from './Logo';
 
@@ -17,13 +17,44 @@ interface SidebarProps {
   onJoinGroupClick: () => void;
 }
 
-type UserStatus = 'Online' | 'Idle' | 'Do Not Disturb' | 'Invisible';
+// Group item component with image error handling
+const GroupItem: React.FC<{
+  id: string;
+  name: string;
+  color: string;
+  pictureUrl?: string | null;
+  onSelect: (id: string) => void;
+}> = ({ id, name, color, pictureUrl, onSelect }) => {
+  const [imageError, setImageError] = React.useState(false);
+  const hasPicture = pictureUrl && !imageError;
+
+  return (
+    <button
+      onClick={() => onSelect(id)}
+      className="w-full flex items-center gap-4 px-5 py-3 rounded-xl transition-all duration-200 text-gray-400 hover:text-main hover:bg-black/[0.05] active:scale-[0.98] group"
+    >
+      {hasPicture ? (
+        <div className="relative shrink-0 transition-transform duration-200 group-hover:scale-110">
+          <img 
+            src={pictureUrl} 
+            alt={name}
+            className="w-6 h-6 rounded-lg border border-main object-cover transition-all duration-200"
+            onError={() => setImageError(true)}
+          />
+        </div>
+      ) : (
+        <div className={`w-1.5 h-1.5 rounded-full ${color} transition-transform duration-200 group-hover:scale-125 shrink-0`}></div>
+      )}
+      <span className="text-sm font-semibold truncate text-main transition-colors duration-200 group-hover:text-accent">{name}</span>
+    </button>
+  );
+};
 
 const Sidebar: React.FC<SidebarProps> = ({ 
   activeTab, 
   setActiveTab, 
   onGroupSelect, 
-  onFriendSelect, 
+  onFriendSelect,
   onProfileClick,
   onAddFriendClick,
   onCreateGroupClick,
@@ -31,40 +62,25 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { data: session } = useSession();
   const queryClient = useQueryClient();
-  const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
-  const statusMenuRef = useRef<HTMLDivElement>(null);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   
-  // Get user status from database, with localStorage fallback
-  const [userStatus, setUserStatus] = useState<UserStatus>('Online');
-  
-  // Fetch status from database on mount
-  const { data: userStatusData } = useQuery({
-    queryKey: ['userStatus'],
-    queryFn: async () => {
-      const res = await fetch('/api/users/me/status');
-      if (res.ok) {
-        const data = await res.json();
-        return data.status || 'Online';
-      }
-      // Fallback to localStorage if API fails
-      if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('userStatus') as UserStatus;
-        return saved || 'Online';
-      }
-      return 'Online';
-    },
-    enabled: !!session,
-  });
-
-  // Update status when data changes (replaces onSuccess callback)
+  // Close menu when clicking outside
   useEffect(() => {
-    if (userStatusData) {
-      setUserStatus(userStatusData);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('userStatus', userStatusData);
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
       }
+    };
+
+    if (isUserMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
     }
-  }, [userStatusData]);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isUserMenuOpen]);
   
   // Fetch friends
   const { data: friendsData = [] } = useQuery({
@@ -88,39 +104,14 @@ const Sidebar: React.FC<SidebarProps> = ({
     enabled: !!session,
   });
 
-  const friends: (User & { statusText: string })[] = friendsData.map((friend: User) => {
-    // Determine statusText based on the friend's status
-    // The status now preserves the original database values:
-    // 'Online', 'Idle', 'Do Not Disturb', 'Offline'
-    
-    let statusText = 'Offline';
-    if (friend.status === 'Online') {
-      statusText = 'Online';
-    } else if (friend.status === 'Idle') {
-      statusText = 'Idle';
-    } else if (friend.status === 'Do Not Disturb') {
-      statusText = 'Do Not Disturb';
-    } else if (friend.status === 'Offline') {
-      statusText = 'Offline';
-    } else {
-      // If status is undefined or unexpected, default to Offline but log it
-      console.warn('[SIDEBAR] Unexpected friend status:', friend.status, 'for friend:', friend.name);
-      statusText = 'Offline';
-    }
-    
-    return {
-      ...friend,
-      statusText,
-    };
-  });
+  const friends: User[] = friendsData;
 
 
   const navItems = [
     { id: 'Home', icon: 'fa-house' },
     { id: 'Inbox', icon: 'fa-envelope', badge: false },
     { id: 'Watchlists', icon: 'fa-list-check' },
-    { id: 'History', icon: 'fa-clock-rotate-left' },
-    { id: 'Settings', icon: 'fa-gear' }
+    { id: 'History', icon: 'fa-clock-rotate-left' }
   ];
 
   // Map teams to workspaces format
@@ -130,97 +121,10 @@ const Sidebar: React.FC<SidebarProps> = ({
       id: team.id,
       name: team.name,
       color: colors[index % colors.length],
+      pictureUrl: team.picture_url || team.pictureUrl || null,
     };
   });
 
-  // Update status mutation
-  const updateStatusMutation = useMutation({
-    mutationFn: async (newStatus: UserStatus) => {
-      try {
-        const res = await fetch('/api/users/me/status', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: newStatus }),
-        });
-        if (!res.ok) {
-          // Fall back to localStorage if API fails
-          throw new Error('Failed to update status');
-        }
-        return res.json();
-      } catch (error) {
-        // Still update locally even if API fails
-        console.warn('Status update failed, using localStorage:', error);
-        throw error;
-      }
-    },
-    onSuccess: (data, newStatus) => {
-      setUserStatus(newStatus);
-      localStorage.setItem('userStatus', newStatus);
-      // Invalidate friends query to refresh their status display
-      queryClient.invalidateQueries({ queryKey: ['friends'] });
-      // Also refetch user status to ensure sync
-      queryClient.invalidateQueries({ queryKey: ['userStatus'] });
-    },
-    onError: (error, newStatus) => {
-      // Fallback: update locally even if API fails
-      setUserStatus(newStatus);
-      localStorage.setItem('userStatus', newStatus);
-    },
-  });
-
-  // Close status menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (statusMenuRef.current && !statusMenuRef.current.contains(event.target as Node)) {
-        setIsStatusMenuOpen(false);
-      }
-    };
-
-    if (isStatusMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [isStatusMenuOpen]);
-
-  const getStatusColor = (status: string, statusText?: string) => {
-    if (status === 'Offline' || status === 'Invisible') return 'bg-[#747f8d]';
-    if (status === 'Do Not Disturb' || statusText?.toLowerCase().includes('dnd') || statusText?.toLowerCase().includes('do not disturb')) return 'bg-[#ed4245]';
-    if (status === 'Idle' || statusText?.toLowerCase().includes('away') || statusText?.toLowerCase().includes('idle')) return 'bg-[#faa61a]';
-    return 'bg-[#23a55a]';
-  };
-
-  const getStatusColorHex = (status: string, statusText?: string): string => {
-    if (status === 'Offline' || status === 'Invisible') return '#747f8d';
-    if (status === 'Do Not Disturb' || statusText?.toLowerCase().includes('dnd') || statusText?.toLowerCase().includes('do not disturb')) return '#ed4245';
-    if (status === 'Idle' || statusText?.toLowerCase().includes('away') || statusText?.toLowerCase().includes('idle')) return '#faa61a';
-    return '#23a55a';
-  };
-
-  const getStatusDisplayText = (status: UserStatus) => {
-    switch (status) {
-      case 'Idle': return 'IDLE';
-      case 'Do Not Disturb': return 'DND';
-      case 'Invisible': return 'INVISIBLE';
-      default: return 'ONLINE';
-    }
-  };
-
-  const statusOptions: { value: UserStatus; label: string; icon: string; color: string }[] = [
-    { value: 'Online', label: 'Online', icon: 'fa-circle', color: '#23a55a' },
-    { value: 'Idle', label: 'Idle', icon: 'fa-moon', color: '#faa61a' },
-    { value: 'Do Not Disturb', label: 'Do Not Disturb', icon: 'fa-circle-minus', color: '#ed4245' },
-    { value: 'Invisible', label: 'Invisible', icon: 'fa-eye-slash', color: '#747f8d' },
-  ];
-
-  const handleStatusChange = (newStatus: UserStatus) => {
-    updateStatusMutation.mutate(newStatus);
-    setIsStatusMenuOpen(false);
-  };
-
-  const handleProfileButtonClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsStatusMenuOpen(!isStatusMenuOpen);
-  };
 
   return (
     <aside className="w-72 flex flex-col bg-sidebar no-glow border-r border-main h-screen transition-all duration-300 relative shrink-0 overflow-hidden">
@@ -273,11 +177,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                 >
                   <div className="relative transition-transform duration-200 group-hover:scale-110">
                     <img src={friend.avatar} className="w-8 h-8 rounded-full border border-main transition-all duration-200" alt={friend.name} />
-                    <span className={`absolute bottom-0 right-0 w-3 h-3 ${getStatusColor(friend.status, friend.statusText)} rounded-full border-[1.5px] border-white shadow-sm transition-all duration-200`}></span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-bold truncate text-main transition-colors duration-200 group-hover:text-accent">{friend.name}</p>
-                    <p className="text-[9px] text-gray-400 font-medium truncate">{friend.statusText}</p>
                   </div>
                 </div>
               ))}
@@ -300,20 +202,20 @@ const Sidebar: React.FC<SidebarProps> = ({
                   className="text-accent hover:opacity-80 p-1 transition-all duration-200 active:scale-90 hover:scale-110" 
                   title="Join Group"
                 >
-                  <i className="fa-solid fa-user-plus text-xs"></i>
+                  <i className="fa-solid fa-key text-xs"></i>
                 </button>
               </div>
             </div>
             {workspaces.length > 0 ? (
-              workspaces.map((ws: { id: string; name: string; color: string }) => (
-                <button
+              workspaces.map((ws: { id: string; name: string; color: string; pictureUrl?: string | null }) => (
+                <GroupItem
                   key={ws.id}
-                  onClick={() => onGroupSelect(ws.id)}
-                  className="w-full flex items-center gap-4 px-5 py-3 rounded-xl transition-all duration-200 text-gray-400 hover:text-main hover:bg-black/[0.05] active:scale-[0.98] group"
-                >
-                  <div className={`w-1.5 h-1.5 rounded-full ${ws.color} transition-transform duration-200 group-hover:scale-125`}></div>
-                  <span className="text-sm font-semibold truncate text-main transition-colors duration-200 group-hover:text-accent">{ws.name}</span>
-                </button>
+                  id={ws.id}
+                  name={ws.name}
+                  color={ws.color}
+                  pictureUrl={ws.pictureUrl}
+                  onSelect={onGroupSelect}
+                />
               ))
             ) : (
               <div className="px-5 py-3 text-xs text-gray-500 text-center transition-opacity duration-200">
@@ -326,9 +228,9 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       {/* User Profile */}
       {session && (
-        <div className="mt-auto p-2 border-t border-main bg-sidebar relative">
+        <div className="mt-auto p-2 border-t border-main bg-sidebar relative" ref={userMenuRef}>
           <button 
-            onClick={handleProfileButtonClick}
+            onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
             className="w-full glass rounded-lg p-2.5 border-main hover:bg-black/[0.05] transition-all duration-200 text-left flex items-center gap-3 overflow-hidden min-w-[200px] active:scale-[0.98]"
           >
             <div className="relative shrink-0">
@@ -337,79 +239,47 @@ const Sidebar: React.FC<SidebarProps> = ({
                  className="w-9 h-9 min-w-[36px] rounded-md border border-main object-cover" 
                  alt="User" 
                />
-               <span 
-                 className={`absolute -top-1 -right-1 w-3 h-3 border-2 border-sidebar rounded-full shadow-sm`}
-                 style={{ backgroundColor: getStatusColorHex(userStatus) }}
-               ></span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-black truncate text-main leading-none mb-1">{session.user?.name || 'User'}</p>
-              <div className="flex items-center gap-1.5">
-                <span 
-                  className="text-[8px] font-black uppercase tracking-tighter"
-                  style={{ color: getStatusColorHex(userStatus) }}
-                >
-                  {getStatusDisplayText(userStatus)}
-                </span>
-              </div>
+              <p className="text-[11px] font-black truncate text-main leading-none">{session.user?.name || 'User'}</p>
             </div>
-            <i className="fa-solid fa-chevron-up text-[8px] text-gray-400 transition-transform duration-300 ease-out" style={{ transform: isStatusMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}></i>
+            <i className={`fa-solid fa-chevron-up text-xs text-gray-400 transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180' : ''}`}></i>
           </button>
-
-          {/* Status Dropdown Menu */}
-          {isStatusMenuOpen && (
-            <div 
-              ref={statusMenuRef}
-              className="absolute bottom-full left-2 right-2 mb-2 bg-sidebar border border-main rounded-lg shadow-xl overflow-hidden z-50 animate-scale-in"
-            >
-              <div className="p-1">
-                {statusOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => handleStatusChange(option.value)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all duration-200 text-left active:scale-[0.98] ${
-                      userStatus === option.value
-                        ? 'bg-accent/10'
-                        : 'hover:bg-black/[0.05]'
-                    }`}
-                  >
-                    <div className="relative shrink-0">
-                      <div 
-                        className="w-4 h-4 rounded-full border-2 border-sidebar"
-                        style={{ backgroundColor: option.color }}
-                      ></div>
-                      {userStatus === option.value && (
-                        <i className="fa-solid fa-check absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[8px] text-sidebar"></i>
-                      )}
-                    </div>
-                    <span className="text-xs font-semibold text-main">{option.label}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="border-t border-main p-1">
-                <button
-                  onClick={() => {
-                    setIsStatusMenuOpen(false);
-                    onProfileClick();
-                  }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-black/[0.05] transition-all duration-200 text-left active:scale-[0.98]"
-                >
-                  <i className="fa-solid fa-user text-xs text-gray-400 w-4"></i>
-                  <span className="text-xs font-semibold text-main">View Profile</span>
-                </button>
-              </div>
-              <div className="border-t border-main p-1">
-                <button
-                  onClick={() => {
-                    setIsStatusMenuOpen(false);
-                    signOut({ callbackUrl: '/api/auth/signin' });
-                  }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-red-500/10 transition-all duration-200 text-left active:scale-[0.98]"
-                >
-                  <i className="fa-solid fa-sign-out-alt text-xs text-red-500 w-4"></i>
-                  <span className="text-xs font-semibold text-red-500">Sign Out</span>
-                </button>
-              </div>
+          
+          {/* User Menu Popup */}
+          {isUserMenuOpen && (
+            <div className="absolute bottom-full left-2 right-2 mb-2 glass rounded-lg border border-main overflow-hidden shadow-lg z-50">
+              <button
+                onClick={() => {
+                  setActiveTab('Settings');
+                  setIsUserMenuOpen(false);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/[0.05] transition-all duration-200 text-sm font-semibold text-main active:scale-[0.98]"
+              >
+                <i className="fa-solid fa-gear text-xs w-5 text-gray-400"></i>
+                <span>Settings</span>
+              </button>
+              <button
+                onClick={() => {
+                  onProfileClick();
+                  setIsUserMenuOpen(false);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/[0.05] transition-all duration-200 text-sm font-semibold text-main active:scale-[0.98]"
+              >
+                <i className="fa-solid fa-user text-xs w-5 text-gray-400"></i>
+                <span>Your Profile</span>
+              </button>
+              <div className="border-t border-main"></div>
+              <button
+                onClick={() => {
+                  signOut({ callbackUrl: '/' });
+                  setIsUserMenuOpen(false);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-red-500/10 hover:text-red-400 transition-all duration-200 text-sm font-semibold text-main active:scale-[0.98]"
+              >
+                <i className="fa-solid fa-right-from-bracket text-xs w-5 text-gray-400"></i>
+                <span>Log-out</span>
+              </button>
             </div>
           )}
         </div>

@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Movie, User } from '@/lib/types';
+import RemoveMovieModal from './RemoveMovieModal';
 
 interface MovieGridProps {
   movies: Movie[];
@@ -67,6 +68,8 @@ const getGenreColor = (genre: string): string => {
 };
 
 const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownvote, onSchedule, onSelect, onRemove, users, personalWatchlist = [], isGroupWatchlist = false, votingMovieId = null }) => {
+  const [movieToRemove, setMovieToRemove] = useState<Movie | null>(null);
+  
   // Helper to check if movie is in personal watchlist
   const isInWatchlist = (movieId: string) => {
     if (!personalWatchlist || personalWatchlist.length === 0) return false;
@@ -177,9 +180,7 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      if (confirm(`Remove "${movie.title}" from queue?`)) {
-                        onRemove(movie.id);
-                      }
+                      setMovieToRemove(movie);
                     }}
                     className="w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-all duration-200 bg-red-600/90 border border-red-400/50 hover:bg-red-600 hover:scale-110"
                     title={`Remove ${movie.title} from queue`}
@@ -280,6 +281,19 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
           </div>
         </div>
       ))}
+      
+      {movieToRemove && (
+        <RemoveMovieModal
+          movie={movieToRemove}
+          onClose={() => setMovieToRemove(null)}
+          onConfirm={() => {
+            if (onRemove) {
+              onRemove(movieToRemove.id);
+            }
+            setMovieToRemove(null);
+          }}
+        />
+      )}
     </div>
   );
 };

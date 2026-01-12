@@ -1,9 +1,9 @@
 import { Movie, User, Group } from './types';
 
 export const MOCK_USERS: User[] = [
-  { id: 'u1', name: 'Marcus', avatar: 'https://picsum.photos/seed/marcus/100/100', status: 'Online', role: 'Admin' },
-  { id: 'u2', name: 'Sarah', avatar: 'https://picsum.photos/seed/sarah/100/100', status: 'Idle', role: 'Editor' },
-  { id: 'u3', name: 'Jason', avatar: 'https://picsum.photos/seed/jason/100/100', status: 'Offline', role: 'Viewer' },
+  { id: 'u1', name: 'Marcus', avatar: 'https://picsum.photos/seed/marcus/100/100', role: 'Admin' },
+  { id: 'u2', name: 'Sarah', avatar: 'https://picsum.photos/seed/sarah/100/100', role: 'Editor' },
+  { id: 'u3', name: 'Jason', avatar: 'https://picsum.photos/seed/jason/100/100', role: 'Viewer' },
 ];
 
 export const MOCK_MOVIES: Movie[] = [

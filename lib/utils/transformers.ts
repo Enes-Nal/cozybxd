@@ -77,33 +77,6 @@ export function transformMediaToMovie(media: any, watchlistItem?: any, logs?: an
 }
 
 export function transformUserToFrontend(user: any, teamMembership?: any): User {
-  // Get status from database, default to 'Offline' if not set
-  // Preserve the original database status values
-  // Database: 'Online', 'Idle', 'Do Not Disturb', 'Offline'
-  // Frontend: 'Online', 'Idle', 'Do Not Disturb', 'Offline' (same values)
-  let status: 'Online' | 'Idle' | 'Do Not Disturb' | 'Offline' = 'Offline';
-  
-  // Debug: log the user status to help diagnose issues
-  if (typeof window === 'undefined' && user?.id) {
-    console.log(`[TRANSFORM] User ${user.id} (${user.name}) status:`, user.status);
-  }
-  
-  if (user.status) {
-    // Preserve the original status from database
-    if (user.status === 'Online' || user.status === 'Idle' || user.status === 'Do Not Disturb' || user.status === 'Offline') {
-      status = user.status;
-    } else {
-      // Unknown status value - log it and default to Offline
-      console.warn(`[TRANSFORM] Unknown status value for user ${user.id}:`, user.status);
-      status = 'Offline';
-    }
-  } else {
-    // No status set - this is expected for new users
-    if (typeof window === 'undefined' && user?.id) {
-      console.log(`[TRANSFORM] User ${user.id} has no status set, defaulting to Offline`);
-    }
-  }
-  
   // Role from team membership or default
   const role = teamMembership?.role === 'admin' ? 'Admin' : 
                teamMembership?.role === 'editor' ? 'Editor' : 'Viewer';
@@ -112,7 +85,6 @@ export function transformUserToFrontend(user: any, teamMembership?: any): User {
     id: user.id,
     name: user.name || 'Unknown',
     avatar: user.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}`,
-    status,
     role,
   };
 }
@@ -141,6 +113,7 @@ export function transformTeamToGroup(team: any): Group {
     pictureUrl: team.picture_url || team.pictureUrl,
     inviteCode: team.invite_code || team.inviteCode,
     description: team.description,
+    interestLevelVotingEnabled: team.interest_level_voting_enabled || false,
   };
 }
 

@@ -21,7 +21,6 @@ export interface User {
   id: string;
   name: string;
   avatar: string;
-  status: 'Online' | 'Idle' | 'Do Not Disturb' | 'Offline';
   role: 'Admin' | 'Editor' | 'Viewer';
 }
 
@@ -34,5 +33,6 @@ export interface Group {
   pictureUrl?: string;
   inviteCode?: string;
   description?: string;
+  interestLevelVotingEnabled?: boolean;
 }
 

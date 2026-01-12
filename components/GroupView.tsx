@@ -478,6 +478,30 @@ const GroupView: React.FC<GroupViewProps> = ({
     }
   };
 
+  // Toggle interest level voting mutation
+  const toggleInterestLevelVotingMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const res = await fetch(`/api/teams/${group.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interestLevelVotingEnabled: enabled }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to update setting');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      queryClient.invalidateQueries({ queryKey: ['groupWatchlist', group.id] });
+    },
+  });
+
+  const handleToggleInterestLevelVoting = (enabled: boolean) => {
+    toggleInterestLevelVotingMutation.mutate(enabled);
+  };
+
   return (
     <>
       <div className="py-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -636,6 +660,31 @@ const GroupView: React.FC<GroupViewProps> = ({
         </div>
       </div>
 
+      {isAdmin && (
+        <div className="glass p-6 rounded-[2rem] border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent mb-8">
+          <h3 className="text-lg font-bold mb-4">Group Settings</h3>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold mb-1">Interest Level Voting</p>
+              <p className="text-xs text-gray-400">Allow members to set interest level when adding movies</p>
+            </div>
+            <button
+              onClick={() => handleToggleInterestLevelVoting(!group.interestLevelVotingEnabled)}
+              disabled={toggleInterestLevelVotingMutation.isPending}
+              className={`relative w-14 h-8 rounded-full transition-colors ${
+                group.interestLevelVotingEnabled ? 'bg-accent' : 'bg-white/10'
+              } disabled:opacity-50`}
+            >
+              <div
+                className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform ${
+                  group.interestLevelVotingEnabled ? 'translate-x-6' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      )}
+
       <h3 className="text-lg font-bold mb-6">Group Queue</h3>
       {movies.length > 0 ? (
         <MovieGrid 
@@ -694,13 +743,6 @@ const GroupView: React.FC<GroupViewProps> = ({
 
             <div className="space-y-3 max-h-[60vh] overflow-y-auto">
               {group.members.map((member) => {
-                const getStatusColor = (status: string) => {
-                  if (status === 'Offline') return 'bg-[#747f8d]';
-                  if (status === 'Do Not Disturb') return 'bg-[#ed4245]';
-                  if (status === 'Idle') return 'bg-[#faa61a]';
-                  return 'bg-[#23a55a]';
-                };
-
                 return (
                   <div 
                     key={member.id} 
@@ -718,10 +760,6 @@ const GroupView: React.FC<GroupViewProps> = ({
                         alt={member.name}
                         className="w-12 h-12 rounded-full"
                       />
-                      <div 
-                        className={`absolute bottom-0 right-0 w-3 h-3 ${getStatusColor(member.status)} rounded-full border-2 border-[#0a0a0a]`}
-                        title={member.status}
-                      />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
@@ -732,7 +770,6 @@ const GroupView: React.FC<GroupViewProps> = ({
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-400 capitalize">{member.status.toLowerCase()}</p>
                     </div>
                   </div>
                 );

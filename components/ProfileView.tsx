@@ -180,20 +180,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
   const teams = userData?.teams || [];
   const recentReviews = reviewsData.slice(0, 2);
 
-  // Determine styles based on status and potentially browsing/watching context
-  const getStatusStyles = () => {
-    if (user.status === 'Offline') return 'border-red-500/50 text-red-500 bg-red-500/10';
-    
-    // Status color mapping:
-    // Online = Green, Idle = Yellow, Do Not Disturb = Red, Offline = Red
-    if (user.status === 'Do Not Disturb') return 'border-[#ed4245]/50 text-[#ed4245] bg-[#ed4245]/10';
-    if (user.status === 'Idle') return 'border-yellow-500/50 text-yellow-500 bg-yellow-500/10';
-    if (user.status === 'Online') return 'border-[#00c851]/50 text-[#00c851] bg-[#00c851]/10';
-    
-    // Default fallback
-    return 'border-yellow-500/50 text-yellow-500 bg-yellow-500/10';
-  };
-
   return (
     <div className="py-8 max-w-5xl animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-y-auto pb-20">
       <div className="flex flex-col md:flex-row items-center gap-10 mb-16">
@@ -203,9 +189,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
         <div className="text-center md:text-left flex-1">
           <div className="flex items-center justify-center md:justify-start gap-4 mb-2">
             <h2 className="text-5xl font-black text-main tracking-tight">{user.name.toUpperCase()}</h2>
-            <div className={`px-4 py-1 rounded-full border ${getStatusStyles()} text-[9px] font-black uppercase tracking-widest flex items-center justify-center min-w-[70px]`}>
-              {user.status}
-            </div>
           </div>
           <p className="text-gray-500 font-bold uppercase tracking-widest">{user.role}</p>
           {userData?.email && (

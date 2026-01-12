@@ -1,12 +1,14 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Movie } from '@/lib/types';
 
 const HistoryView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) => {
   const { status: sessionStatus } = useSession();
+  const queryClient = useQueryClient();
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
   // Fetch history from API
   const { data: historyData = [], isLoading } = useQuery({
@@ -21,6 +23,57 @@ const HistoryView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) => 
 
   // Use prop movies if provided (for backwards compatibility), otherwise use fetched data
   const movies = propMovies || historyData;
+
+  const handleDelete = async (movie: any) => {
+    if (sessionStatus !== 'authenticated') return;
+    
+    // Extract IDs from movie.id (format: "tmdb-{id}" or UUID)
+    const tmdbId = movie.id.startsWith('tmdb-') ? parseInt(movie.id.replace('tmdb-', '')) : null;
+    const mediaId = movie.id.startsWith('tmdb-') ? null : movie.id;
+
+    setDeletingIds(prev => new Set(prev).add(movie.id));
+
+    try {
+      const response = await fetch('/api/history', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mediaId: mediaId || undefined,
+          tmdbId: tmdbId || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to remove' }));
+        throw new Error(error.error || 'Failed to remove from history');
+      }
+
+      // Invalidate queries to refresh data
+      await queryClient.invalidateQueries({ queryKey: ['history'] });
+      await queryClient.invalidateQueries({ queryKey: ['movieLogs'] });
+      await queryClient.invalidateQueries({ queryKey: ['userWatched'] });
+      await queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+      
+      // If mediaId exists, also invalidate media queries
+      if (mediaId) {
+        await queryClient.invalidateQueries({ queryKey: ['media', mediaId] });
+      }
+      
+      // Refetch history to update the list
+      await queryClient.refetchQueries({ queryKey: ['history'] });
+    } catch (error) {
+      console.error('Failed to remove from history:', error);
+      alert('Failed to remove movie from history. Please try again.');
+    } finally {
+      setDeletingIds(prev => {
+        const next = new Set(prev);
+        next.delete(movie.id);
+        return next;
+      });
+    }
+  };
 
   return (
     <div className="py-8 max-w-4xl animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-y-auto pb-20">
@@ -63,8 +116,18 @@ const HistoryView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) => 
                 )}
               </div>
               
-              <div className="py-2 flex-1">
-                <p className="text-[10px] font-black text-accent uppercase tracking-widest mb-1">WATCHED {month} {day}</p>
+              <div className="py-2 flex-1 relative">
+                <div className="flex items-start justify-between gap-4 mb-1">
+                  <p className="text-[10px] font-black text-accent uppercase tracking-widest">WATCHED {month} {day}</p>
+                  <button
+                    onClick={() => handleDelete(movie)}
+                    disabled={deletingIds.has(movie.id)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Remove from history"
+                  >
+                    <i className={`fa-solid ${deletingIds.has(movie.id) ? 'fa-spinner fa-spin' : 'fa-trash'} text-xs`}></i>
+                  </button>
+                </div>
                 <h3 className="text-2xl font-black mb-2 text-main">{movie.title}</h3>
                 <div className="flex items-center gap-4 text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-4">
                   {movie.reviews && movie.reviews.length > 0 && (
