@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const supabase = createServerClient();
 
   try {
-    // Get direct friends from friends table
+    // Get direct friends from friends table only (no team members)
     const { data: directFriendships, error: directFriendsError } = await supabase
       .from('friends')
       .select('friend_id')
@@ -21,85 +21,31 @@ export async function GET(request: NextRequest) {
 
     if (directFriendsError) {
       console.error('Direct friends error:', directFriendsError);
+      return NextResponse.json({ error: directFriendsError.message }, { status: 500 });
     }
 
     // Get friend user data
     const friendIds = (directFriendships || []).map((f: any) => f.friend_id);
-    let directFriends: any[] = [];
+    let friends: any[] = [];
+    
     if (friendIds.length > 0) {
       const { data: friendUsers, error: friendUsersError } = await supabase
         .from('users')
         .select('*')
         .in('id', friendIds);
 
-      if (!friendUsersError && friendUsers) {
-        directFriends = friendUsers.map((user: any) => ({
-          users: user,
-          friend_id: user.id,
+      if (friendUsersError) {
+        console.error('Friend users error:', friendUsersError);
+        return NextResponse.json({ error: friendUsersError.message }, { status: 500 });
+      }
+
+      if (friendUsers) {
+        friends = friendUsers.map((user: any) => ({
+          ...transformUserToFrontend(user),
+          isDirectFriend: true,
         }));
       }
     }
-
-    // Get all teams the user is a member of
-    const { data: userTeams, error: teamsError } = await supabase
-      .from('team_members')
-      .select('team_id')
-      .eq('user_id', session.user.id);
-
-    if (teamsError) {
-      return NextResponse.json({ error: teamsError.message }, { status: 500 });
-    }
-
-    const teamIds = (userTeams || []).map((t: any) => t.team_id);
-
-    // Get all members of those teams (excluding the current user)
-    let memberships: any[] = [];
-    if (teamIds.length > 0) {
-      const { data: teamMemberships, error: membersError } = await supabase
-        .from('team_members')
-        .select(`
-          *,
-          users(*)
-        `)
-        .in('team_id', teamIds)
-        .neq('user_id', session.user.id);
-
-      if (membersError) {
-        return NextResponse.json({ error: membersError.message }, { status: 500 });
-      }
-      memberships = teamMemberships || [];
-    }
-
-    // Group by user ID to get unique friends
-    const friendsMap = new Map<string, any>();
-    
-    // Add direct friends
-    directFriends.forEach((friendship: any) => {
-      const friend = friendship.users;
-      if (friend && !friendsMap.has(friend.id)) {
-        friendsMap.set(friend.id, {
-          ...transformUserToFrontend(friend),
-          sharedTeams: [],
-        });
-      }
-    });
-
-    // Add team members
-    memberships.forEach((membership: any) => {
-      const userId = membership.user_id;
-      if (!friendsMap.has(userId)) {
-        friendsMap.set(userId, {
-          ...transformUserToFrontend(membership.users, membership),
-          sharedTeams: [],
-        });
-      }
-      friendsMap.get(userId).sharedTeams.push({
-        id: membership.team_id,
-        role: membership.role,
-      });
-    });
-
-    const friends = Array.from(friendsMap.values());
 
     return NextResponse.json(friends);
   } catch (error) {

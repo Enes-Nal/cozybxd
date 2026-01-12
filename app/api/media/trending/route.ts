@@ -31,6 +31,9 @@ export async function GET() {
       .slice(0, 20)
       .map(([id]) => id);
 
+    // If we have fewer than 15 items with view counts, supplement with TMDB trending
+    const shouldSupplement = topMediaIds.length < 15;
+
     if (topMediaIds.length === 0) {
       // Fallback: get TMDB trending movies
       try {
@@ -54,7 +57,7 @@ export async function GET() {
       }
     }
 
-    // Fetch media details
+    // Fetch media details for items with view counts
     const { data: trendingMedia, error: mediaError } = await supabase
       .from('media')
       .select('*')
@@ -70,6 +73,36 @@ export async function GET() {
       const viewsB = mediaViewCounts[b.id] || 0;
       return viewsB - viewsA;
     });
+
+    // If we need to supplement, get TMDB trending movies
+    if (shouldSupplement) {
+      try {
+        const tmdbMovies = await getTrendingMovies(1);
+        // Get existing TMDB IDs to avoid duplicates
+        const existingTmdbIds = new Set(
+          sortedMedia
+            .filter((m: any) => m.tmdb_id)
+            .map((m: any) => m.tmdb_id.toString())
+        );
+        
+        // Filter out duplicates and limit to fill up to 20 items
+        const uniqueTmdbMovies = tmdbMovies
+          .filter((tmdbMovie) => !existingTmdbIds.has(tmdbMovie.id.toString()))
+          .slice(0, 20 - sortedMedia.length);
+
+        return NextResponse.json({
+          type: 'mixed',
+          results: [...sortedMedia, ...uniqueTmdbMovies],
+        });
+      } catch (tmdbError) {
+        // If TMDB fails, just return what we have
+        console.error('Failed to supplement with TMDB trending:', tmdbError);
+        return NextResponse.json({
+          type: 'media',
+          results: sortedMedia,
+        });
+      }
+    }
 
     return NextResponse.json({
       type: 'media',

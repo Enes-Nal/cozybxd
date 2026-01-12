@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { Group, Movie } from '@/lib/types';
+import { Group, Movie, User } from '@/lib/types';
 import MovieGrid from './MovieGrid';
 import InvitePeopleModal from './InvitePeopleModal';
 import EditGroupPictureModal from './EditGroupPictureModal';
@@ -15,11 +15,13 @@ interface GroupViewProps {
   onVote?: (id: string) => void;
   onSchedule?: (movie: Movie) => void;
   onSelect?: (movie: Movie) => void;
+  onProfileSelect?: (user: User) => void;
 }
 
 const GroupView: React.FC<GroupViewProps> = ({ 
   group, 
-  movies: initialMovies, 
+  movies: initialMovies,
+  onProfileSelect,
   onVote = async (id) => {
     try {
       let mediaId = id.startsWith('tmdb-') ? id.replace('tmdb-', '') : id;
@@ -72,15 +74,21 @@ const GroupView: React.FC<GroupViewProps> = ({
   const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [movies, setMovies] = useState(initialMovies);
+  const [votingMovieId, setVotingMovieId] = useState<string | null>(null); // Track which movie is being voted on
+  const lastVoteTimeRef = useRef<number>(0); // Track when we last voted to prevent immediate sync
   
   // Get current user's role in the group
   const currentUser = group.members.find(m => m.id === session?.user?.id);
   const isAdmin = currentUser?.role === 'Admin';
   
-  // Update movies when initialMovies changes
+  // Update movies when initialMovies changes, but not while voting or immediately after voting
   useEffect(() => {
-    setMovies(initialMovies);
-  }, [initialMovies]);
+    // Don't overwrite local state if we're currently voting or just voted (within last 2 seconds)
+    const timeSinceLastVote = Date.now() - lastVoteTimeRef.current;
+    if (votingMovieId === null && timeSinceLastVote > 2000) {
+      setMovies(initialMovies);
+    }
+  }, [initialMovies, votingMovieId]);
   
   // Helper function to sync media if needed
   const syncMediaIfNeeded = async (id: string): Promise<string> => {
@@ -105,10 +113,16 @@ const GroupView: React.FC<GroupViewProps> = ({
 
   // Upvote handler with optimistic UI update
   const handleUpvote = async (id: string) => {
+    // Prevent double clicks
+    if (votingMovieId === id) return;
+    
     const currentMovie = movies.find(m => m.id === id);
     const currentUpvotes = currentMovie?.upvotes || 0;
     const currentDownvotes = currentMovie?.downvotes || 0;
     const currentUserVote = currentMovie?.userVote;
+    const currentScore = currentUpvotes - currentDownvotes;
+    
+    setVotingMovieId(id);
     
     // Optimistic update
     setMovies(prevMovies => 
@@ -117,30 +131,36 @@ const GroupView: React.FC<GroupViewProps> = ({
         let newUpvotes = currentUpvotes;
         let newDownvotes = currentDownvotes;
         let newUserVote: 'upvote' | 'downvote' | null = 'upvote';
+        let newScore = currentScore;
         
         if (currentUserVote === 'upvote') {
           // Toggle off
           newUpvotes = Math.max(0, newUpvotes - 1);
           newUserVote = null;
+          newScore = newScore - 1;
         } else if (currentUserVote === 'downvote') {
           // Switch from downvote to upvote
           newDownvotes = Math.max(0, newDownvotes - 1);
           newUpvotes = newUpvotes + 1;
+          newUserVote = 'upvote';
+          newScore = newScore + 2; // +1 for removing downvote, +1 for adding upvote
         } else {
           // Add upvote
           newUpvotes = newUpvotes + 1;
+          newScore = newScore + 1;
         }
         
         return { 
           ...m, 
           upvotes: newUpvotes,
           downvotes: newDownvotes,
-          votes: newUpvotes - newDownvotes,
+          votes: newScore,
           userVote: newUserVote
         };
       })
     );
     
+    let voteSuccess = false;
     try {
       const mediaId = await syncMediaIfNeeded(id);
       
@@ -172,11 +192,12 @@ const GroupView: React.FC<GroupViewProps> = ({
               ...m, 
               upvotes: data.upvotes,
               downvotes: data.downvotes,
-              votes: data.upvotes - data.downvotes,
+              votes: data.score,
               userVote: data.userVote
             } : m
           )
         );
+        voteSuccess = true;
       } else {
         // Revert optimistic update on error
         setMovies(prevMovies => 
@@ -185,7 +206,7 @@ const GroupView: React.FC<GroupViewProps> = ({
               ...m, 
               upvotes: currentUpvotes,
               downvotes: currentDownvotes,
-              votes: currentUpvotes - currentDownvotes,
+              votes: currentScore,
               userVote: currentUserVote
             } : m
           )
@@ -200,20 +221,32 @@ const GroupView: React.FC<GroupViewProps> = ({
             ...m, 
             upvotes: currentUpvotes,
             downvotes: currentDownvotes,
-            votes: currentUpvotes - currentDownvotes,
+            votes: currentScore,
             userVote: currentUserVote
           } : m
         )
       );
+    } finally {
+      setVotingMovieId(null);
+      // Invalidate the query after clearing voting state to refetch with updated data
+      if (voteSuccess) {
+        queryClient.invalidateQueries({ queryKey: ['groupWatchlist', group.id] });
+      }
     }
   };
 
   // Downvote handler with optimistic UI update
   const handleDownvote = async (id: string) => {
+    // Prevent double clicks
+    if (votingMovieId === id) return;
+    
     const currentMovie = movies.find(m => m.id === id);
     const currentUpvotes = currentMovie?.upvotes || 0;
     const currentDownvotes = currentMovie?.downvotes || 0;
     const currentUserVote = currentMovie?.userVote;
+    const currentScore = currentUpvotes - currentDownvotes;
+    
+    setVotingMovieId(id);
     
     // Optimistic update
     setMovies(prevMovies => 
@@ -222,30 +255,36 @@ const GroupView: React.FC<GroupViewProps> = ({
         let newUpvotes = currentUpvotes;
         let newDownvotes = currentDownvotes;
         let newUserVote: 'upvote' | 'downvote' | null = 'downvote';
+        let newScore = currentScore;
         
         if (currentUserVote === 'downvote') {
           // Toggle off
           newDownvotes = Math.max(0, newDownvotes - 1);
           newUserVote = null;
+          newScore = newScore + 1;
         } else if (currentUserVote === 'upvote') {
           // Switch from upvote to downvote
           newUpvotes = Math.max(0, newUpvotes - 1);
           newDownvotes = newDownvotes + 1;
+          newUserVote = 'downvote';
+          newScore = newScore - 2; // -1 for removing upvote, -1 for adding downvote
         } else {
           // Add downvote
           newDownvotes = newDownvotes + 1;
+          newScore = newScore - 1;
         }
         
         return { 
           ...m, 
           upvotes: newUpvotes,
           downvotes: newDownvotes,
-          votes: newUpvotes - newDownvotes,
+          votes: newScore,
           userVote: newUserVote
         };
       })
     );
     
+    let voteSuccess = false;
     try {
       const mediaId = await syncMediaIfNeeded(id);
       
@@ -277,11 +316,12 @@ const GroupView: React.FC<GroupViewProps> = ({
               ...m, 
               upvotes: data.upvotes,
               downvotes: data.downvotes,
-              votes: data.upvotes - data.downvotes,
+              votes: data.score,
               userVote: data.userVote
             } : m
           )
         );
+        voteSuccess = true;
       } else {
         // Revert optimistic update on error
         setMovies(prevMovies => 
@@ -290,7 +330,7 @@ const GroupView: React.FC<GroupViewProps> = ({
               ...m, 
               upvotes: currentUpvotes,
               downvotes: currentDownvotes,
-              votes: currentUpvotes - currentDownvotes,
+              votes: currentScore,
               userVote: currentUserVote
             } : m
           )
@@ -305,11 +345,21 @@ const GroupView: React.FC<GroupViewProps> = ({
             ...m, 
             upvotes: currentUpvotes,
             downvotes: currentDownvotes,
-            votes: currentUpvotes - currentDownvotes,
+            votes: currentScore,
             userVote: currentUserVote
           } : m
         )
       );
+    } finally {
+      setVotingMovieId(null);
+      // Track when we voted to prevent immediate sync
+      if (voteSuccess) {
+        lastVoteTimeRef.current = Date.now();
+        // Invalidate the query after a delay to allow database to commit
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['groupWatchlist', group.id] });
+        }, 500);
+      }
     }
   };
 
@@ -592,6 +642,7 @@ const GroupView: React.FC<GroupViewProps> = ({
           movies={movies} 
           onUpvote={handleUpvote}
           onDownvote={handleDownvote}
+          votingMovieId={votingMovieId}
           onRemove={handleRemove}
           onSchedule={(id) => {
             const movie = movies.find(m => m.id === id);
@@ -645,14 +696,21 @@ const GroupView: React.FC<GroupViewProps> = ({
               {group.members.map((member) => {
                 const getStatusColor = (status: string) => {
                   if (status === 'Offline') return 'bg-[#747f8d]';
-                  if (status === 'Ready') return 'bg-[#faa61a]';
+                  if (status === 'Do Not Disturb') return 'bg-[#ed4245]';
+                  if (status === 'Idle') return 'bg-[#faa61a]';
                   return 'bg-[#23a55a]';
                 };
 
                 return (
                   <div 
                     key={member.id} 
-                    className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors"
+                    className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors cursor-pointer"
+                    onClick={() => {
+                      if (onProfileSelect) {
+                        onProfileSelect(member);
+                        setIsMembersModalOpen(false);
+                      }
+                    }}
                   >
                     <div className="relative">
                       <img 

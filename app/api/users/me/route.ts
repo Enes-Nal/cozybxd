@@ -60,6 +60,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       ...transformedUser,
+      username: user.username || null, // Include username in response
       stats: {
         watched: watchedCount || 0,
         reviews: reviewCount || 0,
@@ -87,15 +88,23 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, image } = body;
+    const { name, image, username } = body;
 
     // Build update object with only provided fields
-    const updateData: { name?: string; image?: string } = {};
+    const updateData: { name?: string; image?: string; username?: string } = {};
     if (name !== undefined) {
       updateData.name = name.trim() || null;
     }
     if (image !== undefined) {
       updateData.image = image.trim() || null;
+    }
+    if (username !== undefined && username !== null) {
+      // Username must be lowercase and trimmed
+      const trimmedUsername = typeof username === 'string' ? username.trim() : String(username).trim();
+      if (trimmedUsername) {
+        updateData.username = trimmedUsername.toLowerCase();
+      }
+      // If empty, don't include in update (shouldn't happen from modal, but handle gracefully)
     }
 
     // If no valid fields to update, return error
@@ -104,6 +113,37 @@ export async function PATCH(request: NextRequest) {
         { error: 'No valid fields to update' },
         { status: 400 }
       );
+    }
+
+    // If updating username, check if it's already taken
+    if (updateData.username !== undefined && updateData.username !== null) {
+      // Use the same pattern as the friends route which works
+      const { data: existingUser, error: checkError } = await supabase
+        .from('users')
+        .select('id, username')
+        .eq('username', updateData.username)
+        .maybeSingle();
+
+      // Only treat as error if it's not a "not found" error (PGRST116 = no rows returned)
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Username check error:', JSON.stringify(checkError, null, 2));
+        console.error('Error details:', {
+          message: checkError.message,
+          code: checkError.code,
+          details: checkError.details,
+          hint: checkError.hint
+        });
+        // Don't fail here - let the database unique constraint handle it
+        // This allows the update to proceed and the DB will catch duplicates
+      }
+
+      // Check if username is taken by another user (only if check succeeded)
+      if (!checkError && existingUser && existingUser.id !== session.user.id) {
+        return NextResponse.json(
+          { error: 'Username is already taken' },
+          { status: 400 }
+        );
+      }
     }
 
     // Update user
@@ -115,9 +155,41 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (updateError || !updatedUser) {
-      console.error('User update error:', updateError);
+      console.error('User update error:', JSON.stringify(updateError, null, 2));
+      console.error('Update data attempted:', updateData);
+      console.error('User ID:', session.user.id);
+      
+      // Check if it's a schema/column error
+      if (updateError?.message?.includes('column') || 
+          updateError?.message?.includes('Could not find') ||
+          updateError?.message?.includes('schema cache')) {
+        return NextResponse.json(
+          { 
+            error: 'Database schema error. The username column may not exist. Please run this SQL in your Supabase SQL Editor:\n\nALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT UNIQUE;\n\nThen wait 1-2 minutes for Supabase\'s schema cache to refresh.',
+            details: updateError.message 
+          },
+          { status: 500 }
+        );
+      }
+      
+      // Check if it's a unique constraint violation (username already taken)
+      if (updateError?.code === '23505' || 
+          updateError?.message?.includes('unique') || 
+          updateError?.message?.includes('duplicate') ||
+          updateError?.message?.includes('violates unique constraint')) {
+        return NextResponse.json(
+          { error: 'Username is already taken' },
+          { status: 400 }
+        );
+      }
+      
       return NextResponse.json(
-        { error: 'Failed to update user' },
+        { 
+          error: 'Failed to update user', 
+          details: updateError?.message || 'Unknown error',
+          code: updateError?.code,
+          hint: updateError?.hint
+        },
         { status: 500 }
       );
     }

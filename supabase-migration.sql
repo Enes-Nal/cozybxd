@@ -58,6 +58,7 @@ CREATE TABLE teams (
   name TEXT NOT NULL,
   description TEXT,
   invite_code TEXT UNIQUE,
+  picture_url TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

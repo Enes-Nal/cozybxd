@@ -55,9 +55,9 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ onClose, onFriendAdded 
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
-      <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-in zoom-in-95 duration-300">
-        <button onClick={onClose} className="absolute top-8 right-8 text-gray-500 hover:text-white transition-colors">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-fade-in">
+      <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-scale-in">
+        <button onClick={onClose} className="absolute top-8 right-8 text-gray-500 hover:text-white active:scale-90 transition-all duration-200 hover:rotate-90">
           <i className="fa-solid fa-xmark text-xl"></i>
         </button>
 
@@ -98,7 +98,7 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ onClose, onFriendAdded 
                 <button 
                   type="button"
                   onClick={onClose}
-                  className="flex-1 px-4 py-4 rounded-2xl border border-white/10 text-xs font-black uppercase tracking-widest text-gray-400 hover:bg-white/5 transition-all disabled:opacity-50"
+                  className="flex-1 px-4 py-4 rounded-2xl border border-white/10 text-xs font-black uppercase tracking-widest text-gray-400 hover:bg-white/5 active:scale-95 transition-all duration-200 disabled:opacity-50"
                   disabled={loading}
                 >
                   Cancel

@@ -103,9 +103,12 @@ export async function POST(
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
 
+    const score = (updated.upvotes || 0) - (updated.downvotes || 0);
+    
     return NextResponse.json({ 
       upvotes: updated.upvotes,
       downvotes: updated.downvotes,
+      score,
       userVote: voteAction === 'removed' ? null : 'upvote'
     });
   } catch (error) {

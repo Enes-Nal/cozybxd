@@ -4,6 +4,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { createServerClient } from '@/lib/supabase';
 import { getMovieDetails, getPosterUrl, getBackdropUrl } from '@/lib/api/tmdb';
 import { getGenres } from '@/lib/api/tmdb';
+import { getOMDbData } from '@/lib/api/omdb';
 
 // Helper to get genre names from IDs
 async function getGenreNames(genreIds: number[]): Promise<string[]> {
@@ -52,11 +53,31 @@ export async function POST(request: NextRequest) {
     // Get genre names
     const genres = await getGenreNames(tmdbData.genre_ids || []);
 
+    // Fetch IMDB rating if IMDB ID is available
+    let imdbRating: number | null = null;
+    let imdbId: string | null = null;
+    
+    // TMDB movie details include external_ids with imdb_id
+    const tmdbMovieDetails = tmdbData as any;
+    if (tmdbMovieDetails.external_ids?.imdb_id) {
+      imdbId = tmdbMovieDetails.external_ids.imdb_id;
+      try {
+        const omdbData = await getOMDbData(imdbId);
+        if (omdbData?.imdbRating && omdbData.imdbRating !== 'N/A') {
+          imdbRating = parseFloat(omdbData.imdbRating);
+        }
+      } catch (error) {
+        console.error('Failed to fetch IMDB rating:', error);
+        // Continue without IMDB rating
+      }
+    }
+
     // Create media record
     const { data: media, error } = await supabase
       .from('media')
       .insert({
         tmdb_id: tmdbId,
+        imdb_id: imdbId,
         title: tmdbData.title,
         type: type,
         poster_url: getPosterUrl(tmdbData.poster_path),
@@ -65,6 +86,7 @@ export async function POST(request: NextRequest) {
         release_date: tmdbData.release_date ? new Date(tmdbData.release_date) : null,
         runtime: tmdbData.runtime || null,
         genres: genres,
+        imdb_rating: imdbRating,
       })
       .select()
       .single();

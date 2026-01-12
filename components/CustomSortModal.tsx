@@ -25,8 +25,8 @@ const CustomSortModal: React.FC<CustomSortModalProps> = ({ onClose }) => {
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95 backdrop-blur-2xl p-4 overflow-y-auto animate-fade-in">
-      <div className="glass w-full max-w-xl rounded-[3rem] p-10 relative border-white/10 my-8 shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-10 duration-500 cubic-bezier(0.16, 1, 0.3, 1)">
-        <button onClick={onClose} className="absolute top-8 right-10 text-gray-500 hover:text-white transition-all hover:rotate-90">
+      <div className="glass w-full max-w-xl rounded-[3rem] p-10 relative border-white/10 my-8 shadow-2xl animate-scale-in">
+        <button onClick={onClose} className="absolute top-8 right-10 text-gray-500 hover:text-white active:scale-90 transition-all duration-200 hover:rotate-90">
           <i className="fa-solid fa-xmark text-2xl"></i>
         </button>
 
@@ -44,10 +44,10 @@ const CustomSortModal: React.FC<CustomSortModalProps> = ({ onClose }) => {
             <button
               key={opt.id}
               onClick={() => toggleSelection(opt.id)}
-              className={`w-full flex items-center gap-4 p-5 rounded-2xl border transition-all duration-300 text-left ${
+              className={`w-full flex items-center gap-4 p-5 rounded-2xl border transition-all duration-200 text-left active:scale-[0.98] ${
                 selections.includes(opt.id) 
                   ? 'bg-white/5 border-accent/40 scale-[1.02]' 
-                  : 'bg-transparent border-white/5 hover:bg-white/[0.02]'
+                  : 'bg-transparent border-white/5 hover:bg-white/[0.02] hover:scale-[1.01]'
               }`}
             >
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors duration-300 ${

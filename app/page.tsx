@@ -18,10 +18,11 @@ import CustomSortModal from '@/components/CustomSortModal';
 import AIRecommendationModal from '@/components/AIRecommendationModal';
 import SchedulingModal from '@/components/SchedulingModal';
 import RandomPickerModal from '@/components/RandomPickerModal';
-import FilterDrawer from '@/components/FilterDrawer';
+import FilterDrawer, { FilterState } from '@/components/FilterDrawer';
 import AddFriendModal from '@/components/AddFriendModal';
 import CreateGroupModal from '@/components/CreateGroupModal';
 import JoinGroupModal from '@/components/JoinGroupModal';
+import SetUsernameModal from '@/components/SetUsernameModal';
 import { Movie, User, Group } from '@/lib/types';
 import { transformTMDBMovieToMovieSync, transformTeamToGroup, transformMediaToMovie } from '@/lib/utils/transformers';
 import { TMDBMovie, getGenres } from '@/lib/api/tmdb';
@@ -46,11 +47,13 @@ function HomeContent() {
   const [isAddFriendOpen, setIsAddFriendOpen] = useState(false);
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
   const [isJoinGroupOpen, setIsJoinGroupOpen] = useState(false);
+  const [isSetUsernameOpen, setIsSetUsernameOpen] = useState(false);
   const [schedulingMovie, setSchedulingMovie] = useState<Movie | null>(null);
   const [sortBy, setSortBy] = useState<string>('Trending');
   const [searchQuery, setSearchQuery] = useState('');
   const [groupData, setGroupData] = useState<Group | null>(null);
   const [groupMovies, setGroupMovies] = useState<Movie[]>([]);
+  const [filters, setFilters] = useState<FilterState | null>(null);
 
   // Fetch current user
   const { data: currentUserData, isLoading: userLoading } = useQuery({
@@ -64,6 +67,14 @@ function HomeContent() {
   });
 
   const currentUser: User | null = currentUserData || null;
+  const currentUsername = (currentUserData as any)?.username || null;
+
+  // Show username modal if user is authenticated but doesn't have a username
+  useEffect(() => {
+    if (sessionStatus === 'authenticated' && !userLoading && currentUserData && !currentUsername) {
+      setIsSetUsernameOpen(true);
+    }
+  }, [sessionStatus, userLoading, currentUserData, currentUsername]);
 
   // Fetch genres on mount
   useEffect(() => {
@@ -73,10 +84,37 @@ function HomeContent() {
     });
   }, []);
 
-  // Fetch movies based on sortBy
+  // Fetch movies based on sortBy and filters
   const { data: moviesData, isLoading: moviesLoading } = useQuery({
-    queryKey: ['movies', sortBy],
+    queryKey: ['movies', sortBy, filters],
     queryFn: async () => {
+      // If filters are applied, use discover endpoint
+      if (filters) {
+        const params = new URLSearchParams();
+        params.append('contentType', filters.contentType);
+        params.append('maxRuntime', filters.maxRuntime.toString());
+        params.append('minRating', filters.minRating.toString());
+        if (filters.genres.length > 0) {
+          params.append('genres', filters.genres.join(','));
+        }
+        params.append('criticallyAcclaimed', filters.criticallyAcclaimed.toString());
+        params.append('nicheExperimental', filters.nicheExperimental.toString());
+        params.append('budgetFit', filters.budgetFit.toString());
+        
+        const res = await fetch(`/api/media/discover?${params.toString()}`);
+        if (!res.ok) throw new Error('Failed to fetch movies');
+        const data = await res.json();
+        
+        if (data.type === 'tmdb' || data.type === 'movie') {
+          return data.results.map((tmdbMovie: TMDBMovie) => 
+            transformTMDBMovieToMovieSync(tmdbMovie, genreMap)
+          );
+        }
+        
+        return data.results || [];
+      }
+      
+      // Otherwise use the original endpoints
       let endpoint = '/api/media/trending';
       if (sortBy === 'Top Rated') {
         endpoint = '/api/media/popular';
@@ -98,6 +136,18 @@ function HomeContent() {
       // If it's database media format, transform it
       if (data.type === 'media' && data.results) {
         return data.results.map((media: any) => transformMediaToMovie(media));
+      }
+      
+      // Handle mixed type (database media + TMDB movies)
+      if (data.type === 'mixed' && data.results) {
+        return data.results.map((item: any) => {
+          // Check if it's a TMDB movie (has genre_ids array, which is unique to TMDBMovie)
+          if (Array.isArray(item.genre_ids)) {
+            return transformTMDBMovieToMovieSync(item as TMDBMovie, genreMap);
+          }
+          // Otherwise it's a database media object
+          return transformMediaToMovie(item);
+        });
       }
       
       return data.results || [];
@@ -256,8 +306,71 @@ function HomeContent() {
     router.push(`/?tab=Detail&movie=${movie.id}`);
   };
 
+  // Helper function to parse runtime string to minutes
+  const parseRuntimeToMinutes = (runtime: string): number | null => {
+    if (runtime === 'N/A') return null;
+    const match = runtime.match(/(\d+)h\s*(\d+)m/);
+    if (match) {
+      return parseInt(match[1]) * 60 + parseInt(match[2]);
+    }
+    const matchHours = runtime.match(/(\d+)h/);
+    if (matchHours) {
+      return parseInt(matchHours[1]) * 60;
+    }
+    const matchMinutes = runtime.match(/(\d+)m/);
+    if (matchMinutes) {
+      return parseInt(matchMinutes[1]);
+    }
+    return null;
+  };
+
+  // Helper function to get genre IDs from genre names
+  const getGenreIdsFromNames = (genreNames: string[]): number[] => {
+    const ids: number[] = [];
+    genreNames.forEach(name => {
+      genreMap.forEach((genreName, id) => {
+        if (genreName.toLowerCase() === name.toLowerCase()) {
+          ids.push(id);
+        }
+      });
+    });
+    return ids;
+  };
+
   const filteredAndSortedMovies = useMemo(() => {
     let result = [...movies];
+    
+    // Apply filters if they exist
+    if (filters) {
+      // Filter by content type (already handled by API, but double-check)
+      // Filter by runtime
+      if (filters.maxRuntime) {
+        result = result.filter(movie => {
+          const runtimeMinutes = parseRuntimeToMinutes(movie.runtime);
+          if (runtimeMinutes === null) return true; // Include if runtime unknown
+          return runtimeMinutes <= filters.maxRuntime;
+        });
+      }
+      
+      // Filter by rating (vote_average from TMDB)
+      // Note: We need to get the original TMDB data for vote_average
+      // For now, we'll rely on the API filtering, but we can add client-side filtering
+      // if we store vote_average in the Movie type
+      
+      // Filter by genres
+      if (filters.genres && filters.genres.length > 0) {
+        result = result.filter(movie => {
+          // Get genre IDs from genre names
+          const movieGenreIds = getGenreIdsFromNames(movie.genre);
+          // Check if any selected genre matches
+          return filters.genres.some(selectedGenreId => 
+            movieGenreIds.includes(selectedGenreId)
+          );
+        });
+      }
+    }
+    
+    // Sort
     return result.sort((a, b) => {
       switch (sortBy) {
         case 'Top Rated': return b.votes - a.votes;
@@ -266,7 +379,7 @@ function HomeContent() {
         default: return 0;
       }
     });
-  }, [movies, sortBy]);
+  }, [movies, sortBy, filters, genreMap]);
 
   const renderContent = () => {
     const key = selectedMovie?.id || activeProfile?.id || activeGroup || activeTab;
@@ -287,7 +400,7 @@ function HomeContent() {
             <div className="text-red-400">Failed to load group</div>
             <button
               onClick={() => refetchGroup()}
-              className="px-4 py-2 bg-accent text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all"
+              className="px-4 py-2 bg-accent text-white rounded-xl text-sm font-bold hover:brightness-110 active:scale-95 transition-all duration-200"
             >
               Retry
             </button>
@@ -300,6 +413,7 @@ function HomeContent() {
             movies={groupMovies}
             onSchedule={(movie) => setSchedulingMovie(movie)}
             onSelect={handleMovieSelect}
+            onProfileSelect={handleProfileSelect}
           />
         );
       } else {
@@ -326,7 +440,7 @@ function HomeContent() {
                     <input 
                       type="text" 
                       placeholder="Search titles, actors, or moods..." 
-                      className="w-full bg-[#111] border border-[#222] rounded-xl py-2.5 pl-12 pr-4 outline-none focus:border-[var(--accent-color)]/50 transition-all text-xs font-medium text-main"
+                      className="w-full bg-[#111] border border-[#222] rounded-xl py-2.5 pl-12 pr-4 outline-none focus:border-[var(--accent-color)]/50 focus:bg-[#1a1a1a] transition-all duration-200 text-xs font-medium text-main"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
@@ -335,22 +449,28 @@ function HomeContent() {
                   <div className="flex items-center gap-2">
                     <button 
                       onClick={() => setIsFilterDrawerOpen(true)}
-                      className="bg-[#111] border border-[#222] px-4 py-2 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-[#1a1a1a] active:scale-95 transition-all text-main"
+                      className={`border px-4 py-2 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-[#1a1a1a] active:scale-95 transition-all duration-200 text-main ${
+                        filters 
+                          ? 'bg-[var(--accent-color)]/20 border-[var(--accent-color)] text-[var(--accent-color)]' 
+                          : 'bg-[#111] border-[#222] hover:border-[var(--accent-color)]/30'
+                      }`}
                     >
-                      <i className="fa-solid fa-sliders text-[var(--accent-color)]"></i>
-                      Filters
+                      <i className={`fa-solid fa-sliders transition-transform duration-200 hover:rotate-90 ${
+                        filters ? 'text-[var(--accent-color)]' : 'text-[var(--accent-color)]'
+                      }`}></i>
+                      Filters{filters && ' •'}
                     </button>
                     <button 
-                      className="bg-[#111] border border-[#222] px-4 py-2 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-[#1a1a1a] active:scale-95 transition-all text-main"
+                      className="bg-[#111] border border-[#222] px-4 py-2 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-[#1a1a1a] hover:border-[var(--accent-color)]/30 active:scale-95 transition-all duration-200 text-main"
                     >
-                      <i className="fa-solid fa-bookmark text-[var(--accent-color)]"></i>
+                      <i className="fa-solid fa-bookmark text-[var(--accent-color)] transition-transform duration-200 hover:scale-110"></i>
                       Presets
                     </button>
                     <button 
                       onClick={() => setIsCustomSortOpen(true)}
-                      className="bg-[#111] border border-[#222] px-4 py-2 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-[#1a1a1a] active:scale-95 transition-all text-main"
+                      className="bg-[#111] border border-[#222] px-4 py-2 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-[#1a1a1a] hover:border-[var(--accent-color)]/30 active:scale-95 transition-all duration-200 text-main"
                     >
-                      <i className="fa-solid fa-arrow-down-wide-short text-[var(--accent-color)]"></i>
+                      <i className="fa-solid fa-arrow-down-wide-short text-[var(--accent-color)] transition-transform duration-200"></i>
                       Sort
                     </button>
                   </div>
@@ -361,10 +481,10 @@ function HomeContent() {
                     <button
                       key={opt}
                       onClick={() => setSortBy(opt)}
-                      className={`whitespace-nowrap px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border ${
+                      className={`whitespace-nowrap px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all duration-200 border active:scale-95 focus:outline-none focus:ring-2 focus:ring-[var(--accent-color)] focus:ring-offset-2 focus:ring-offset-[var(--bg-main)] ${
                         sortBy === opt 
-                          ? 'bg-[var(--accent-color)] border-[var(--accent-color)] text-black' 
-                          : 'bg-[#111] border-[#222] text-gray-500 hover:text-gray-300'
+                          ? 'bg-[var(--accent-color)] border-[var(--accent-color)] text-black shadow-lg shadow-[var(--accent-color)]/20' 
+                          : 'bg-[#111] border-[#222] text-gray-500 hover:text-gray-300 hover:border-[var(--accent-color)]/30 hover:bg-[#1a1a1a]'
                       }`}
                     >
                       {opt}
@@ -506,7 +626,9 @@ function HomeContent() {
 
     return (
       <div key={key} className="page-transition flex-1 flex flex-col min-h-0 overflow-y-auto">
-        {content}
+        <div className="animate-fade-in">
+          {content}
+        </div>
       </div>
     );
   };
@@ -524,7 +646,7 @@ function HomeContent() {
         onJoinGroupClick={() => setIsJoinGroupOpen(true)}
       />
 
-      <main className="flex-1 flex flex-col px-8 pt-6 transition-all duration-300 overflow-hidden">
+      <main className="flex-1 flex flex-col px-8 pt-6 transition-all duration-300 overflow-hidden smooth-scroll">
         <Header 
           groupName={activeGroup ? "Group" : (selectedMovie ? selectedMovie.title : "cozybxd")} 
           isHome={activeTab === 'Home' && !activeGroup && !activeProfile && !selectedMovie}
@@ -547,7 +669,18 @@ function HomeContent() {
         )}
       </main>
 
-      <FilterDrawer isOpen={isFilterDrawerOpen} onClose={() => setIsFilterDrawerOpen(false)} />
+      <FilterDrawer 
+        isOpen={isFilterDrawerOpen} 
+        onClose={() => setIsFilterDrawerOpen(false)}
+        onApplyFilters={(newFilters) => {
+          setFilters(newFilters);
+          setIsFilterDrawerOpen(false);
+        }}
+        onClearFilters={() => {
+          setFilters(null);
+        }}
+        initialFilters={filters || undefined}
+      />
       {isAddFriendOpen && (
         <AddFriendModal 
           onClose={() => setIsAddFriendOpen(false)}
@@ -570,6 +703,12 @@ function HomeContent() {
           onSuccess={(groupId) => {
             handleGroupSelect(groupId);
           }}
+        />
+      )}
+      {isSetUsernameOpen && (
+        <SetUsernameModal 
+          onClose={() => setIsSetUsernameOpen(false)}
+          defaultDiscordUsername={session?.user?.name || undefined}
         />
       )}
       {isCustomSortOpen && <CustomSortModal onClose={() => setIsCustomSortOpen(false)} />}

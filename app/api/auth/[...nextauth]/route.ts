@@ -33,6 +33,11 @@ export const authOptions: NextAuthOptions = {
     DiscordProvider({
       clientId: process.env.DISCORD_CLIENT_ID || '',
       clientSecret: process.env.DISCORD_CLIENT_SECRET || '',
+      authorization: {
+        params: {
+          scope: 'identify email',
+        },
+      },
     }),
   ],
   callbacks: {
@@ -104,12 +109,13 @@ export const authOptions: NextAuthOptions = {
         if (existingUser) {
           console.log('[AUTH] LOGIN: Existing user found, allowing sign-in immediately');
           
-          // Update account asynchronously (fire and forget) - don't wait for it
+          // Update account and username asynchronously (fire and forget) - don't wait for it
           if (account) {
             // Use IIFE to run async operation in background
             (async () => {
               try {
-                const { error } = await supabase
+                // Update account
+                const { error: accountError } = await supabase
                   .from('accounts')
                   .upsert({
                     user_id: existingUser.id,
@@ -126,13 +132,38 @@ export const authOptions: NextAuthOptions = {
                     onConflict: 'provider,provider_account_id',
                   });
 
-                if (error) {
-                  console.error('[AUTH] Background account update error:', JSON.stringify(error, null, 2));
+                if (accountError) {
+                  console.error('[AUTH] Background account update error:', JSON.stringify(accountError, null, 2));
                 } else {
                   console.log('[AUTH] Background account update successful');
                 }
+
+                // Update username from Discord if user doesn't have one
+                const discordUsername = (profile as any)?.username;
+                if (discordUsername) {
+                  // Check if user already has a username
+                  const { data: currentUser } = await supabase
+                    .from('users')
+                    .select('username')
+                    .eq('id', existingUser.id)
+                    .single();
+
+                  // Only update if username is not set
+                  if (!currentUser?.username) {
+                    const { error: usernameError } = await supabase
+                      .from('users')
+                      .update({ username: discordUsername.toLowerCase() })
+                      .eq('id', existingUser.id);
+
+                    if (usernameError) {
+                      console.error('[AUTH] Background username update error:', JSON.stringify(usernameError, null, 2));
+                    } else {
+                      console.log('[AUTH] Background username update successful:', discordUsername);
+                    }
+                  }
+                }
               } catch (err) {
-                console.error('[AUTH] Background account update exception:', err);
+                console.error('[AUTH] Background account/username update exception:', err);
               }
             })();
           }
@@ -144,12 +175,20 @@ export const authOptions: NextAuthOptions = {
         // SIGN-UP: Create new user if they don't exist
         else {
           console.log('[AUTH] SIGN-UP: Creating new user...');
+          
+          // Extract Discord username from profile (but don't set it yet - user will be prompted)
+          const discordUsername = (profile as any)?.username;
+          
+          console.log('[AUTH] Discord username from profile:', discordUsername);
+          
+          // Create user without username - they'll be prompted to set it
           const { data: newUser, error: createUserError } = await supabase
             .from('users')
             .insert({
               email: user.email,
               name: user.name,
               image: user.image,
+              username: null, // Don't set username initially - user will be prompted
             })
             .select()
             .single();
@@ -164,7 +203,7 @@ export const authOptions: NextAuthOptions = {
             return false;
           }
 
-          console.log('[AUTH] User created successfully:', { userId: newUser.id });
+          console.log('[AUTH] User created successfully:', { userId: newUser.id, username: usernameToSet });
 
           // Store account info
           if (account) {
@@ -228,29 +267,20 @@ export const authOptions: NextAuthOptions = {
 
 const handler = NextAuth(authOptions);
 
-// NextAuth v4 App Router handler
-// Extract route segments from URL and pass as query.nextauth
+// NextAuth v4 App Router - pass params correctly
 export async function GET(
   req: NextRequest,
   context: { params: Promise<{ nextauth: string[] }> }
 ) {
-  const { nextauth } = await context.params;
-  // NextAuth expects query.nextauth to be an array of route segments
-  const url = new URL(req.url);
-  // Pass the route segments to NextAuth
-  return handler(req, { 
-    query: { nextauth },
-    params: { nextauth }
-  } as any);
+  const params = await context.params;
+  // NextAuth v4 expects the route segments
+  return handler(req, { params } as any);
 }
 
 export async function POST(
   req: NextRequest,
   context: { params: Promise<{ nextauth: string[] }> }
 ) {
-  const { nextauth } = await context.params;
-  return handler(req, { 
-    query: { nextauth },
-    params: { nextauth }
-  } as any);
+  const params = await context.params;
+  return handler(req, { params } as any);
 }

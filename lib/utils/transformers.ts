@@ -4,7 +4,15 @@ import { Movie, User, Group } from '@/lib/types';
 import { TMDBMovie, getPosterUrl, getGenres } from '@/lib/api/tmdb';
 
 export function transformMediaToMovie(media: any, watchlistItem?: any, logs?: any[]): Movie {
-  const runtime = media.runtime ? `${Math.floor(media.runtime / 60)}h ${media.runtime % 60}m` : 'N/A';
+  const runtime = (media.runtime != null && media.runtime > 0) 
+    ? (() => {
+        const hours = Math.floor(media.runtime / 60);
+        const minutes = media.runtime % 60;
+        if (hours === 0) return `${minutes}m`;
+        if (minutes === 0) return `${hours}h`;
+        return `${hours}h ${minutes}m`;
+      })()
+    : '';
   
   // Handle both snake_case (Supabase) and camelCase (Prisma) formats
   const releaseDate = media.releaseDate || media.release_date;
@@ -42,6 +50,9 @@ export function transformMediaToMovie(media: any, watchlistItem?: any, logs?: an
   // Handle both snake_case (Supabase) and camelCase (Prisma) formats for poster URLs
   const poster = media.posterUrl || media.poster_url || media.thumbnailUrl || media.thumbnail_url || '';
   
+  // Handle both snake_case (Supabase) and camelCase (Prisma) formats for IMDB rating
+  const imdbRating = media.imdbRating || media.imdb_rating || undefined;
+  
   // Get user vote from watchlistItem if provided
   const userVote = watchlistItem?.userVote || null;
   
@@ -61,25 +72,35 @@ export function transformMediaToMovie(media: any, watchlistItem?: any, logs?: an
     userVote,
     seenBy: [...new Set(seenBy)],
     availability: [],
+    imdbRating,
   };
 }
 
 export function transformUserToFrontend(user: any, teamMembership?: any): User {
   // Get status from database, default to 'Offline' if not set
-  // Map database status to frontend status
+  // Preserve the original database status values
   // Database: 'Online', 'Idle', 'Do Not Disturb', 'Offline'
-  // Frontend: 'Online', 'Ready', 'Offline'
-  let status: 'Online' | 'Ready' | 'Offline' = 'Offline';
+  // Frontend: 'Online', 'Idle', 'Do Not Disturb', 'Offline' (same values)
+  let status: 'Online' | 'Idle' | 'Do Not Disturb' | 'Offline' = 'Offline';
+  
+  // Debug: log the user status to help diagnose issues
+  if (typeof window === 'undefined' && user?.id) {
+    console.log(`[TRANSFORM] User ${user.id} (${user.name}) status:`, user.status);
+  }
   
   if (user.status) {
-    if (user.status === 'Online') {
-      status = 'Online';
-    } else if (user.status === 'Idle') {
-      status = 'Ready'; // Map Idle to Ready for frontend
-    } else if (user.status === 'Do Not Disturb') {
-      status = 'Online'; // Show as Online but with DND indicator (handled in UI)
-    } else if (user.status === 'Offline') {
+    // Preserve the original status from database
+    if (user.status === 'Online' || user.status === 'Idle' || user.status === 'Do Not Disturb' || user.status === 'Offline') {
+      status = user.status;
+    } else {
+      // Unknown status value - log it and default to Offline
+      console.warn(`[TRANSFORM] Unknown status value for user ${user.id}:`, user.status);
       status = 'Offline';
+    }
+  } else {
+    // No status set - this is expected for new users
+    if (typeof window === 'undefined' && user?.id) {
+      console.log(`[TRANSFORM] User ${user.id} has no status set, defaulting to Offline`);
     }
   }
   
@@ -143,9 +164,15 @@ export async function transformTMDBMovieToMovie(tmdbMovie: TMDBMovie, watchlistI
   const genreMap = await getGenreMap();
   const genres = tmdbMovie.genre_ids.map(id => genreMap.get(id) || 'Unknown').filter(Boolean);
   
-  const runtime = tmdbMovie.runtime 
-    ? `${Math.floor(tmdbMovie.runtime / 60)}h ${tmdbMovie.runtime % 60}m` 
-    : 'N/A';
+  const runtime = (tmdbMovie.runtime != null && tmdbMovie.runtime > 0)
+    ? (() => {
+        const hours = Math.floor(tmdbMovie.runtime / 60);
+        const minutes = tmdbMovie.runtime % 60;
+        if (hours === 0) return `${minutes}m`;
+        if (minutes === 0) return `${hours}h`;
+        return `${hours}h ${minutes}m`;
+      })()
+    : '';
   
   const year = tmdbMovie.release_date 
     ? new Date(tmdbMovie.release_date).getFullYear() 
@@ -200,9 +227,15 @@ export async function transformTMDBMovieToMovie(tmdbMovie: TMDBMovie, watchlistI
 export function transformTMDBMovieToMovieSync(tmdbMovie: TMDBMovie, genreMap: Map<number, string>, watchlistItem?: any, logs?: any[]): Movie {
   const genres = tmdbMovie.genre_ids.map(id => genreMap.get(id) || 'Unknown').filter(Boolean);
   
-  const runtime = tmdbMovie.runtime 
-    ? `${Math.floor(tmdbMovie.runtime / 60)}h ${tmdbMovie.runtime % 60}m` 
-    : 'N/A';
+  const runtime = (tmdbMovie.runtime != null && tmdbMovie.runtime > 0)
+    ? (() => {
+        const hours = Math.floor(tmdbMovie.runtime / 60);
+        const minutes = tmdbMovie.runtime % 60;
+        if (hours === 0) return `${minutes}m`;
+        if (minutes === 0) return `${hours}h`;
+        return `${hours}h ${minutes}m`;
+      })()
+    : '';
   
   const year = tmdbMovie.release_date 
     ? new Date(tmdbMovie.release_date).getFullYear() 

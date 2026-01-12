@@ -14,13 +14,14 @@ export interface Movie {
   userVote?: 'upvote' | 'downvote' | null;
   seenBy: string[];
   availability: string[]; // e.g., ['Netflix', 'Max']
+  imdbRating?: number;
 }
 
 export interface User {
   id: string;
   name: string;
   avatar: string;
-  status: 'Online' | 'Ready' | 'Offline';
+  status: 'Online' | 'Idle' | 'Do Not Disturb' | 'Offline';
   role: 'Admin' | 'Editor' | 'Viewer';
 }
 

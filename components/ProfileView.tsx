@@ -1,18 +1,70 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { User, Movie } from '@/lib/types';
+import UnfriendConfirmModal from './UnfriendConfirmModal';
 
 interface ProfileViewProps {
   user: User;
   movies?: Movie[];
 }
 
+// Helper function to get genre color classes
+const getGenreColor = (genre: string): string => {
+  const genreLower = genre.toLowerCase();
+  const colors: Record<string, string> = {
+    'action': 'bg-red-500/10 border-red-500/30 text-red-400',
+    'adventure': 'bg-orange-500/10 border-orange-500/30 text-orange-400',
+    'animation': 'bg-pink-500/10 border-pink-500/30 text-pink-400',
+    'comedy': 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400',
+    'crime': 'bg-gray-500/10 border-gray-500/30 text-gray-400',
+    'documentary': 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400',
+    'drama': 'bg-blue-500/10 border-blue-500/30 text-blue-400',
+    'family': 'bg-green-500/10 border-green-500/30 text-green-400',
+    'fantasy': 'bg-purple-500/10 border-purple-500/30 text-purple-400',
+    'history': 'bg-amber-500/10 border-amber-500/30 text-amber-400',
+    'horror': 'bg-red-600/10 border-red-600/30 text-red-500',
+    'music': 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400',
+    'mystery': 'bg-slate-500/10 border-slate-500/30 text-slate-400',
+    'romance': 'bg-rose-500/10 border-rose-500/30 text-rose-400',
+    'science fiction': 'bg-violet-500/10 border-violet-500/30 text-violet-400',
+    'sci-fi': 'bg-violet-500/10 border-violet-500/30 text-violet-400',
+    'thriller': 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400',
+    'war': 'bg-stone-500/10 border-stone-500/30 text-stone-400',
+    'western': 'bg-amber-600/10 border-amber-600/30 text-amber-500',
+  };
+  
+  // Try exact match first
+  if (colors[genreLower]) {
+    return colors[genreLower];
+  }
+  
+  // Try partial match
+  for (const [key, value] of Object.entries(colors)) {
+    if (genreLower.includes(key) || key.includes(genreLower)) {
+      return value;
+    }
+  }
+  
+  // Default fallback - use hash of genre name for consistent color
+  const hash = genreLower.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const defaultColors = [
+    'bg-blue-500/10 border-blue-500/30 text-blue-400',
+    'bg-purple-500/10 border-purple-500/30 text-purple-400',
+    'bg-pink-500/10 border-pink-500/30 text-pink-400',
+    'bg-indigo-500/10 border-indigo-500/30 text-indigo-400',
+    'bg-cyan-500/10 border-cyan-500/30 text-cyan-400',
+  ];
+  return defaultColors[hash % defaultColors.length];
+};
+
 const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) => {
   const { data: session } = useSession();
   const queryClient = useQueryClient();
+  const [showUnfriendModal, setShowUnfriendModal] = useState(false);
+  const [addFriendError, setAddFriendError] = useState<string | null>(null);
 
   // Fetch user profile data
   const { data: userData, isLoading: userLoading } = useQuery({
@@ -45,9 +97,34 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
     enabled: !!session,
   });
 
-  // Check if the viewed user is a friend
+  // Check if the viewed user is a friend (only direct friends are returned now)
   const isFriend = friendsData.some((friend: User) => friend.id === user.id);
   const isCurrentUser = session?.user?.id === user.id;
+
+  // Add friend mutation
+  const addFriendMutation = useMutation({
+    mutationFn: async (username: string) => {
+      const res = await fetch('/api/friends', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to add friend');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['friends'] });
+      queryClient.invalidateQueries({ queryKey: ['user', user.id] });
+      setAddFriendError(null);
+    },
+    onError: (error) => {
+      console.error('Add friend error:', error);
+      setAddFriendError(error instanceof Error ? error.message : 'Failed to add friend');
+    },
+  });
 
   // Unfriend mutation
   const unfriendMutation = useMutation({
@@ -65,13 +142,38 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['friends'] });
+      queryClient.invalidateQueries({ queryKey: ['user', user.id] });
+      setShowUnfriendModal(false);
+    },
+    onError: (error) => {
+      console.error('Unfriend error:', error);
+      // You could add toast notification here if needed
     },
   });
 
-  const handleUnfriend = async () => {
-    if (confirm(`Are you sure you want to unfriend ${user.name}?`)) {
-      unfriendMutation.mutate(user.id);
+  const handleAddFriend = async () => {
+    setAddFriendError(null);
+    
+    // Ensure we have userData loaded
+    if (!userData) {
+      setAddFriendError('Loading user data...');
+      return;
     }
+    
+    if (!userData.username) {
+      setAddFriendError('This user does not have a username set');
+      return;
+    }
+    
+    addFriendMutation.mutate(userData.username);
+  };
+
+  const handleUnfriend = () => {
+    setShowUnfriendModal(true);
+  };
+
+  const handleConfirmUnfriend = () => {
+    unfriendMutation.mutate(user.id);
   };
 
   const stats = userData?.stats || { watched: 0, reviews: 0, groups: 0 };
@@ -82,12 +184,13 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
   const getStatusStyles = () => {
     if (user.status === 'Offline') return 'border-red-500/50 text-red-500 bg-red-500/10';
     
-    // In a real app, we'd check user context, but following the visual request:
-    // Online/Ready = Green, Away = Yellow, Offline = Red
-    if (user.status === 'Ready') return 'border-[#00c851]/50 text-[#00c851] bg-[#00c851]/10';
+    // Status color mapping:
+    // Online = Green, Idle = Yellow, Do Not Disturb = Red, Offline = Red
+    if (user.status === 'Do Not Disturb') return 'border-[#ed4245]/50 text-[#ed4245] bg-[#ed4245]/10';
+    if (user.status === 'Idle') return 'border-yellow-500/50 text-yellow-500 bg-yellow-500/10';
     if (user.status === 'Online') return 'border-[#00c851]/50 text-[#00c851] bg-[#00c851]/10';
     
-    // Default fallback for any 'Away' implied state
+    // Default fallback
     return 'border-yellow-500/50 text-yellow-500 bg-yellow-500/10';
   };
 
@@ -108,6 +211,31 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
           {userData?.email && (
             <p className="text-gray-500 text-sm mt-1">{userData.email}</p>
           )}
+          {session && !isCurrentUser && !isFriend && (
+            <div className="mt-4 flex flex-col justify-center md:justify-start gap-2">
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleAddFriend();
+                }}
+                disabled={addFriendMutation.isPending || userLoading || !userData?.username}
+                className="px-6 py-2 rounded-xl bg-accent/10 border border-accent/50 text-accent hover:bg-accent/20 transition-all text-sm font-bold uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 w-fit"
+              >
+                <i className="fa-solid fa-user-plus text-xs"></i>
+                {addFriendMutation.isPending ? 'Adding...' : 'Add Friend'}
+              </button>
+              {userLoading && (
+                <p className="text-sm text-gray-500">Loading user data...</p>
+              )}
+              {!userLoading && !userData?.username && (
+                <p className="text-sm text-gray-500">This user needs to log in to set their username</p>
+              )}
+              {addFriendError && (
+                <p className="text-sm text-red-400">{addFriendError}</p>
+              )}
+            </div>
+          )}
           {session && !isCurrentUser && isFriend && (
             <div className="mt-4 flex justify-center md:justify-start">
               <button
@@ -119,6 +247,14 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
                 {unfriendMutation.isPending ? 'Unfriending...' : 'Unfriend'}
               </button>
             </div>
+          )}
+          {showUnfriendModal && (
+            <UnfriendConfirmModal
+              friend={user}
+              onClose={() => setShowUnfriendModal(false)}
+              onConfirm={handleConfirmUnfriend}
+              isPending={unfriendMutation.isPending}
+            />
           )}
           <div className="flex gap-6 mt-8 justify-center md:justify-start">
             {[
@@ -218,7 +354,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
                   
                   return topGenres.length > 0 ? (
                     topGenres.map(tag => (
-                      <span key={tag} className="px-4 py-2 rounded-2xl bg-black/[0.03] border border-main text-[10px] font-black text-gray-500 tracking-widest">
+                      <span key={tag} className={`px-4 py-2 rounded-2xl border text-[10px] font-black tracking-widest ${getGenreColor(tag)}`}>
                         {tag}
                       </span>
                     ))

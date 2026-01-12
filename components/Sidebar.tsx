@@ -88,10 +88,31 @@ const Sidebar: React.FC<SidebarProps> = ({
     enabled: !!session,
   });
 
-  const friends: (User & { statusText: string })[] = friendsData.map((friend: User) => ({
-    ...friend,
-    statusText: friend.status === 'Online' ? 'Online' : friend.status === 'Ready' ? 'Ready' : 'Offline',
-  }));
+  const friends: (User & { statusText: string })[] = friendsData.map((friend: User) => {
+    // Determine statusText based on the friend's status
+    // The status now preserves the original database values:
+    // 'Online', 'Idle', 'Do Not Disturb', 'Offline'
+    
+    let statusText = 'Offline';
+    if (friend.status === 'Online') {
+      statusText = 'Online';
+    } else if (friend.status === 'Idle') {
+      statusText = 'Idle';
+    } else if (friend.status === 'Do Not Disturb') {
+      statusText = 'Do Not Disturb';
+    } else if (friend.status === 'Offline') {
+      statusText = 'Offline';
+    } else {
+      // If status is undefined or unexpected, default to Offline but log it
+      console.warn('[SIDEBAR] Unexpected friend status:', friend.status, 'for friend:', friend.name);
+      statusText = 'Offline';
+    }
+    
+    return {
+      ...friend,
+      statusText,
+    };
+  });
 
 
   const navItems = [
@@ -163,14 +184,14 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const getStatusColor = (status: string, statusText?: string) => {
     if (status === 'Offline' || status === 'Invisible') return 'bg-[#747f8d]';
-    if (status === 'Do Not Disturb' || statusText?.toLowerCase().includes('dnd')) return 'bg-[#ed4245]';
+    if (status === 'Do Not Disturb' || statusText?.toLowerCase().includes('dnd') || statusText?.toLowerCase().includes('do not disturb')) return 'bg-[#ed4245]';
     if (status === 'Idle' || statusText?.toLowerCase().includes('away') || statusText?.toLowerCase().includes('idle')) return 'bg-[#faa61a]';
     return 'bg-[#23a55a]';
   };
 
   const getStatusColorHex = (status: string, statusText?: string): string => {
     if (status === 'Offline' || status === 'Invisible') return '#747f8d';
-    if (status === 'Do Not Disturb' || statusText?.toLowerCase().includes('dnd')) return '#ed4245';
+    if (status === 'Do Not Disturb' || statusText?.toLowerCase().includes('dnd') || statusText?.toLowerCase().includes('do not disturb')) return '#ed4245';
     if (status === 'Idle' || statusText?.toLowerCase().includes('away') || statusText?.toLowerCase().includes('idle')) return '#faa61a';
     return '#23a55a';
   };
@@ -221,19 +242,19 @@ const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center gap-4 relative px-5 py-3 rounded-xl transition-all duration-200 ${
+                className={`w-full flex items-center gap-4 relative px-5 py-3 rounded-xl transition-all duration-300 ease-out ${
                   activeTab === item.id 
-                    ? 'bg-accent/10 text-accent font-bold' 
-                    : 'text-gray-400 hover:text-main hover:bg-black/[0.03]'
+                    ? 'bg-accent/10 text-accent font-bold scale-[1.02]' 
+                    : 'text-gray-400 hover:text-main hover:bg-black/[0.05] hover:scale-[1.01] active:scale-[0.99]'
                 }`}
               >
-                <div className="relative">
-                  <i className={`fa-solid ${item.icon} text-sm w-5`}></i>
+                <div className="relative transition-transform duration-300">
+                  <i className={`fa-solid ${item.icon} text-sm w-5 transition-transform duration-300 ${activeTab === item.id ? 'scale-110' : ''}`}></i>
                   {item.badge && (
-                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#ff4444] rounded-full border-2 border-sidebar"></span>
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#ff4444] rounded-full border-2 border-sidebar animate-pulse"></span>
                   )}
                 </div>
-                <span className="text-sm font-semibold">{item.id}</span>
+                <span className="text-sm font-semibold transition-all duration-300">{item.id}</span>
               </button>
             ))}
           </nav>
@@ -241,21 +262,21 @@ const Sidebar: React.FC<SidebarProps> = ({
           <section className="space-y-1">
             <div className="flex items-center justify-between px-5 mb-4">
               <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black">Friends</p>
-              <button onClick={onAddFriendClick} className="text-accent hover:opacity-80 p-1"><i className="fa-solid fa-user-plus text-xs"></i></button>
+              <button onClick={onAddFriendClick} className="text-accent hover:opacity-80 p-1 transition-all duration-200 active:scale-90 hover:scale-110"><i className="fa-solid fa-user-plus text-xs"></i></button>
             </div>
             <div className="space-y-2">
               {friends.map(friend => (
                 <div 
                   key={friend.id} 
                   onClick={() => onFriendSelect(friend)}
-                  className="flex items-center gap-3 px-4 py-2 rounded-xl hover:bg-black/[0.03] transition-all group cursor-pointer relative"
+                  className="flex items-center gap-3 px-4 py-2 rounded-xl hover:bg-black/[0.05] transition-all duration-200 group cursor-pointer relative active:scale-[0.98]"
                 >
-                  <div className="relative">
-                    <img src={friend.avatar} className="w-8 h-8 rounded-full border border-main" alt={friend.name} />
-                    <span className={`absolute bottom-0 right-0 w-3 h-3 ${getStatusColor(friend.status, friend.statusText)} rounded-full border-[1.5px] border-white shadow-sm`}></span>
+                  <div className="relative transition-transform duration-200 group-hover:scale-110">
+                    <img src={friend.avatar} className="w-8 h-8 rounded-full border border-main transition-all duration-200" alt={friend.name} />
+                    <span className={`absolute bottom-0 right-0 w-3 h-3 ${getStatusColor(friend.status, friend.statusText)} rounded-full border-[1.5px] border-white shadow-sm transition-all duration-200`}></span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold truncate text-main">{friend.name}</p>
+                    <p className="text-xs font-bold truncate text-main transition-colors duration-200 group-hover:text-accent">{friend.name}</p>
                     <p className="text-[9px] text-gray-400 font-medium truncate">{friend.statusText}</p>
                   </div>
                 </div>
@@ -269,14 +290,14 @@ const Sidebar: React.FC<SidebarProps> = ({
               <div className="flex items-center gap-2">
                 <button 
                   onClick={onCreateGroupClick} 
-                  className="text-accent hover:opacity-80 p-1" 
+                  className="text-accent hover:opacity-80 p-1 transition-all duration-200 active:scale-90 hover:scale-110" 
                   title="Create Group"
                 >
                   <i className="fa-solid fa-plus text-xs"></i>
                 </button>
                 <button 
                   onClick={onJoinGroupClick} 
-                  className="text-accent hover:opacity-80 p-1" 
+                  className="text-accent hover:opacity-80 p-1 transition-all duration-200 active:scale-90 hover:scale-110" 
                   title="Join Group"
                 >
                   <i className="fa-solid fa-user-plus text-xs"></i>
@@ -288,14 +309,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <button
                   key={ws.id}
                   onClick={() => onGroupSelect(ws.id)}
-                  className="w-full flex items-center gap-4 px-5 py-3 rounded-xl transition-all text-gray-400 hover:text-main hover:bg-black/[0.03]"
+                  className="w-full flex items-center gap-4 px-5 py-3 rounded-xl transition-all duration-200 text-gray-400 hover:text-main hover:bg-black/[0.05] active:scale-[0.98] group"
                 >
-                  <div className={`w-1.5 h-1.5 rounded-full ${ws.color}`}></div>
-                  <span className="text-sm font-semibold truncate text-main">{ws.name}</span>
+                  <div className={`w-1.5 h-1.5 rounded-full ${ws.color} transition-transform duration-200 group-hover:scale-125`}></div>
+                  <span className="text-sm font-semibold truncate text-main transition-colors duration-200 group-hover:text-accent">{ws.name}</span>
                 </button>
               ))
             ) : (
-              <div className="px-5 py-3 text-xs text-gray-500 text-center">
+              <div className="px-5 py-3 text-xs text-gray-500 text-center transition-opacity duration-200">
                 No groups yet. Create or join one to get started!
               </div>
             )}
@@ -308,7 +329,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="mt-auto p-2 border-t border-main bg-sidebar relative">
           <button 
             onClick={handleProfileButtonClick}
-            className="w-full glass rounded-lg p-2.5 border-main hover:bg-black/[0.05] transition-all text-left flex items-center gap-3 overflow-hidden min-w-[200px]"
+            className="w-full glass rounded-lg p-2.5 border-main hover:bg-black/[0.05] transition-all duration-200 text-left flex items-center gap-3 overflow-hidden min-w-[200px] active:scale-[0.98]"
           >
             <div className="relative shrink-0">
                <img 
@@ -332,21 +353,21 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </span>
               </div>
             </div>
-            <i className="fa-solid fa-chevron-up text-[8px] text-gray-400 transition-transform" style={{ transform: isStatusMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}></i>
+            <i className="fa-solid fa-chevron-up text-[8px] text-gray-400 transition-transform duration-300 ease-out" style={{ transform: isStatusMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}></i>
           </button>
 
           {/* Status Dropdown Menu */}
           {isStatusMenuOpen && (
             <div 
               ref={statusMenuRef}
-              className="absolute bottom-full left-2 right-2 mb-2 bg-sidebar border border-main rounded-lg shadow-xl overflow-hidden z-50"
+              className="absolute bottom-full left-2 right-2 mb-2 bg-sidebar border border-main rounded-lg shadow-xl overflow-hidden z-50 animate-scale-in"
             >
               <div className="p-1">
                 {statusOptions.map((option) => (
                   <button
                     key={option.value}
                     onClick={() => handleStatusChange(option.value)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all text-left ${
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all duration-200 text-left active:scale-[0.98] ${
                       userStatus === option.value
                         ? 'bg-accent/10'
                         : 'hover:bg-black/[0.05]'
@@ -371,7 +392,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     setIsStatusMenuOpen(false);
                     onProfileClick();
                   }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-black/[0.05] transition-all text-left"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-black/[0.05] transition-all duration-200 text-left active:scale-[0.98]"
                 >
                   <i className="fa-solid fa-user text-xs text-gray-400 w-4"></i>
                   <span className="text-xs font-semibold text-main">View Profile</span>
@@ -383,7 +404,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     setIsStatusMenuOpen(false);
                     signOut({ callbackUrl: '/api/auth/signin' });
                   }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-red-500/10 transition-all text-left"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-red-500/10 transition-all duration-200 text-left active:scale-[0.98]"
                 >
                   <i className="fa-solid fa-sign-out-alt text-xs text-red-500 w-4"></i>
                   <span className="text-xs font-semibold text-red-500">Sign Out</span>

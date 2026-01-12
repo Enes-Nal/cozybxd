@@ -65,6 +65,7 @@ export async function GET(
     return NextResponse.json({
       ...transformedUser,
       email: user.email || null,
+      username: user.username || null,
       stats: {
         watched: watchedCount || 0,
         reviews: reviewCount || 0,

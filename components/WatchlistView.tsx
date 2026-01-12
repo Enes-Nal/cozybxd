@@ -59,7 +59,7 @@ const NewListModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-in zoom-in-95 duration-300">
         <button 
           onClick={onClose} 
-          className="absolute top-8 right-8 text-gray-500 hover:text-white transition-colors"
+          className="absolute top-8 right-8 text-gray-500 hover:text-white active:scale-90 transition-all duration-200 hover:rotate-90"
           disabled={isSubmitting}
         >
           <i className="fa-solid fa-xmark text-xl"></i>
@@ -110,14 +110,14 @@ const NewListModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             <button 
               onClick={onClose}
               disabled={isSubmitting}
-              className="flex-1 px-4 py-4 rounded-2xl border border-white/10 text-xs font-black uppercase tracking-widest text-gray-400 hover:bg-white/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-4 rounded-2xl border border-white/10 text-xs font-black uppercase tracking-widest text-gray-400 hover:bg-white/5 active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button 
               onClick={handleCreate}
               disabled={isSubmitting || !listName.trim()}
-              className="flex-1 bg-accent text-white px-4 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all no-glow shadow-lg shadow-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-accent text-white px-4 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all duration-200 no-glow shadow-lg shadow-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? 'Creating...' : 'Create List'}
             </button>
@@ -258,8 +258,8 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
               <button 
                 key={t}
                 onClick={() => setTab(isPersonal ? 'Personal' : 'Shared')}
-                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                  isActive ? 'bg-accent text-white shadow-md' : 'text-gray-500 hover:text-main'
+                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-200 active:scale-95 ${
+                  isActive ? 'bg-accent text-white shadow-md scale-105' : 'text-gray-500 hover:text-main hover:scale-[1.02]'
                 }`}
               >
                 {t}
@@ -288,7 +288,7 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {movies.map((movie: Movie) => (
-          <div key={movie.id} className="glass rounded-[2rem] p-5 flex gap-5 hover:border-accent/40 transition-all group">
+          <div key={movie.id} className="glass rounded-[2rem] p-5 flex gap-5 hover:border-accent/40 transition-all duration-300 group hover:scale-[1.02] active:scale-100">
             {movie.poster ? (
               <img src={movie.poster} className="w-20 h-28 rounded-xl object-cover shadow-sm" alt={movie.title} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
             ) : (
@@ -302,7 +302,7 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
                 <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter mt-1">{movie.year} • {movie.runtime}</p>
               </div>
               <div className="flex gap-2">
-                <button className="flex-1 bg-accent text-white text-[10px] font-black uppercase tracking-widest py-2 rounded-xl hover:brightness-110 transition-all">
+                <button className="flex-1 bg-accent text-white text-[10px] font-black uppercase tracking-widest py-2 rounded-xl hover:brightness-110 active:scale-95 transition-all duration-200">
                   Watch
                 </button>
                 <button 
@@ -311,7 +311,7 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
                     e.stopPropagation();
                     handleDelete(movie);
                   }}
-                  className="px-3 text-gray-400 hover:text-accent transition-colors"
+                  className="px-3 text-gray-400 hover:text-accent active:scale-90 transition-all duration-200"
                   title="Remove from watchlist"
                 >
                   <i className="fa-solid fa-trash-can text-xs"></i>
@@ -323,10 +323,10 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
         
           <button 
           onClick={() => setIsNewListModalOpen(true)}
-          className="border-2 border-dashed border-main rounded-[2rem] p-8 flex flex-col items-center justify-center text-gray-400 hover:text-accent hover:border-accent/40 transition-all min-h-[144px]"
+          className="border-2 border-dashed border-main rounded-[2rem] p-8 flex flex-col items-center justify-center text-gray-400 hover:text-accent hover:border-accent/40 transition-all duration-300 min-h-[144px] hover:scale-[1.02] active:scale-100 group"
         >
-          <div className="w-10 h-10 rounded-full bg-black/[0.03] flex items-center justify-center mb-4 border border-main group-hover:border-accent/40">
-            <i className="fa-solid fa-plus text-xs"></i>
+          <div className="w-10 h-10 rounded-full bg-black/[0.03] flex items-center justify-center mb-4 border border-main group-hover:border-accent/40 transition-all duration-300 group-hover:scale-110 group-hover:bg-accent/10">
+            <i className="fa-solid fa-plus text-xs transition-transform duration-300 group-hover:rotate-90"></i>
           </div>
           <span className="text-[10px] font-black uppercase tracking-widest">NEW LIST</span>
         </button>
