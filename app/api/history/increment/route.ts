@@ -61,13 +61,15 @@ export async function POST(request: NextRequest) {
           const tmdbMovieDetails = tmdbData as any;
           if (tmdbMovieDetails.external_ids?.imdb_id) {
             imdbId = tmdbMovieDetails.external_ids.imdb_id;
-            try {
-              const omdbData = await getOMDbData(imdbId);
-              if (omdbData?.imdbRating && omdbData.imdbRating !== 'N/A') {
-                imdbRating = parseFloat(omdbData.imdbRating);
+            if (imdbId) {
+              try {
+                const omdbData = await getOMDbData(imdbId);
+                if (omdbData?.imdbRating && omdbData.imdbRating !== 'N/A') {
+                  imdbRating = parseFloat(omdbData.imdbRating);
+                }
+              } catch (error) {
+                console.error('Failed to fetch IMDB rating:', error);
               }
-            } catch (error) {
-              console.error('Failed to fetch IMDB rating:', error);
             }
           }
 
