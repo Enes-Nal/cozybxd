@@ -53,7 +53,7 @@ const validateBannerImage = (url: string): Promise<{ valid: boolean; error?: str
 
     const attemptLoad = (useCors: boolean) => {
       const img = new Image();
-      img.crossOrigin = useCors ? 'anonymous' : undefined;
+      img.crossOrigin = useCors ? 'anonymous' : null;
       
       img.onload = () => {
         const width = img.naturalWidth;
