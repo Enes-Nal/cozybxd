@@ -182,26 +182,39 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
 
   return (
     <div className="py-8 max-w-5xl animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-y-auto pb-20">
-      {/* Banner */}
-      {user.banner && (
-        <div className="w-full h-64 rounded-[2.5rem] overflow-hidden mb-8 border-2 border-main/20 shadow-xl">
-          <img 
-            src={user.banner} 
-            className="w-full h-full object-cover" 
-            alt={`${user.name}'s banner`}
-            onError={(e) => {
-              // Hide banner if image fails to load
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
+      {/* Banner with overlapping avatar */}
+      <div className="relative mb-20 md:mb-16">
+        {/* Banner */}
+        {user.banner ? (
+          <div className="w-full h-48 md:h-64 rounded-[2.5rem] overflow-hidden border-2 border-main/20 shadow-xl">
+            <img 
+              src={user.banner} 
+              className="w-full h-full object-cover object-center" 
+              alt={`${user.name}'s banner`}
+              onError={(e) => {
+                // Hide banner if image fails to load
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          </div>
+        ) : (
+          <div className="w-full h-48 md:h-64 rounded-[2.5rem] bg-gradient-to-r from-gray-800 to-gray-900 border-2 border-main/20 shadow-xl"></div>
+        )}
+        
+        {/* Avatar overlapping banner */}
+        <div className="absolute bottom-0 left-4 md:left-8 transform translate-y-1/2">
+          <div className="w-32 h-32 md:w-40 md:h-40 rounded-[2rem] md:rounded-[3rem] overflow-hidden border-4 border-main shadow-xl bg-black">
+            <img src={user.avatar} className="w-full h-full object-cover" alt={user.name} />
+          </div>
         </div>
-      )}
+      </div>
       
-      <div className="flex flex-col md:flex-row items-center gap-10 mb-16">
-        <div className="w-40 h-40 rounded-[3rem] overflow-hidden border-4 border-main shadow-xl shrink-0">
-           <img src={user.avatar} className="w-full h-full object-cover" alt={user.name} />
-        </div>
-        <div className="text-center md:text-left flex-1">
+      {/* Content below banner */}
+      <div className="mt-16 md:mt-20 flex flex-col md:flex-row items-start gap-6 md:gap-10 mb-16">
+        {/* Spacer for avatar on mobile - matches avatar size */}
+        <div className="w-32 h-32 md:hidden shrink-0"></div>
+        
+        <div className="text-center md:text-left flex-1 w-full">
           <div className="flex items-center justify-center md:justify-start gap-4 mb-2">
             <h2 className="text-5xl font-black text-main tracking-tight">{user.name.toUpperCase()}</h2>
           </div>

@@ -34,7 +34,7 @@ const Header: React.FC<HeaderProps> = ({ groupName, isHome, onNotificationClick,
   }, [searchQuery]);
 
   // Fetch genres for transformation
-  const { data: genres = [] } = useQuery({
+  const { data: genres } = useQuery<Map<number, string>>({
     queryKey: ['genres'],
     queryFn: async () => {
       const genreList = await getGenres();
@@ -58,7 +58,7 @@ const Header: React.FC<HeaderProps> = ({ groupName, isHome, onNotificationClick,
       const isYouTube = debouncedQuery.includes('youtube.com') || debouncedQuery.includes('youtu.be');
       
       if (data.type === 'movie' && data.results) {
-        if (genres && genres.size > 0) {
+        if (genres && genres instanceof Map && genres.size > 0) {
           return data.results.map((tmdbMovie: TMDBMovie) => 
             transformTMDBMovieToMovieSync(tmdbMovie, genres)
           );
