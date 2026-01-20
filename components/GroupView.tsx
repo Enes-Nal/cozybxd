@@ -549,9 +549,8 @@ const GroupView: React.FC<GroupViewProps> = ({
                 <img 
                   src={group.pictureUrl} 
                   alt={group.name}
-                  className="animate-image-fade-in"
+                  className="animate-image-fade-in w-20 h-20 rounded-2xl object-cover border border-white/10 cursor-pointer hover:opacity-80 active:scale-95 transition-all duration-200"
                   loading="lazy"
-                  className="w-20 h-20 rounded-2xl object-cover border border-white/10 cursor-pointer hover:opacity-80 active:scale-95 transition-all duration-200"
                   onClick={() => setIsEditPictureModalOpen(true)}
                 />
               ) : (
