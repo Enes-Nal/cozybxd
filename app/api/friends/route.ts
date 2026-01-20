@@ -136,13 +136,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!friendUser) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
     // Check if trying to add self
     if (friendUser.id === session.user.id) {
       return NextResponse.json(
@@ -175,39 +168,88 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create friendship (bidirectional)
+    // Check if there's already a friend request (in either direction, any status)
+    const { data: existingRequest1 } = await supabase
+      .from('friend_requests')
+      .select('id, status')
+      .eq('requester_id', session.user.id)
+      .eq('recipient_id', friendUser.id)
+      .maybeSingle();
+
+    const { data: existingRequest2 } = await supabase
+      .from('friend_requests')
+      .select('id, status')
+      .eq('requester_id', friendUser.id)
+      .eq('recipient_id', session.user.id)
+      .maybeSingle();
+
+    // Handle existing requests
+    if (existingRequest1) {
+      if (existingRequest1.status === 'pending') {
+        return NextResponse.json(
+          { error: 'Friend request already sent' },
+          { status: 400 }
+        );
+      }
+      // If the request was cancelled/rejected, delete it first to allow a new one
+      const { error: deleteError } = await supabase
+        .from('friend_requests')
+        .delete()
+        .eq('id', existingRequest1.id);
+      
+      if (deleteError) {
+        console.error('Delete old friend request error:', deleteError);
+        return NextResponse.json(
+          { error: 'Failed to send friend request' },
+          { status: 500 }
+        );
+      }
+    }
+
+    if (existingRequest2) {
+      if (existingRequest2.status === 'pending') {
+        return NextResponse.json(
+          { error: 'This user has already sent you a friend request. Please accept it instead.' },
+          { status: 400 }
+        );
+      }
+      // If the request was cancelled/rejected, delete it first to allow a new one
+      const { error: deleteError } = await supabase
+        .from('friend_requests')
+        .delete()
+        .eq('id', existingRequest2.id);
+      
+      if (deleteError) {
+        console.error('Delete old friend request error:', deleteError);
+        return NextResponse.json(
+          { error: 'Failed to send friend request' },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Create friend request
     const { error: insertError } = await supabase
-      .from('friends')
+      .from('friend_requests')
       .insert([
-        { user_id: session.user.id, friend_id: friendUser.id },
-        { user_id: friendUser.id, friend_id: session.user.id }
+        { 
+          requester_id: session.user.id, 
+          recipient_id: friendUser.id,
+          status: 'pending'
+        }
       ]);
 
     if (insertError) {
-      console.error('Insert friendship error:', insertError);
+      console.error('Insert friend request error:', insertError);
       return NextResponse.json(
-        { error: 'Failed to add friend' },
-        { status: 500 }
-      );
-    }
-
-    // Get the friend's full data
-    const { data: friendData, error: friendDataError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', friendUser.id)
-      .single();
-
-    if (friendDataError) {
-      return NextResponse.json(
-        { error: 'Friend added but failed to fetch friend data' },
+        { error: insertError.message || 'Failed to send friend request' },
         { status: 500 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      friend: transformUserToFrontend(friendData),
+      message: 'Friend request sent',
     });
   } catch (error) {
     console.error('Add friend error:', error);

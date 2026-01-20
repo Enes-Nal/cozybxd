@@ -47,10 +47,12 @@ const SchedulingModal: React.FC<AddToGroupModalProps> = ({ movie, onClose, onCon
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
-      <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 shadow-2xl">
-        <button onClick={onClose} className="absolute top-8 right-8 text-gray-500 hover:text-white transition-colors">
-          <i className="fa-solid fa-xmark text-xl"></i>
-        </button>
+      <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 shadow-2xl overflow-visible">
+        <div className="absolute top-6 right-6 z-10">
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+            <i className="fa-solid fa-xmark text-xl"></i>
+          </button>
+        </div>
 
         <h2 className="text-2xl font-black mb-2">Add to Group</h2>
         <p className="text-sm text-gray-400 mb-8">Push <span className="text-accent font-bold">{movie.title}</span> to a shared workspace.</p>

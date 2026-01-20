@@ -34,13 +34,15 @@ const RandomPickerModal: React.FC<RandomPickerModalProps> = ({ movies, onClose, 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
-      <div className="glass w-full max-w-lg rounded-[3rem] p-10 relative border-white/10 no-glow overflow-hidden">
+      <div className="glass w-full max-w-lg rounded-[3rem] p-10 relative border-white/10 no-glow overflow-visible">
         {/* Decorative background element */}
         <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-600/10 rounded-full blur-3xl"></div>
         
-        <button onClick={onClose} className="absolute top-8 right-8 text-gray-500 hover:text-white transition-colors">
-          <i className="fa-solid fa-xmark text-xl"></i>
-        </button>
+        <div className="absolute top-6 right-6 z-10">
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+            <i className="fa-solid fa-xmark text-xl"></i>
+          </button>
+        </div>
 
         <h2 className="text-3xl font-bold mb-2">Random Choice</h2>
         <p className="text-sm text-gray-400 mb-8">Can't decide? Let the group's collective energy pick for you.</p>

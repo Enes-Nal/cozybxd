@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react';
 import { Movie, User } from '@/lib/types';
 import SchedulingModal from './SchedulingModal';
 import { getMovieDetailsWithCredits, getProfileUrl } from '@/lib/api/tmdb';
+import { useToast } from './Toast';
 
 interface TitleDetailViewProps {
   movie: Movie;
@@ -78,6 +79,7 @@ const TitleDetailView: React.FC<TitleDetailViewProps> = ({ movie, onBack }) => {
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const queryClient = useQueryClient();
   const { data: session } = useSession();
+  const toast = useToast();
 
   const tabs = ['Overview', 'Where to Find', 'Cast', 'Collections', 'Reviews', 'Stats', 'Friends'];
 
@@ -410,12 +412,12 @@ const TitleDetailView: React.FC<TitleDetailViewProps> = ({ movie, onBack }) => {
 
   const handleSubmitReview = async () => {
     if (!session?.user?.id) {
-      alert('Please sign in to add a review');
+      toast.showWarning('Please sign in to add a review');
       return;
     }
 
     if (!reviewRating || reviewRating < 1 || reviewRating > 5) {
-      alert('Please select a rating between 1 and 5');
+      toast.showWarning('Please select a rating between 1 and 5');
       return;
     }
 
@@ -446,9 +448,10 @@ const TitleDetailView: React.FC<TitleDetailViewProps> = ({ movie, onBack }) => {
       
       // Also invalidate stats
       await queryClient.invalidateQueries({ queryKey: ['movieLogs'] });
+      toast.showSuccess('Review submitted successfully!');
     } catch (error) {
       console.error('Failed to submit review:', error);
-      alert(error instanceof Error ? error.message : 'Failed to submit review');
+      toast.showError(error instanceof Error ? error.message : 'Failed to submit review');
     } finally {
       setIsSubmittingReview(false);
     }
@@ -456,7 +459,7 @@ const TitleDetailView: React.FC<TitleDetailViewProps> = ({ movie, onBack }) => {
 
   const handleStatusSelect = async (status: string) => {
     if (!session?.user?.id) {
-      alert('Please sign in to save your status');
+      toast.showWarning('Please sign in to save your status');
       return;
     }
 
@@ -501,9 +504,10 @@ const TitleDetailView: React.FC<TitleDetailViewProps> = ({ movie, onBack }) => {
           // Refetch immediately
           await refetchWatchedStatus();
           await queryClient.refetchQueries({ queryKey: ['movieLogs', mediaId || tmdbId, session?.user?.id] });
+          toast.showSuccess('Removed from history');
         } catch (error) {
           console.error('Failed to remove from history:', error);
-          alert(error instanceof Error ? error.message : 'Failed to remove from history');
+          toast.showError(error instanceof Error ? error.message : 'Failed to remove from history');
           // Keep status as Finished on error
           setCurrentStatus('Finished');
         } finally {
@@ -547,9 +551,10 @@ const TitleDetailView: React.FC<TitleDetailViewProps> = ({ movie, onBack }) => {
           // Refetch immediately
           await refetchWatchedStatus();
           await queryClient.refetchQueries({ queryKey: ['movieLogs', mediaId || tmdbId, session?.user?.id] });
+          toast.showSuccess('Marked as finished');
         } catch (error) {
           console.error('Failed to save watched status:', error);
-          alert(error instanceof Error ? error.message : 'Failed to save watched status');
+          toast.showError(error instanceof Error ? error.message : 'Failed to save watched status');
           // Revert status on error
           setCurrentStatus(null);
         } finally {
@@ -592,9 +597,10 @@ const TitleDetailView: React.FC<TitleDetailViewProps> = ({ movie, onBack }) => {
         // Refetch immediately
         await refetchWatchedStatus();
         await queryClient.refetchQueries({ queryKey: ['movieLogs', mediaId || tmdbId, session?.user?.id] });
+        toast.showSuccess('Marked as watching');
       } catch (error) {
         console.error('Failed to save watched status:', error);
-        alert(error instanceof Error ? error.message : 'Failed to save watched status');
+        toast.showError(error instanceof Error ? error.message : 'Failed to save watched status');
         // Revert status on error
         setCurrentStatus(null);
       } finally {

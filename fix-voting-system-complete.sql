@@ -69,3 +69,4 @@ CREATE POLICY "Users can delete their own votes" ON watchlist_votes
 -- Note: The API routes use the service role client which bypasses RLS,
 -- but these policies ensure that if direct client access is used, it's secure.
 
+

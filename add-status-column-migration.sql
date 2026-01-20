@@ -9,3 +9,4 @@ CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
 -- Update existing users to have 'Offline' status if null
 UPDATE users SET status = 'Offline' WHERE status IS NULL;
 
+

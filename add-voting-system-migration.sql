@@ -21,3 +21,4 @@ CREATE TABLE IF NOT EXISTS watchlist_votes (
 CREATE INDEX IF NOT EXISTS idx_watchlist_votes_item_user ON watchlist_votes(watchlist_item_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_watchlist_votes_user ON watchlist_votes(user_id);
 
+

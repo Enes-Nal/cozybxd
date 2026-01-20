@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useToast } from './Toast';
 
 interface JoinGroupModalProps {
   onClose: () => void;
@@ -9,6 +10,7 @@ interface JoinGroupModalProps {
 }
 
 const JoinGroupModal: React.FC<JoinGroupModalProps> = ({ onClose, onSuccess }) => {
+  const toast = useToast();
   const [inviteCode, setInviteCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,13 +31,16 @@ const JoinGroupModal: React.FC<JoinGroupModalProps> = ({ onClose, onSuccess }) =
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['teams'] });
+      toast.showSuccess('Successfully joined the group!');
       if (onSuccess) {
         onSuccess(data.id);
       }
       onClose();
     },
     onError: (error: Error) => {
-      setError(error.message);
+      const errorMsg = error.message;
+      setError(errorMsg);
+      toast.showError(errorMsg);
       setIsSubmitting(false);
     },
   });
@@ -54,14 +59,16 @@ const JoinGroupModal: React.FC<JoinGroupModalProps> = ({ onClose, onSuccess }) =
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
-      <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-in zoom-in-95 duration-300">
-        <button 
-          onClick={onClose} 
-          className="absolute top-8 right-8 text-gray-500 hover:text-white transition-colors"
-          disabled={isSubmitting}
-        >
-          <i className="fa-solid fa-xmark text-xl"></i>
-        </button>
+      <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-in zoom-in-95 duration-300 overflow-visible">
+        <div className="absolute top-6 right-6 z-10">
+          <button 
+            onClick={onClose} 
+            className="text-gray-500 hover:text-white transition-colors"
+            disabled={isSubmitting}
+          >
+            <i className="fa-solid fa-xmark text-xl"></i>
+          </button>
+        </div>
 
         <h2 className="text-2xl font-black mb-2">Join a Group</h2>
         <p className="text-sm text-gray-400 mb-8">Enter an invite code to join a shared watchlist.</p>

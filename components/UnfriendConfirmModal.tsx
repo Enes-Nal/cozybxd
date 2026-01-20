@@ -18,14 +18,16 @@ const UnfriendConfirmModal: React.FC<UnfriendConfirmModalProps> = ({
 }) => {
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-fade-in">
-      <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-scale-in">
-        <button 
-          onClick={onClose} 
-          className="absolute top-8 right-8 text-gray-500 hover:text-white active:scale-90 transition-all duration-200 hover:rotate-90"
-          disabled={isPending}
-        >
-          <i className="fa-solid fa-xmark text-xl"></i>
-        </button>
+      <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-scale-in overflow-visible">
+        <div className="absolute top-6 right-6 z-10">
+          <button 
+            onClick={onClose} 
+            className="text-gray-500 hover:text-white active:scale-90 transition-all duration-200 hover:rotate-90"
+            disabled={isPending}
+          >
+            <i className="fa-solid fa-xmark text-xl"></i>
+          </button>
+        </div>
 
         <div className="text-center py-4">
           <div className="w-20 h-20 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mb-6 mx-auto">

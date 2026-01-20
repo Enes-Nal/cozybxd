@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { User } from '@/lib/types';
 import { checkProfanity } from '@/lib/utils/profanity';
+import { useToast } from './Toast';
 
 interface EditProfileModalProps {
   onClose: () => void;
@@ -101,6 +102,7 @@ const validateBannerImage = (url: string): Promise<{ valid: boolean; error?: str
 };
 
 const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose, currentUser, currentEmail, currentUsername }) => {
+  const toast = useToast();
   const [name, setName] = useState(currentUser?.name || '');
   const [avatar, setAvatar] = useState(currentUser?.avatar || '');
   const [banner, setBanner] = useState(currentUser?.banner || '');
@@ -188,26 +190,31 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose, currentUse
       // Invalidate and refetch user data
       await queryClient.invalidateQueries({ queryKey: ['currentUser'] });
       
+      toast.showSuccess('Profile updated successfully!');
       // Close modal after successful update
       setTimeout(() => {
         onClose();
       }, 300);
     } catch (err) {
-      setError('An error occurred. Please try again.');
+      const errorMsg = 'An error occurred. Please try again.';
+      setError(errorMsg);
+      toast.showError(errorMsg);
       setLoading(false);
     }
   };
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
-      <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-in zoom-in-95 duration-300">
-        <button 
-          onClick={onClose} 
-          className="absolute top-8 right-8 text-gray-500 hover:text-white transition-colors"
-          disabled={loading}
-        >
-          <i className="fa-solid fa-xmark text-xl"></i>
-        </button>
+      <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-in zoom-in-95 duration-300 overflow-visible">
+        <div className="absolute top-6 right-6 z-10">
+          <button 
+            onClick={onClose} 
+            className="text-gray-500 hover:text-white transition-colors"
+            disabled={loading}
+          >
+            <i className="fa-solid fa-xmark text-xl"></i>
+          </button>
+        </div>
 
         <h2 className="text-2xl font-black mb-2">Edit Profile</h2>
         <p className="text-sm text-gray-400 mb-8">Update your profile information.</p>

@@ -8,6 +8,8 @@ import { Group, Movie, User } from '@/lib/types';
 import MovieGrid from './MovieGrid';
 import InvitePeopleModal from './InvitePeopleModal';
 import EditGroupPictureModal from './EditGroupPictureModal';
+import GroupChatButton from './GroupChatButton';
+import { useToast } from './Toast';
 
 interface GroupViewProps {
   group: Group;
@@ -80,25 +82,29 @@ const GroupView: React.FC<GroupViewProps> = ({
   const { data: session } = useSession();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const toast = useToast();
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isEditPictureModalOpen, setIsEditPictureModalOpen] = useState(false);
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
   const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [userToKick, setUserToKick] = useState<User | null>(null);
   const [movies, setMovies] = useState(initialMovies);
   const [votingMovieId, setVotingMovieId] = useState<string | null>(null); // Track which movie is being voted on
-  const lastVoteTimeRef = useRef<number>(0); // Track when we last voted to prevent immediate sync
+  const previousInitialMoviesRef = useRef(initialMovies);
   
   // Get current user's role in the group
   const currentUser = group.members.find(m => m.id === session?.user?.id);
   const isAdmin = currentUser?.role === 'Admin';
   
-  // Update movies when initialMovies changes, but not while voting or immediately after voting
+  // Update movies when initialMovies changes, but only if not currently voting
   useEffect(() => {
-    // Don't overwrite local state if we're currently voting or just voted (within last 2 seconds)
-    const timeSinceLastVote = Date.now() - lastVoteTimeRef.current;
-    if (votingMovieId === null && timeSinceLastVote > 2000) {
-      setMovies(initialMovies);
+    if (votingMovieId === null) {
+      // Only update if initialMovies reference changed (new data from server)
+      if (initialMovies !== previousInitialMoviesRef.current) {
+        setMovies(initialMovies);
+        previousInitialMoviesRef.current = initialMovies;
+      }
     }
   }, [initialMovies, votingMovieId]);
   
@@ -210,6 +216,12 @@ const GroupView: React.FC<GroupViewProps> = ({
           )
         );
         voteSuccess = true;
+        const movie = movies.find(m => m.id === id);
+        if (currentUserVote === 'upvote') {
+          toast.showSuccess(`Removed upvote from ${movie?.title || 'movie'}`);
+        } else {
+          toast.showSuccess(`Upvoted ${movie?.title || 'movie'}`);
+        }
       } else {
         // Revert optimistic update on error
         setMovies(prevMovies => 
@@ -238,11 +250,15 @@ const GroupView: React.FC<GroupViewProps> = ({
           } : m
         )
       );
+      toast.showError('Failed to upvote. Please try again.');
     } finally {
       setVotingMovieId(null);
-      // Invalidate the query after clearing voting state to refetch with updated data
+      // Invalidate query in background to sync with server (but don't wait for it)
       if (voteSuccess) {
-        queryClient.invalidateQueries({ queryKey: ['groupWatchlist', group.id] });
+        // Use a small delay to ensure the database transaction is committed
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['groupWatchlist', group.id] });
+        }, 100);
       }
     }
   };
@@ -334,6 +350,12 @@ const GroupView: React.FC<GroupViewProps> = ({
           )
         );
         voteSuccess = true;
+        const movie = movies.find(m => m.id === id);
+        if (currentUserVote === 'downvote') {
+          toast.showSuccess(`Removed downvote from ${movie?.title || 'movie'}`);
+        } else {
+          toast.showSuccess(`Downvoted ${movie?.title || 'movie'}`);
+        }
       } else {
         // Revert optimistic update on error
         setMovies(prevMovies => 
@@ -362,15 +384,15 @@ const GroupView: React.FC<GroupViewProps> = ({
           } : m
         )
       );
+      toast.showError('Failed to downvote. Please try again.');
     } finally {
       setVotingMovieId(null);
-      // Track when we voted to prevent immediate sync
+      // Invalidate query in background to sync with server (but don't wait for it)
       if (voteSuccess) {
-        lastVoteTimeRef.current = Date.now();
-        // Invalidate the query after a delay to allow database to commit
+        // Use a small delay to ensure the database transaction is committed
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ['groupWatchlist', group.id] });
-        }, 500);
+        }, 100);
       }
     }
   };
@@ -408,18 +430,19 @@ const GroupView: React.FC<GroupViewProps> = ({
         } catch (e) {
           console.error('Failed to read error response:', e);
         }
-        alert(errorMessage);
+        toast.showError(errorMessage);
         return;
       }
 
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['watchlist', 'shared', group.id] });
+      toast.showSuccess(`Removed ${movieToRemove.title} from queue`);
     } catch (error) {
       // Revert optimistic update on error
       setMovies(previousMovies);
       console.error('Error removing from queue:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to remove from queue. Please try again.';
-      alert(errorMessage);
+      toast.showError(errorMessage);
     }
   };
   
@@ -435,12 +458,6 @@ const GroupView: React.FC<GroupViewProps> = ({
   const totalMovies = movies.length;
   const totalVotes = movies.reduce((sum, m) => sum + (m.votes || 0), 0);
 
-  const copyInviteCode = () => {
-    if (group.inviteCode) {
-      navigator.clipboard.writeText(group.inviteCode);
-      // You could add a toast notification here
-    }
-  };
 
   // Leave group mutation
   const leaveGroupMutation = useMutation({
@@ -456,7 +473,11 @@ const GroupView: React.FC<GroupViewProps> = ({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['teams'] });
+      toast.showSuccess(`Left "${group.name}"`);
       router.push('/?tab=Home');
+    },
+    onError: (error: Error) => {
+      toast.showError(error.message || 'Failed to leave group');
     },
   });
 
@@ -474,7 +495,34 @@ const GroupView: React.FC<GroupViewProps> = ({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['teams'] });
+      toast.showSuccess(`Deleted "${group.name}"`);
       router.push('/?tab=Home');
+    },
+    onError: (error: Error) => {
+      toast.showError(error.message || 'Failed to delete group');
+    },
+  });
+
+  // Kick user mutation
+  const kickUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await fetch(`/api/teams/${group.id}/members?userId=${userId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to kick user');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['group', group.id] });
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      setUserToKick(null);
+      toast.showSuccess('User has been removed from the group');
+    },
+    onError: (error: Error) => {
+      toast.showError(error.message || 'Failed to kick user');
     },
   });
 
@@ -490,29 +538,6 @@ const GroupView: React.FC<GroupViewProps> = ({
     }
   };
 
-  // Toggle interest level voting mutation
-  const toggleInterestLevelVotingMutation = useMutation({
-    mutationFn: async (enabled: boolean) => {
-      const res = await fetch(`/api/teams/${group.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ interestLevelVotingEnabled: enabled }),
-      });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Failed to update setting');
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['teams'] });
-      queryClient.invalidateQueries({ queryKey: ['groupWatchlist', group.id] });
-    },
-  });
-
-  const handleToggleInterestLevelVoting = (enabled: boolean) => {
-    toggleInterestLevelVotingMutation.mutate(enabled);
-  };
 
   return (
     <>
@@ -524,7 +549,7 @@ const GroupView: React.FC<GroupViewProps> = ({
                 <img 
                   src={group.pictureUrl} 
                   alt={group.name}
-                  className="w-20 h-20 rounded-2xl object-cover border border-white/10 cursor-pointer hover:opacity-80 transition-opacity"
+                  className="w-20 h-20 rounded-2xl object-cover border border-white/10 cursor-pointer hover:opacity-80 active:scale-95 transition-all duration-200"
                   onClick={() => setIsEditPictureModalOpen(true)}
                 />
               ) : (
@@ -545,28 +570,13 @@ const GroupView: React.FC<GroupViewProps> = ({
                 <h2 className="text-4xl font-black tracking-tight">{group.name}</h2>
               </div>
               <p className="text-gray-400 max-w-md">{group.description || `${group.name} shared watchlist and viewing history.`}</p>
-              {group.inviteCode && (
-                <div className="flex items-center gap-2 mt-3">
-                  <span className="text-xs text-gray-500">Invite Code:</span>
-                  <code className="px-3 py-1 bg-white/5 border border-white/10 rounded-lg text-xs font-mono tracking-widest uppercase">
-                    {group.inviteCode}
-                  </code>
-                  <button
-                    onClick={copyInviteCode}
-                    className="text-accent hover:text-accent/80 transition-colors"
-                    title="Copy invite code"
-                  >
-                    <i className="fa-solid fa-copy text-xs"></i>
-                  </button>
-                </div>
-              )}
             </div>
           </div>
           
           <div className="flex items-center gap-4">
             <button
               onClick={() => setIsMembersModalOpen(true)}
-              className="flex -space-x-3 hover:opacity-80 transition-opacity cursor-pointer group"
+              className="flex -space-x-3 hover:opacity-80 active:scale-95 transition-all duration-200 cursor-pointer group"
               title="View all members"
             >
               {group.members.slice(0, 5).map(m => (
@@ -580,24 +590,35 @@ const GroupView: React.FC<GroupViewProps> = ({
             </button>
             <button 
               onClick={() => setIsInviteModalOpen(true)}
-              className="bg-white/5 hover:bg-white/10 p-3 rounded-xl transition-all overflow-hidden"
+              className="bg-white/5 hover:bg-white/10 active:scale-95 p-3 rounded-xl transition-all duration-200 overflow-hidden"
               title="Invite people"
             >
               <i className="fa-solid fa-user-plus text-gray-400"></i>
             </button>
             {isAdmin && (
-              <button 
-                onClick={handleDeleteGroup}
-                className="bg-white/5 hover:bg-red-500/20 p-3 rounded-xl transition-all overflow-hidden"
-                title="Delete group"
-                disabled={deleteGroupMutation.isPending}
-              >
-                <i className="fa-solid fa-trash text-red-400"></i>
-              </button>
+              <>
+                <button 
+                  onClick={() => {
+                    router.push(`/?tab=Group Settings&group=${group.id}`);
+                  }}
+                  className="bg-white/5 hover:bg-white/10 active:scale-95 p-3 rounded-xl transition-all duration-200 overflow-hidden"
+                  title="Group settings"
+                >
+                  <i className="fa-solid fa-cog text-gray-400"></i>
+                </button>
+                <button 
+                  onClick={handleDeleteGroup}
+                  className="bg-white/5 hover:bg-red-500/20 active:scale-95 p-3 rounded-xl transition-all duration-200 overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Delete group"
+                  disabled={deleteGroupMutation.isPending}
+                >
+                  <i className="fa-solid fa-trash text-red-400"></i>
+                </button>
+              </>
             )}
             <button 
               onClick={handleLeaveGroup}
-              className="bg-white/5 hover:bg-white/10 p-3 rounded-xl transition-all overflow-hidden"
+              className="bg-white/5 hover:bg-white/10 active:scale-95 p-3 rounded-xl transition-all duration-200 overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
               title="Leave group"
               disabled={leaveGroupMutation.isPending}
             >
@@ -672,29 +693,16 @@ const GroupView: React.FC<GroupViewProps> = ({
         </div>
       </div>
 
-      {isAdmin && (
-        <div className="glass p-6 rounded-[2rem] border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent mb-8">
-          <h3 className="text-lg font-bold mb-4">Group Settings</h3>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-bold mb-1">Interest Level Voting</p>
-              <p className="text-xs text-gray-400">Allow members to set interest level when adding movies</p>
-            </div>
-            <button
-              onClick={() => handleToggleInterestLevelVoting(!group.interestLevelVotingEnabled)}
-              disabled={toggleInterestLevelVotingMutation.isPending}
-              className={`relative w-14 h-8 rounded-full transition-colors ${
-                group.interestLevelVotingEnabled ? 'bg-accent' : 'bg-white/10'
-              } disabled:opacity-50`}
-            >
-              <div
-                className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform ${
-                  group.interestLevelVotingEnabled ? 'translate-x-6' : 'translate-x-0'
-                }`}
-              />
-            </button>
-          </div>
-        </div>
+
+      {currentUser && (
+        <GroupChatButton
+          teamId={group.id}
+          currentUser={{
+            id: currentUser.id,
+            name: currentUser.name,
+            avatar: currentUser.avatar || session?.user?.image || '',
+          }}
+        />
       )}
 
       <h3 className="text-lg font-bold mb-6">Group Queue</h3>
@@ -723,11 +731,10 @@ const GroupView: React.FC<GroupViewProps> = ({
       )}
       </div>
 
-      {isInviteModalOpen && group.inviteCode && (
+      {isInviteModalOpen && (
         <InvitePeopleModal
           groupId={group.id}
           groupName={group.name}
-          inviteCode={group.inviteCode}
           onClose={() => setIsInviteModalOpen(false)}
         />
       )}
@@ -740,12 +747,41 @@ const GroupView: React.FC<GroupViewProps> = ({
         />
       )}
 
+      {userToKick && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
+          <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-in zoom-in-95 duration-300">
+            <h2 className="text-2xl font-black mb-2">Remove Member</h2>
+            <p className="text-sm text-gray-400 mb-8">
+              Are you sure you want to remove <strong>{userToKick.name}</strong> from <strong>{group.name}</strong>? This action cannot be undone.
+            </p>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setUserToKick(null)}
+                className="flex-1 bg-white/5 hover:bg-white/10 active:scale-95 px-6 py-3 rounded-xl text-sm font-bold transition-all duration-200"
+                disabled={kickUserMutation.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  kickUserMutation.mutate(userToKick.id);
+                }}
+                className="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 active:scale-95 px-6 py-3 rounded-xl text-sm font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={kickUserMutation.isPending}
+              >
+                {kickUserMutation.isPending ? 'Removing...' : 'Remove'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isMembersModalOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
           <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-in zoom-in-95 duration-300">
             <button 
               onClick={() => setIsMembersModalOpen(false)} 
-              className="absolute top-8 right-8 text-gray-500 hover:text-white transition-colors"
+              className="absolute top-8 right-8 text-gray-500 hover:text-white active:scale-90 transition-all duration-200"
             >
               <i className="fa-solid fa-xmark text-xl"></i>
             </button>
@@ -755,34 +791,51 @@ const GroupView: React.FC<GroupViewProps> = ({
 
             <div className="space-y-3 max-h-[60vh] overflow-y-auto">
               {group.members.map((member) => {
+                const canKick = isAdmin && member.id !== session?.user?.id;
                 return (
                   <div 
                     key={member.id} 
-                    className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors cursor-pointer"
-                    onClick={() => {
-                      if (onProfileSelect) {
-                        onProfileSelect(member);
-                        setIsMembersModalOpen(false);
-                      }
-                    }}
+                    className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors"
                   >
-                    <div className="relative">
-                      <img 
-                        src={member.avatar} 
-                        alt={member.name}
-                        className="w-12 h-12 rounded-full"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-sm">{member.name}</h4>
-                        {member.role && (
-                          <span className="text-xs px-2 py-0.5 bg-accent/20 text-accent rounded-full font-medium">
-                            {member.role}
-                          </span>
-                        )}
+                    <div 
+                      className="flex items-center gap-4 flex-1 cursor-pointer"
+                      onClick={() => {
+                        if (onProfileSelect) {
+                          onProfileSelect(member);
+                          setIsMembersModalOpen(false);
+                        }
+                      }}
+                    >
+                      <div className="relative">
+                        <img 
+                          src={member.avatar} 
+                          alt={member.name}
+                          className="w-12 h-12 rounded-full"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-sm">{member.name}</h4>
+                          {member.role && (
+                            <span className="text-xs px-2 py-0.5 bg-accent/20 text-accent rounded-full font-medium">
+                              {member.role}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
+                    {canKick && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setUserToKick(member);
+                        }}
+                        className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                        title="Remove from group"
+                      >
+                        <i className="fa-solid fa-user-minus text-sm"></i>
+                      </button>
+                    )}
                   </div>
                 );
               })}

@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Movie } from '@/lib/types';
+import { useToast } from './Toast';
 
 const NewListModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [listName, setListName] = useState('');
@@ -133,6 +134,7 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
   const [tab, setTab] = useState('Personal');
   const [isNewListModalOpen, setIsNewListModalOpen] = useState(false);
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   // Fetch personal watchlist
   const { data: personalWatchlist = [], isLoading: personalLoading } = useQuery({
@@ -231,18 +233,19 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
             error: e
           });
         }
-        alert(errorMessage);
+        toast.showError(errorMessage);
         return;
       }
 
       // Refetch to ensure consistency
       await queryClient.invalidateQueries({ queryKey });
+      toast.showSuccess('Removed from watchlist');
     } catch (error) {
       // Revert optimistic update on error
       queryClient.setQueryData(queryKey, previousWatchlist);
       console.error('Error removing from watchlist:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to remove from watchlist. Please try again.';
-      alert(errorMessage);
+      toast.showError(errorMessage);
     }
   }; 
 

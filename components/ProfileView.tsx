@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { User, Movie } from '@/lib/types';
 import UnfriendConfirmModal from './UnfriendConfirmModal';
+import { useToast } from './Toast';
 
 interface ProfileViewProps {
   user: User;
@@ -63,6 +64,7 @@ const getGenreColor = (genre: string): string => {
 const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) => {
   const { data: session } = useSession();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [showUnfriendModal, setShowUnfriendModal] = useState(false);
   const [addFriendError, setAddFriendError] = useState<string | null>(null);
 
@@ -97,9 +99,36 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
     enabled: !!session,
   });
 
+  // Fetch incoming friend requests
+  const { data: incomingRequests = [] } = useQuery({
+    queryKey: ['friendRequests', 'incoming'],
+    queryFn: async () => {
+      const res = await fetch('/api/friends/requests?type=incoming');
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!session,
+  });
+
+  // Fetch outgoing friend requests
+  const { data: outgoingRequests = [] } = useQuery({
+    queryKey: ['friendRequests', 'outgoing'],
+    queryFn: async () => {
+      const res = await fetch('/api/friends/requests?type=outgoing');
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!session,
+  });
+
   // Check if the viewed user is a friend (only direct friends are returned now)
   const isFriend = friendsData.some((friend: User) => friend.id === user.id);
   const isCurrentUser = session?.user?.id === user.id;
+  
+  // Check for pending friend requests
+  const incomingRequest = incomingRequests.find((req: any) => req.user.id === user.id);
+  const outgoingRequest = outgoingRequests.find((req: any) => req.user.id === user.id);
+  const hasPendingRequest = incomingRequest || outgoingRequest;
 
   // Add friend mutation
   const addFriendMutation = useMutation({
@@ -117,12 +146,16 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['friends'] });
+      queryClient.invalidateQueries({ queryKey: ['friendRequests'] });
       queryClient.invalidateQueries({ queryKey: ['user', user.id] });
       setAddFriendError(null);
+      toast.showSuccess(`Friend request sent to ${user.name}!`);
     },
     onError: (error) => {
       console.error('Add friend error:', error);
-      setAddFriendError(error instanceof Error ? error.message : 'Failed to add friend');
+      const errorMsg = error instanceof Error ? error.message : 'Failed to add friend';
+      setAddFriendError(errorMsg);
+      toast.showError(errorMsg);
     },
   });
 
@@ -144,10 +177,96 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
       queryClient.invalidateQueries({ queryKey: ['friends'] });
       queryClient.invalidateQueries({ queryKey: ['user', user.id] });
       setShowUnfriendModal(false);
+      toast.showSuccess(`Unfriended ${user.name}`);
     },
     onError: (error) => {
       console.error('Unfriend error:', error);
-      // You could add toast notification here if needed
+      toast.showError(error instanceof Error ? error.message : 'Failed to unfriend');
+    },
+  });
+
+  // Accept friend request mutation
+  const acceptRequestMutation = useMutation({
+    mutationFn: async (requestId: string) => {
+      const res = await fetch('/api/friends/requests/accept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to accept friend request');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['friends'] });
+      queryClient.invalidateQueries({ queryKey: ['friendRequests'] });
+      queryClient.invalidateQueries({ queryKey: ['user', user.id] });
+      setAddFriendError(null);
+      toast.showSuccess(`You are now friends with ${user.name}!`);
+    },
+    onError: (error) => {
+      console.error('Accept friend request error:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to accept friend request';
+      setAddFriendError(errorMsg);
+      toast.showError(errorMsg);
+    },
+  });
+
+  // Reject friend request mutation
+  const rejectRequestMutation = useMutation({
+    mutationFn: async (requestId: string) => {
+      const res = await fetch('/api/friends/requests', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to reject friend request');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['friendRequests'] });
+      queryClient.invalidateQueries({ queryKey: ['user', user.id] });
+      setAddFriendError(null);
+      toast.showSuccess('Friend request rejected');
+    },
+    onError: (error) => {
+      console.error('Reject friend request error:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to reject friend request';
+      setAddFriendError(errorMsg);
+      toast.showError(errorMsg);
+    },
+  });
+
+  // Cancel friend request mutation
+  const cancelRequestMutation = useMutation({
+    mutationFn: async (requestId: string) => {
+      const res = await fetch('/api/friends/requests', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to cancel friend request');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['friendRequests'] });
+      queryClient.invalidateQueries({ queryKey: ['user', user.id] });
+      setAddFriendError(null);
+      toast.showSuccess('Friend request cancelled');
+    },
+    onError: (error) => {
+      console.error('Cancel friend request error:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to cancel friend request';
+      setAddFriendError(errorMsg);
+      toast.showError(errorMsg);
     },
   });
 
@@ -222,7 +341,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
           {userData?.email && (
             <p className="text-gray-500 text-sm mt-1">{userData.email}</p>
           )}
-          {session && !isCurrentUser && !isFriend && (
+          {session && !isCurrentUser && !isFriend && !hasPendingRequest && (
             <div className="mt-4 flex flex-col justify-center md:justify-start gap-2">
               <button
                 onClick={(e) => {
@@ -234,7 +353,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
                 className="px-6 py-2 rounded-xl bg-accent/10 border border-accent/50 text-accent hover:bg-accent/20 transition-all text-sm font-bold uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 w-fit"
               >
                 <i className="fa-solid fa-user-plus text-xs"></i>
-                {addFriendMutation.isPending ? 'Adding...' : 'Add Friend'}
+                {addFriendMutation.isPending ? 'Sending...' : 'Send Friend Request'}
               </button>
               {userLoading && (
                 <p className="text-sm text-gray-500">Loading user data...</p>
@@ -242,6 +361,58 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
               {!userLoading && !userData?.username && (
                 <p className="text-sm text-gray-500">This user needs to log in to set their username</p>
               )}
+              {addFriendError && (
+                <p className="text-sm text-red-400">{addFriendError}</p>
+              )}
+            </div>
+          )}
+          {session && !isCurrentUser && !isFriend && incomingRequest && (
+            <div className="mt-4 flex flex-col justify-center md:justify-start gap-2">
+              <div className="flex gap-2">
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    acceptRequestMutation.mutate(incomingRequest.id);
+                  }}
+                  disabled={acceptRequestMutation.isPending || rejectRequestMutation.isPending}
+                  className="px-6 py-2 rounded-xl bg-accent/10 border border-accent/50 text-accent hover:bg-accent/20 transition-all text-sm font-bold uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                >
+                  <i className="fa-solid fa-check text-xs"></i>
+                  {acceptRequestMutation.isPending ? 'Accepting...' : 'Accept Request'}
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    rejectRequestMutation.mutate(incomingRequest.id);
+                  }}
+                  disabled={acceptRequestMutation.isPending || rejectRequestMutation.isPending}
+                  className="px-6 py-2 rounded-xl bg-red-500/10 border border-red-500/50 text-red-500 hover:bg-red-500/20 transition-all text-sm font-bold uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                >
+                  <i className="fa-solid fa-xmark text-xs"></i>
+                  {rejectRequestMutation.isPending ? 'Rejecting...' : 'Reject'}
+                </button>
+              </div>
+              {addFriendError && (
+                <p className="text-sm text-red-400">{addFriendError}</p>
+              )}
+            </div>
+          )}
+          {session && !isCurrentUser && !isFriend && outgoingRequest && (
+            <div className="mt-4 flex flex-col justify-center md:justify-start gap-2">
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  cancelRequestMutation.mutate(outgoingRequest.id);
+                }}
+                disabled={cancelRequestMutation.isPending}
+                className="px-6 py-2 rounded-xl bg-gray-500/10 border border-gray-500/50 text-gray-500 hover:bg-gray-500/20 transition-all text-sm font-bold uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 w-fit"
+              >
+                <i className="fa-solid fa-paper-plane text-xs"></i>
+                {cancelRequestMutation.isPending ? 'Cancelling...' : 'Friend Request Sent'}
+              </button>
               {addFriendError && (
                 <p className="text-sm text-red-400">{addFriendError}</p>
               )}

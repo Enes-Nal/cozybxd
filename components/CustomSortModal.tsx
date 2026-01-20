@@ -25,10 +25,12 @@ const CustomSortModal: React.FC<CustomSortModalProps> = ({ onClose }) => {
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95 backdrop-blur-2xl p-4 overflow-y-auto animate-fade-in">
-      <div className="glass w-full max-w-xl rounded-[3rem] p-10 relative border-white/10 my-8 shadow-2xl animate-scale-in">
-        <button onClick={onClose} className="absolute top-8 right-10 text-gray-500 hover:text-white active:scale-90 transition-all duration-200 hover:rotate-90">
-          <i className="fa-solid fa-xmark text-2xl"></i>
-        </button>
+      <div className="glass w-full max-w-xl rounded-[3rem] p-10 relative border-white/10 my-8 shadow-2xl animate-scale-in overflow-visible">
+        <div className="absolute top-6 right-6 z-10">
+          <button onClick={onClose} className="text-gray-500 hover:text-white active:scale-90 transition-all duration-200 hover:rotate-90">
+            <i className="fa-solid fa-xmark text-2xl"></i>
+          </button>
+        </div>
 
         <div className="mb-10">
           <div className="inline-flex items-center gap-2 bg-white/5 text-accent px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-white/10 mb-4">

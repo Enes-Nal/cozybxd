@@ -155,7 +155,7 @@ const Header: React.FC<HeaderProps> = ({ groupName, isHome, onNotificationClick,
             </div>
             
             {showDropdown && (
-              <div className="absolute top-full right-0 mt-2 w-80 max-h-96 overflow-y-auto overflow-x-hidden bg-[#111] border border-[#222] rounded-xl shadow-2xl z-50">
+              <div className="absolute top-full right-0 mt-2 w-80 max-h-96 overflow-y-auto overflow-x-hidden bg-[#111] border border-[#222] rounded-xl shadow-2xl z-50 animate-slide-down">
                 {isSearching ? (
                   <div className="p-4 text-center text-gray-500 text-xs">
                     <i className="fa-solid fa-spinner fa-spin mr-2"></i>
@@ -167,7 +167,7 @@ const Header: React.FC<HeaderProps> = ({ groupName, isHome, onNotificationClick,
                       <button
                         key={movie.id}
                         onClick={() => handleMovieClick(movie)}
-                        className="w-full px-4 py-3 hover:bg-[#1a1a1a] transition-colors flex items-center gap-3 text-left"
+                        className="w-full px-4 py-3 hover:bg-[#1a1a1a] transition-all-smooth flex items-center gap-3 text-left active:scale-[0.98]"
                       >
                         {movie.poster ? (
                           <img 
@@ -210,5 +210,3 @@ const Header: React.FC<HeaderProps> = ({ groupName, isHome, onNotificationClick,
     </header>
   );
 };
-
-export default Header;

@@ -69,10 +69,12 @@ const AIRecommendationModal: React.FC<AIRecommendationModalProps> = ({ onClose, 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
-      <div className="glass w-full max-w-2xl rounded-[3rem] p-10 relative border-white/10">
-        <button onClick={onClose} className="absolute top-8 right-8 text-gray-400 hover:text-white">
-          <i className="fa-solid fa-xmark text-xl"></i>
-        </button>
+      <div className="glass w-full max-w-2xl rounded-[3rem] p-10 relative border-white/10 overflow-visible">
+        <div className="absolute top-6 right-6 z-10">
+          <button onClick={onClose} className="text-gray-400 hover:text-white">
+            <i className="fa-solid fa-xmark text-xl"></i>
+          </button>
+        </div>
 
         <div className="mb-8">
           <div className="inline-flex items-center gap-2 bg-indigo-500/10 text-indigo-400 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border border-indigo-500/20 mb-4">

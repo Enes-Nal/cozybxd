@@ -12,6 +12,7 @@ import WatchlistView from '@/components/WatchlistView';
 import HistoryView from '@/components/HistoryView';
 import SettingsView from '@/components/SettingsView';
 import GroupView from '@/components/GroupView';
+import GroupSettingsView from '@/components/GroupSettingsView';
 import ProfileView from '@/components/ProfileView';
 import TitleDetailView from '@/components/TitleDetailView';
 import CustomSortModal from '@/components/CustomSortModal';
@@ -23,6 +24,7 @@ import AddFriendModal from '@/components/AddFriendModal';
 import CreateGroupModal from '@/components/CreateGroupModal';
 import JoinGroupModal from '@/components/JoinGroupModal';
 import SetUsernameModal from '@/components/SetUsernameModal';
+import { useToast } from '@/components/Toast';
 import { Movie, User, Group } from '@/lib/types';
 import { transformTMDBMovieToMovieSync, transformTeamToGroup, transformMediaToMovie, transformYouTubeVideoToMovie } from '@/lib/utils/transformers';
 import { TMDBMovie, getGenres } from '@/lib/api/tmdb';
@@ -33,11 +35,22 @@ function HomeContent() {
   const searchParams = useSearchParams();
   const { data: session, status: sessionStatus } = useSession();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [movies, setMovies] = useState<Movie[]>([]);
   const [genreMap, setGenreMap] = useState<Map<number, string>>(new Map());
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'Home');
   const [activeGroup, setActiveGroup] = useState<string | null>(searchParams.get('group') || null);
   const [activeProfile, setActiveProfile] = useState<User | null>(null);
+  
+  // Check if we're on Group Settings tab
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    const group = searchParams.get('group');
+    if (tab === 'Group Settings' && group) {
+      setActiveTab('Group Settings');
+      setActiveGroup(group);
+    }
+  }, [searchParams]);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
@@ -392,7 +405,17 @@ function HomeContent() {
     let content;
     if (selectedMovie) content = <TitleDetailView movie={selectedMovie} onBack={() => setSelectedMovie(null)} />;
     else if (activeProfile) content = <ProfileView user={activeProfile} />;
-    else if (activeGroup) {
+    else if (activeTab === 'Group Settings' && activeGroup) {
+      content = (
+        <GroupSettingsView 
+          groupId={activeGroup}
+          onBack={() => {
+            setActiveTab('Group');
+            router.push(`/?tab=Group&group=${activeGroup}`);
+          }}
+        />
+      );
+    } else if (activeGroup) {
       if (groupLoading) {
         content = (
           <div className="flex items-center justify-center h-64">
@@ -608,9 +631,10 @@ function HomeContent() {
                             queryClient.setQueryData(['watchlist', 'personal'], previousWatchlist);
                             const errorData = await deleteRes.json().catch(() => ({ error: 'Failed to delete' }));
                             console.error('Failed to remove from watchlist:', errorData);
-                            alert('Failed to remove from watchlist. Please try again.');
+                            toast.showError('Failed to remove from watchlist. Please try again.');
                             return;
                           }
+                          toast.showSuccess(`Removed ${currentMovie.title} from watchlist`);
                         } else {
                           // Add to watchlist
                           const addRes = await fetch('/api/watchlist', {
@@ -624,9 +648,15 @@ function HomeContent() {
                             queryClient.setQueryData(['watchlist', 'personal'], previousWatchlist);
                             const errorData = await addRes.json().catch(() => ({ error: 'Failed to add' }));
                             console.error('Failed to add to watchlist:', errorData);
-                            alert(errorData.error || 'Failed to add to watchlist. Please try again.');
+                            const errorMessage = errorData.error || 'Failed to add to watchlist. Please try again.';
+                            if (errorData.error === 'Already in watchlist') {
+                              toast.showWarning('Already in watchlist');
+                            } else {
+                              toast.showError(errorMessage);
+                            }
                             return;
                           }
+                          toast.showSuccess(`Added ${currentMovie.title} to watchlist!`);
                         }
                         
                         // Refetch to ensure we have the latest data (with correct IDs)
@@ -635,7 +665,7 @@ function HomeContent() {
                         // Revert optimistic update on error
                         queryClient.setQueryData(['watchlist', 'personal'], personalWatchlist);
                         console.error('Failed to toggle watchlist:', error);
-                        alert('An error occurred. Please try again.');
+                        toast.showError('An error occurred. Please try again.');
                       }
                     }}
                     onSchedule={(id) => setSchedulingMovie(movies.find(m => m.id === id) || null)} 
@@ -799,7 +829,12 @@ function HomeContent() {
               if (!addRes.ok) {
                 const errorData = await addRes.json().catch(() => ({ error: 'Failed to add' }));
                 console.error('Failed to add to watchlist:', errorData);
-                alert(errorData.error || 'Failed to add movie to watchlist. Please try again.');
+                const errorMessage = errorData.error || 'Failed to add movie to watchlist. Please try again.';
+                if (errorData.error === 'Already in watchlist') {
+                  toast.showWarning('Already in watchlist');
+                } else {
+                  toast.showError(errorMessage);
+                }
                 return;
               }
               
@@ -810,10 +845,11 @@ function HomeContent() {
               }
               
               // Close modal on success
+              toast.showSuccess(`Added ${schedulingMovie.title} to group watchlist!`);
               setSchedulingMovie(null);
             } catch (error) {
               console.error('Error adding to watchlist:', error);
-              alert('An error occurred. Please try again.');
+              toast.showError('An error occurred. Please try again.');
             }
           }} 
         />

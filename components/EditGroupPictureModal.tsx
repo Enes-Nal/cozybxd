@@ -2,6 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useToast } from './Toast';
 
 interface EditGroupPictureModalProps {
   groupId: string;
@@ -16,6 +17,7 @@ const EditGroupPictureModal: React.FC<EditGroupPictureModalProps> = ({
   onClose, 
   onSuccess 
 }) => {
+  const toast = useToast();
   const [pictureUrl, setPictureUrl] = useState(currentPictureUrl || '');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(currentPictureUrl || null);
@@ -40,13 +42,16 @@ const EditGroupPictureModal: React.FC<EditGroupPictureModalProps> = ({
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['group', groupId] });
       await queryClient.invalidateQueries({ queryKey: ['teams'] });
+      toast.showSuccess('Group picture updated!');
       if (onSuccess) {
         onSuccess();
       }
       onClose();
     },
     onError: (error: Error) => {
-      setError(error.message);
+      const errorMsg = error.message;
+      setError(errorMsg);
+      toast.showError(errorMsg);
       setIsSubmitting(false);
     },
   });
@@ -102,14 +107,16 @@ const EditGroupPictureModal: React.FC<EditGroupPictureModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
-      <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-in zoom-in-95 duration-300">
-        <button 
-          onClick={onClose} 
-          className="absolute top-8 right-8 text-gray-500 hover:text-white transition-colors"
-          disabled={isSubmitting}
-        >
-          <i className="fa-solid fa-xmark text-xl"></i>
-        </button>
+      <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-in zoom-in-95 duration-300 overflow-visible">
+        <div className="absolute top-6 right-6 z-10">
+          <button 
+            onClick={onClose} 
+            className="text-gray-500 hover:text-white transition-colors"
+            disabled={isSubmitting}
+          >
+            <i className="fa-solid fa-xmark text-xl"></i>
+          </button>
+        </div>
 
         <h2 className="text-2xl font-black mb-2">Edit Group Picture</h2>
         <p className="text-sm text-gray-400 mb-8">Upload a new picture or enter an image URL.</p>

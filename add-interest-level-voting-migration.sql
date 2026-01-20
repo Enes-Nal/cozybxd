@@ -4,3 +4,4 @@
 ALTER TABLE teams 
 ADD COLUMN IF NOT EXISTS interest_level_voting_enabled BOOLEAN DEFAULT FALSE;
 
+

@@ -98,3 +98,4 @@ END $$;
 -- Note: The API routes use the service role client which bypasses RLS,
 -- but these policies ensure that if direct client access is used, it's secure.
 
+

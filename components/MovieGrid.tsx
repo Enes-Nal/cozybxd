@@ -150,13 +150,13 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
           )}
 
           <div className="aspect-[2/3] overflow-hidden relative rounded-2xl border border-main bg-[#111]">
-            {/* Runtime badge overlay */}
-            {movie.runtime && (
-              <div className="absolute bottom-3 left-3 z-10 backdrop-blur-sm px-2.5 py-1 rounded-lg flex items-center gap-1.5 border border-white/20 bg-black/60">
-                <i className="fa-solid fa-clock text-[10px] text-white/80"></i>
-                <span className="text-[10px] font-bold text-white">{movie.runtime}</span>
-              </div>
-            )}
+            {/* Runtime badge overlay - always visible */}
+            <div className="absolute bottom-3 left-3 z-10 backdrop-blur-sm px-2.5 py-1 rounded-lg flex items-center gap-1.5 border border-white/20 bg-black/60">
+              <i className="fa-solid fa-clock text-[10px] text-white/80"></i>
+              <span className="text-[10px] font-bold text-white">
+                {movie.runtime && movie.runtime.trim() ? movie.runtime : 'N/A'}
+              </span>
+            </div>
             {/* Vote buttons - always visible for group watchlists, hover-only for personal */}
             {isGroupWatchlist ? (
               <div className="absolute top-3 right-3 z-10 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
@@ -173,7 +173,7 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
                     }
                   }}
                   disabled={votingMovieId === movie.id}
-                  className={`px-2.5 py-2 rounded-lg flex items-center justify-center gap-1.5 active:scale-95 transition-all duration-200 border shadow-lg hover:scale-110 ${
+                  className={`px-2.5 py-2 rounded-lg flex items-center justify-center gap-1.5 active:scale-90 transition-all duration-150 border shadow-lg hover:scale-105 ${
                     movie.userVote === 'upvote'
                       ? 'bg-[var(--accent-color)]/90 border-[var(--accent-color)]/50'
                       : 'bg-black/60 backdrop-blur-sm border-white/20 hover:bg-[var(--accent-color)]/30'
@@ -198,7 +198,7 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
                     }
                   }}
                   disabled={votingMovieId === movie.id}
-                  className={`px-2.5 py-2 rounded-lg flex items-center justify-center gap-1.5 active:scale-95 transition-all duration-200 border shadow-lg hover:scale-110 ${
+                  className={`px-2.5 py-2 rounded-lg flex items-center justify-center gap-1.5 active:scale-90 transition-all duration-150 border shadow-lg hover:scale-105 ${
                     movie.userVote === 'downvote'
                       ? 'bg-red-600/90 border-red-400/50'
                       : 'bg-black/60 backdrop-blur-sm border-white/20 hover:bg-red-600/30'
@@ -234,7 +234,7 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
                     e.stopPropagation();
                     onVote?.(movie.id);
                   }}
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-all duration-200 hover:scale-110 ${
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center active:scale-85 transition-all duration-150 hover:scale-105 ${
                     isInWatchlist(movie.id)
                       ? 'bg-[var(--accent-color)] border-2 border-[var(--accent-color)]'
                       : 'bg-black/40 backdrop-blur-sm border-2 border-white/30 hover:bg-[var(--accent-color)]/30 hover:border-[var(--accent-color)]/50'
@@ -288,20 +288,13 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
             </h3>
             <div className="flex items-center gap-2 text-[10px] text-gray-600 font-medium">
               <span>{movie.year}</span>
-              {movie.imdbRating ? (
-                <>
-                  <span className="opacity-30">•</span>
-                  <span className="flex items-center gap-1">
-                    <i className="fa-solid fa-star text-yellow-500 text-[9px]"></i>
-                    <span>{movie.imdbRating.toFixed(1)}</span>
-                  </span>
-                </>
-              ) : movie.runtime ? (
-                <>
-                  <span className="opacity-30">•</span>
-                  <span>{movie.runtime}</span>
-                </>
-              ) : null}
+              <>
+                <span className="opacity-30">•</span>
+                <span className="flex items-center gap-1">
+                  <i className="fa-solid fa-star text-yellow-500 text-[9px]"></i>
+                  <span>{movie.imdbRating ? movie.imdbRating.toFixed(1) : 'N/A'}</span>
+                </span>
+              </>
               {isGroupWatchlist && movie.votes !== undefined && movie.votes !== 0 && (
                 <>
                   <span className="opacity-30">•</span>

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { checkProfanity } from '@/lib/utils/profanity';
+import { useToast } from './Toast';
 
 interface SetUsernameModalProps {
   onClose: () => void;
@@ -11,6 +12,7 @@ interface SetUsernameModalProps {
 }
 
 const SetUsernameModal: React.FC<SetUsernameModalProps> = ({ onClose, defaultDiscordUsername }) => {
+  const toast = useToast();
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +66,9 @@ const SetUsernameModal: React.FC<SetUsernameModalProps> = ({ onClose, defaultDis
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Failed to set username');
+        const errorMsg = data.error || 'Failed to set username';
+        setError(errorMsg);
+        toast.showError(errorMsg);
         setLoading(false);
         return;
       }
@@ -72,12 +76,15 @@ const SetUsernameModal: React.FC<SetUsernameModalProps> = ({ onClose, defaultDis
       // Invalidate and refetch user data
       await queryClient.invalidateQueries({ queryKey: ['currentUser'] });
       
+      toast.showSuccess(`Username set to ${usernameToSet.toLowerCase()}!`);
       // Close modal after successful update
       setTimeout(() => {
         onClose();
       }, 300);
     } catch (err) {
-      setError('An error occurred. Please try again.');
+      const errorMsg = 'An error occurred. Please try again.';
+      setError(errorMsg);
+      toast.showError(errorMsg);
       setLoading(false);
     }
   };
@@ -113,7 +120,9 @@ const SetUsernameModal: React.FC<SetUsernameModalProps> = ({ onClose, defaultDis
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Failed to set username');
+        const errorMsg = data.error || 'Failed to set username';
+        setError(errorMsg);
+        toast.showError(errorMsg);
         setLoading(false);
         return;
       }
@@ -121,12 +130,15 @@ const SetUsernameModal: React.FC<SetUsernameModalProps> = ({ onClose, defaultDis
       // Invalidate and refetch user data
       await queryClient.invalidateQueries({ queryKey: ['currentUser'] });
       
+      toast.showSuccess(`Username set to ${defaultUsername.toLowerCase()}!`);
       // Close modal after successful update
       setTimeout(() => {
         onClose();
       }, 300);
     } catch (err) {
-      setError('An error occurred. Please try again.');
+      const errorMsg = 'An error occurred. Please try again.';
+      setError(errorMsg);
+      toast.showError(errorMsg);
       setLoading(false);
     }
   };

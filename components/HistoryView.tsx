@@ -4,10 +4,12 @@ import React, { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Movie } from '@/lib/types';
+import { useToast } from './Toast';
 
 const HistoryView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) => {
   const { status: sessionStatus } = useSession();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
   // Fetch history from API
@@ -63,9 +65,10 @@ const HistoryView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) => 
       
       // Refetch history to update the list
       await queryClient.refetchQueries({ queryKey: ['history'] });
+      toast.showSuccess('Removed from history');
     } catch (error) {
       console.error('Failed to remove from history:', error);
-      alert('Failed to remove movie from history. Please try again.');
+      toast.showError('Failed to remove movie from history. Please try again.');
     } finally {
       setDeletingIds(prev => {
         const next = new Set(prev);

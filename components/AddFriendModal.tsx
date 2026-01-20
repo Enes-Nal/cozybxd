@@ -2,6 +2,7 @@
 
 
 import React, { useState } from 'react';
+import { useToast } from './Toast';
 
 interface AddFriendModalProps {
   onClose: () => void;
@@ -9,6 +10,7 @@ interface AddFriendModalProps {
 }
 
 const AddFriendModal: React.FC<AddFriendModalProps> = ({ onClose, onFriendAdded }) => {
+  const toast = useToast();
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,12 +38,15 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ onClose, onFriendAdded 
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Failed to add friend');
+        const errorMsg = data.error || 'Failed to add friend';
+        setError(errorMsg);
+        toast.showError(errorMsg);
         setLoading(false);
         return;
       }
 
       setSuccess(true);
+      toast.showSuccess(`Friend request sent to ${username}!`);
       if (onFriendAdded) {
         onFriendAdded();
       }
@@ -49,25 +54,32 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ onClose, onFriendAdded 
         onClose();
       }, 2000);
     } catch (err) {
-      setError('An error occurred. Please try again.');
+      const errorMsg = 'An error occurred. Please try again.';
+      setError(errorMsg);
+      toast.showError(errorMsg);
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-fade-in">
-      <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-scale-in">
-        <button onClick={onClose} className="absolute top-8 right-8 text-gray-500 hover:text-white active:scale-90 transition-all duration-200 hover:rotate-90">
-          <i className="fa-solid fa-xmark text-xl"></i>
-        </button>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-modal-backdrop">
+      <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-modal-content overflow-visible">
+        <div className="absolute top-6 right-6 z-10">
+          <button 
+            onClick={onClose} 
+            className="text-gray-500 hover:text-white active:scale-90 transition-all duration-200 hover:rotate-90"
+          >
+            <i className="fa-solid fa-xmark text-xl"></i>
+          </button>
+        </div>
 
         {success ? (
           <div className="text-center py-8 flex flex-col items-center">
             <div className="w-20 h-20 bg-white/5 text-accent rounded-full flex items-center justify-center mb-6">
-              <i className="fa-solid fa-check text-2xl"></i>
+              <i className="fa-solid fa-paper-plane text-2xl"></i>
             </div>
-            <h2 className="text-2xl font-black mb-2">Friend Added!</h2>
-            <p className="text-sm text-gray-500 font-medium">You are now friends with {username}.</p>
+            <h2 className="text-2xl font-black mb-2">Friend Request Sent!</h2>
+            <p className="text-sm text-gray-500 font-medium">Your friend request has been sent to {username}.</p>
           </div>
         ) : (
           <>
@@ -108,7 +120,7 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ onClose, onFriendAdded 
                   className="flex-1 bg-accent text-white px-4 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all no-glow shadow-lg shadow-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={loading}
                 >
-                  {loading ? 'Adding...' : 'Add Friend'}
+                  {loading ? 'Sending...' : 'Send Request'}
                 </button>
               </div>
             </form>

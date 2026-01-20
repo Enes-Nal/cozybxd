@@ -330,3 +330,4 @@ The backend automatically transforms database models to match the front-end type
 
 All transformations are handled in `lib/utils/transformers.ts`.
 
+
