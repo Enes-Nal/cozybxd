@@ -79,8 +79,8 @@ const HistoryView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) => 
   };
 
   return (
-    <div className="py-8 max-w-4xl animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-y-auto pb-20">
-      <h2 className="text-3xl font-black mb-10 tracking-tight text-main">SHARED JOURNEY</h2>
+    <div className="py-8 max-w-4xl view-transition overflow-y-auto pb-20">
+      <h2 className="text-3xl font-black mb-10 tracking-tight text-main animate-slide-down">SHARED JOURNEY</h2>
       
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
@@ -102,18 +102,19 @@ const HistoryView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) => 
             const watchedDate = movie.watchedAt ? new Date(movie.watchedAt) : new Date();
             const month = watchedDate.toLocaleString('default', { month: 'short' }).toUpperCase();
             const day = watchedDate.getDate();
+            const staggerClass = idx < 5 ? `animate-stagger-${Math.min(idx + 1, 5)}` : 'animate-fade-in';
             
             return (
-          <div key={movie.id} className="relative group">
+          <div key={movie.id} className={`relative group ${staggerClass}`}>
             {/* Timeline dot using accent color */}
             <div className="absolute -left-[42px] top-6 w-5 h-5 rounded-full bg-accent border-4 border-main group-hover:scale-125 transition-transform z-10"></div>
             
-            <div className="flex flex-col md:flex-row gap-8 glass p-6 rounded-[2rem] border-main hover:bg-black/[0.02] transition-all">
+            <div className="flex flex-col md:flex-row gap-8 glass p-6 rounded-[2rem] border-main hover:bg-black/[0.02] transition-all-smooth card-hover">
               <div className="w-32 h-48 rounded-2xl overflow-hidden shadow-lg shrink-0">
                 {movie.poster ? (
-                  <img src={movie.poster} className="w-full h-full object-cover" alt={movie.title} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                  <img src={movie.poster} className="w-full h-full object-cover animate-image-fade-in" alt={movie.title} onError={(e) => { e.currentTarget.style.display = 'none'; }} loading="lazy" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900 animate-image-fade-in">
                     <i className="fa-solid fa-image text-gray-600 text-2xl"></i>
                   </div>
                 )}

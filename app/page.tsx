@@ -403,17 +403,19 @@ function HomeContent() {
     const key = selectedMovie?.id || activeProfile?.id || activeGroup || activeTab;
     
     let content;
-    if (selectedMovie) content = <TitleDetailView movie={selectedMovie} onBack={() => setSelectedMovie(null)} />;
-    else if (activeProfile) content = <ProfileView user={activeProfile} />;
+    if (selectedMovie) content = <div className="view-transition"><TitleDetailView movie={selectedMovie} onBack={() => setSelectedMovie(null)} /></div>;
+    else if (activeProfile) content = <div className="view-transition"><ProfileView user={activeProfile} /></div>;
     else if (activeTab === 'Group Settings' && activeGroup) {
       content = (
-        <GroupSettingsView 
-          groupId={activeGroup}
-          onBack={() => {
-            setActiveTab('Group');
-            router.push(`/?tab=Group&group=${activeGroup}`);
-          }}
-        />
+        <div className="view-transition">
+          <GroupSettingsView 
+            groupId={activeGroup}
+            onBack={() => {
+              setActiveTab('Group');
+              router.push(`/?tab=Group&group=${activeGroup}`);
+            }}
+          />
+        </div>
       );
     } else if (activeGroup) {
       if (groupLoading) {
@@ -436,13 +438,15 @@ function HomeContent() {
         );
       } else if (groupData) {
         content = (
-          <GroupView 
-            group={groupData} 
-            movies={groupMovies}
-            onSchedule={(movie) => setSchedulingMovie(movie)}
-            onSelect={handleMovieSelect}
-            onProfileSelect={handleProfileSelect}
-          />
+          <div className="view-transition">
+            <GroupView 
+              group={groupData} 
+              movies={groupMovies}
+              onSchedule={(movie) => setSchedulingMovie(movie)}
+              onSelect={handleMovieSelect}
+              onProfileSelect={handleProfileSelect}
+            />
+          </div>
         );
       } else {
         content = (
@@ -454,10 +458,10 @@ function HomeContent() {
     }
     else {
       switch (activeTab) {
-        case 'Inbox': content = <InboxView />; break;
-        case 'Watchlists': content = <WatchlistView />; break;
-        case 'History': content = <HistoryView />; break;
-        case 'Settings': content = <SettingsView />; break;
+        case 'Inbox': content = <div className="view-transition"><InboxView /></div>; break;
+        case 'Watchlists': content = <div className="view-transition"><WatchlistView /></div>; break;
+        case 'History': content = <div className="view-transition"><HistoryView /></div>; break;
+        case 'Settings': content = <div className="view-transition"><SettingsView /></div>; break;
         default:
           content = (
             <div className="mt-4 flex-1 flex flex-col min-h-0 overflow-hidden">

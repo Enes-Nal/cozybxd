@@ -130,10 +130,12 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
   };
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-10">
-      {movies.map((movie, idx) => (
+      {movies.map((movie, idx) => {
+        const staggerClass = idx < 5 ? `animate-stagger-${idx + 1}` : 'animate-fade-in';
+        return (
         <div 
           key={`${movie.id}-${idx}`} 
-          className="relative rounded-2xl cursor-pointer group" 
+          className={`relative rounded-2xl cursor-pointer group card-hover ${staggerClass}`}
           onClick={() => onSelect(movie)}
         >
           {/* Vote count badge - always visible for group watchlists (Reddit-style score) */}
@@ -264,13 +266,14 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
               <img 
                 src={movie.poster} 
                 alt={movie.title} 
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover animate-image-fade-in transition-opacity duration-300"
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                 }}
+                loading="lazy"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900 animate-image-fade-in">
                 <i className="fa-solid fa-image text-gray-600 text-4xl"></i>
               </div>
             )}
@@ -312,7 +315,8 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
             </div>
           </div>
         </div>
-      ))}
+        );
+      })}
       
       {movieToRemove && (
         <RemoveMovieModal

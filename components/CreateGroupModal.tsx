@@ -80,12 +80,12 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ onClose, onSuccess 
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
-      <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-in zoom-in-95 duration-300 overflow-visible">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-modal-backdrop">
+      <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-modal-content overflow-visible">
         <div className="absolute top-6 right-6 z-10">
           <button 
             onClick={onClose} 
-            className="text-gray-500 hover:text-white transition-colors"
+            className="text-gray-500 hover:text-white active:scale-90 transition-all-smooth hover:rotate-90"
             disabled={isSubmitting}
           >
             <i className="fa-solid fa-xmark text-xl"></i>

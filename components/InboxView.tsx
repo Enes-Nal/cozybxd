@@ -103,8 +103,8 @@ const InboxView: React.FC = () => {
   ];
 
   return (
-    <div className="py-8 max-w-4xl animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <h2 className="text-3xl font-black uppercase tracking-tight mb-10 text-main">Inbox</h2>
+    <div className="py-8 max-w-4xl view-transition">
+      <h2 className="text-3xl font-black uppercase tracking-tight mb-10 text-main animate-slide-down">Inbox</h2>
       
       {isLoadingRequests ? (
         <div className="flex flex-col items-center justify-center py-20">
@@ -125,8 +125,10 @@ const InboxView: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          {allNotifications.map((n) => (
-            <div key={n.id} className="glass p-8 rounded-[2rem] border-white/5 flex items-center justify-between group hover:bg-black/[0.02] transition-all">
+          {allNotifications.map((n, idx) => {
+            const staggerClass = idx < 5 ? `animate-stagger-${Math.min(idx + 1, 5)}` : 'animate-fade-in';
+            return (
+            <div key={n.id} className={`glass p-8 rounded-[2rem] border-white/5 flex items-center justify-between group hover:bg-black/[0.02] transition-all-smooth card-hover ${staggerClass}`}>
               <div className="flex items-center gap-6">
                 <div className="w-14 h-14 rounded-2xl bg-black/[0.03] flex items-center justify-center text-accent border border-main">
                   <i className={`fa-solid ${n.type === 'friend_request' ? 'fa-user-plus' : n.type === 'invite' ? 'fa-user-group' : n.type === 'vote' ? 'fa-check-to-slot' : 'fa-bell'} text-lg`}></i>
@@ -144,14 +146,14 @@ const InboxView: React.FC = () => {
                   <button
                     onClick={() => handleAccept(n.requestId)}
                     disabled={acceptRequestMutation.isPending || rejectRequestMutation.isPending}
-                    className="bg-accent hover:brightness-110 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all no-glow shadow-lg shadow-accent/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-accent hover:brightness-110 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all-smooth no-glow shadow-lg shadow-accent/10 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                   >
                     {acceptRequestMutation.isPending ? 'Accepting...' : 'Accept'}
                   </button>
                   <button
                     onClick={() => handleReject(n.requestId)}
                     disabled={acceptRequestMutation.isPending || rejectRequestMutation.isPending}
-                    className="bg-red-500/10 border border-red-500/50 text-red-500 hover:bg-red-500/20 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-red-500/10 border border-red-500/50 text-red-500 hover:bg-red-500/20 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all-smooth disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                   >
                     {rejectRequestMutation.isPending ? 'Rejecting...' : 'Reject'}
                   </button>
@@ -163,7 +165,8 @@ const InboxView: React.FC = () => {
                 </button>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

@@ -300,7 +300,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
   const recentReviews = reviewsData.slice(0, 2);
 
   return (
-    <div className="py-8 max-w-5xl animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-y-auto pb-20">
+    <div className="py-8 max-w-5xl view-transition overflow-y-auto pb-20">
       {/* Banner with overlapping avatar */}
       <div className="relative mb-20 md:mb-16">
         {/* Banner */}
@@ -308,12 +308,13 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
           <div className="w-full h-48 md:h-64 rounded-[2.5rem] overflow-hidden border-2 border-main/20 shadow-xl">
             <img 
               src={user.banner} 
-              className="w-full h-full object-cover object-center" 
+              className="w-full h-full object-cover object-center animate-image-fade-in" 
               alt={`${user.name}'s banner`}
               onError={(e) => {
                 // Hide banner if image fails to load
                 (e.target as HTMLImageElement).style.display = 'none';
               }}
+              loading="lazy"
             />
           </div>
         ) : (
@@ -323,7 +324,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
         {/* Avatar overlapping banner */}
         <div className="absolute bottom-0 left-4 md:left-8 transform translate-y-1/2">
           <div className="w-32 h-32 md:w-40 md:h-40 rounded-[2rem] md:rounded-[3rem] overflow-hidden border-4 border-main shadow-xl bg-black">
-            <img src={user.avatar} className="w-full h-full object-cover" alt={user.name} />
+            <img src={user.avatar} className="w-full h-full object-cover animate-image-fade-in" alt={user.name} loading="lazy" />
           </div>
         </div>
       </div>

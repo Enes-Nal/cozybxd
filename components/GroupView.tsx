@@ -549,6 +549,8 @@ const GroupView: React.FC<GroupViewProps> = ({
                 <img 
                   src={group.pictureUrl} 
                   alt={group.name}
+                  className="animate-image-fade-in"
+                  loading="lazy"
                   className="w-20 h-20 rounded-2xl object-cover border border-white/10 cursor-pointer hover:opacity-80 active:scale-95 transition-all duration-200"
                   onClick={() => setIsEditPictureModalOpen(true)}
                 />
@@ -580,7 +582,7 @@ const GroupView: React.FC<GroupViewProps> = ({
               title="View all members"
             >
               {group.members.slice(0, 5).map(m => (
-                <img key={m.id} src={m.avatar} className="w-10 h-10 rounded-full border-2 border-[#0a0a0a] group-hover:border-accent/50 transition-colors" alt={m.name} title={m.name} />
+                <img key={m.id} src={m.avatar} className="w-10 h-10 rounded-full border-2 border-[#0a0a0a] group-hover:border-accent/50 transition-all-smooth animate-image-fade-in" alt={m.name} title={m.name} loading="lazy" />
               ))}
               {group.members.length > 5 && (
                 <div className="w-10 h-10 rounded-full border-2 border-[#0a0a0a] bg-white/5 flex items-center justify-center text-xs font-bold text-gray-400 group-hover:border-accent/50 transition-colors">
@@ -632,7 +634,7 @@ const GroupView: React.FC<GroupViewProps> = ({
           <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest mb-4">Most Watchlisted</p>
           {mostWatchlistedMovie ? (
             <div className="flex items-center gap-4">
-              <img src={mostWatchlistedMovie.poster} className="w-12 h-16 rounded-lg object-cover" alt={mostWatchlistedMovie.title} />
+              <img src={mostWatchlistedMovie.poster} className="w-12 h-16 rounded-lg object-cover animate-image-fade-in" alt={mostWatchlistedMovie.title} loading="lazy" />
               <div>
                 <h4 className="text-sm font-bold">{mostWatchlistedMovie.title}</h4>
                 <p className="text-xs text-accent">{(mostWatchlistedMovie.votes || 0)} {(mostWatchlistedMovie.votes || 0) === 1 ? 'vote' : 'votes'}</p>
@@ -655,7 +657,7 @@ const GroupView: React.FC<GroupViewProps> = ({
           <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest mb-4">Next Up</p>
           {nextMovie ? (
             <div className="flex items-center gap-4">
-              <img src={nextMovie.poster} className="w-12 h-16 rounded-lg object-cover" alt={nextMovie.title} />
+              <img src={nextMovie.poster} className="w-12 h-16 rounded-lg object-cover animate-image-fade-in" alt={nextMovie.title} loading="lazy" />
               <div>
                 <h4 className="text-sm font-bold">{nextMovie.title}</h4>
                 <p className="text-xs text-accent">{(nextMovie.votes || 0)} votes</p>

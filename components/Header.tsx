@@ -210,3 +210,5 @@ const Header: React.FC<HeaderProps> = ({ groupName, isHome, onNotificationClick,
     </header>
   );
 };
+
+export default Header;

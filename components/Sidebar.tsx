@@ -248,7 +248,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           
           {/* User Menu Popup */}
           {isUserMenuOpen && (
-            <div className="absolute bottom-full left-2 right-2 mb-2 glass rounded-lg border border-main overflow-hidden shadow-lg z-50">
+            <div className="absolute bottom-full left-2 right-2 mb-2 glass rounded-lg border border-main overflow-hidden shadow-lg z-50 animate-slide-down">
               <button
                 onClick={() => {
                   setActiveTab('Settings');
