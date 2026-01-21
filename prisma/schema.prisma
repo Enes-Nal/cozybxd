@@ -179,8 +179,24 @@ model Review {
   log       Log?     @relation(fields: [logId], references: [id], onDelete: Cascade)
   media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replies   ReviewReply[]
 
   @@map("reviews")
+}
+
+model ReviewReply {
+  id        String   @id @default(cuid())
+  reviewId  String   @map("review_id")
+  userId    String   @map("user_id")
+  rating    Int?     // optional 1-5 stars
+  comment   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("review_replies")
 }
 
 model WatchlistItem {

@@ -67,6 +67,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
   const toast = useToast();
   const [showUnfriendModal, setShowUnfriendModal] = useState(false);
   const [addFriendError, setAddFriendError] = useState<string | null>(null);
+  const [deletingReviewId, setDeletingReviewId] = useState<string | null>(null);
 
   // Fetch user profile data
   const { data: userData, isLoading: userLoading } = useQuery({
@@ -295,6 +296,44 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
     unfriendMutation.mutate(user.id);
   };
 
+  const handleDeleteReview = async (reviewId: string) => {
+    if (!session?.user?.id) {
+      toast.showWarning('Please sign in to manage your reviews');
+      return;
+    }
+
+    if (!isCurrentUser) {
+      toast.showError('You can only remove your own reviews');
+      return;
+    }
+
+    const ok = window.confirm('Remove this review? This cannot be undone.');
+    if (!ok) return;
+
+    setDeletingReviewId(reviewId);
+    try {
+      const res = await fetch('/api/reviews', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviewId }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: 'Failed to delete review' }));
+        throw new Error(error.error || 'Failed to delete review');
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['userReviews', user.id] });
+      await queryClient.invalidateQueries({ queryKey: ['user', user.id] });
+      toast.showSuccess('Review removed');
+    } catch (error) {
+      console.error('Delete review error:', error);
+      toast.showError(error instanceof Error ? error.message : 'Failed to delete review');
+    } finally {
+      setDeletingReviewId(null);
+    }
+  };
+
   const stats = userData?.stats || { watched: 0, reviews: 0, groups: 0 };
   const teams = userData?.teams || [];
   const recentReviews = reviewsData.slice(0, 2);
@@ -476,10 +515,27 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
                       <div className="flex-1 py-1">
                         <div className="flex justify-between items-start mb-2">
                           <h4 className="text-lg font-black text-main group-hover:text-accent transition-colors">{review.media?.title || 'Unknown'}</h4>
-                          <div className="flex gap-1">
-                            {[1, 2, 3, 4, 5].map(s => (
-                              <i key={s} className={`fa-solid fa-star text-xs ${s <= (review.rating || 0) ? 'text-accent' : 'text-gray-200'}`}></i>
-                            ))}
+                          <div className="flex items-center gap-3">
+                            {isCurrentUser && (
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleDeleteReview(review.id);
+                                }}
+                                disabled={deletingReviewId === review.id}
+                                className="w-8 h-8 rounded-xl bg-red-500/10 border border-red-500/40 text-red-400 hover:bg-red-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                                aria-label="Remove review"
+                                title="Remove review"
+                              >
+                                <i className={`fa-solid ${deletingReviewId === review.id ? 'fa-spinner fa-spin' : 'fa-trash'} text-xs`}></i>
+                              </button>
+                            )}
+                            <div className="flex gap-1">
+                              {[1, 2, 3, 4, 5].map(s => (
+                                <i key={s} className={`fa-solid fa-star text-xs ${s <= (review.rating || 0) ? 'text-accent' : 'text-gray-200'}`}></i>
+                              ))}
+                            </div>
                           </div>
                         </div>
                         <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-4">RATED ON {dateStr}</p>

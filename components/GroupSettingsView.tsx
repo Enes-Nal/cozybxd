@@ -93,7 +93,7 @@ const GroupSettingsView: React.FC<GroupSettingsViewProps> = ({ groupId, onBack }
 
   // Update group name/description mutation
   const updateGroupInfoMutation = useMutation({
-    mutationFn: async (data: { name?: string; description?: string }) => {
+    mutationFn: async (data: { name?: string; description?: string | null }) => {
       const res = await fetch(`/api/teams/${groupId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -363,7 +363,9 @@ const GroupSettingsView: React.FC<GroupSettingsViewProps> = ({ groupId, onBack }
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => {
-                        updateGroupInfoMutation.mutate({ description: editedDescription.trim() || null });
+                        const nextDescription = editedDescription.trim();
+                        // Send `null` to explicitly clear the description (API supports null).
+                        updateGroupInfoMutation.mutate({ description: nextDescription || null });
                       }}
                       disabled={updateGroupInfoMutation.isPending}
                       className="px-4 py-2.5 bg-accent text-black rounded-xl text-sm font-bold hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"

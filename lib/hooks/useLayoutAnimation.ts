@@ -5,7 +5,9 @@ import { createLayout, type AutoLayout } from 'animejs';
 
 interface UseLayoutAnimationOptions {
   duration?: number;
-  delay?: number | ((el: Element, i: number) => number);
+  // anime.js allows delay to be a number or a function; its internal typing uses a broad "Target".
+  // We keep this flexible and cast when passing into anime to avoid overly strict TS incompatibilities.
+  delay?: number | ((target: any, i: number) => number);
   ease?: string;
   enabled?: boolean;
 }
@@ -24,8 +26,8 @@ interface UseLayoutAnimationOptions {
  * const gridRef = useRef<HTMLDivElement>(null);
  * useLayoutAnimation(gridRef, { duration: 600 }, [movies.length]);
  */
-export function useLayoutAnimation(
-  rootRef: React.RefObject<HTMLElement>,
+export function useLayoutAnimation<T extends HTMLElement>(
+  rootRef: React.RefObject<T | null>,
   options: UseLayoutAnimationOptions = {},
   deps: React.DependencyList = []
 ) {
@@ -45,7 +47,7 @@ export function useLayoutAnimation(
     try {
       layoutRef.current = createLayout(rootRef.current, {
         duration,
-        delay,
+        delay: delay as any,
         ease,
       });
     } catch (error) {
@@ -105,7 +107,7 @@ export function useLayoutAnimation(
         try {
           layoutRef.current?.animate({
             duration,
-            delay,
+            delay: delay as any,
             ease,
           });
         } catch (error) {
@@ -129,7 +131,7 @@ export function useLayoutAnimation(
     try {
       layoutRef.current.update(callback, {
         duration,
-        delay,
+        delay: delay as any,
         ease,
       });
     } catch (error) {

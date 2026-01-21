@@ -74,6 +74,7 @@ const TitleDetailView: React.FC<TitleDetailViewProps> = ({ movie, onBack }) => {
   const [reviewRating, setReviewRating] = useState<number>(5);
   const [reviewComment, setReviewComment] = useState<string>('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [isDeletingReview, setIsDeletingReview] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -454,6 +455,52 @@ const TitleDetailView: React.FC<TitleDetailViewProps> = ({ movie, onBack }) => {
       toast.showError(error instanceof Error ? error.message : 'Failed to submit review');
     } finally {
       setIsSubmittingReview(false);
+    }
+  };
+
+  const handleDeleteReview = async () => {
+    if (!session?.user?.id) {
+      toast.showWarning('Please sign in to manage your reviews');
+      return;
+    }
+
+    if (!userReview?.id) {
+      toast.showWarning('No review to remove');
+      return;
+    }
+
+    const ok = window.confirm('Remove your review? This cannot be undone.');
+    if (!ok) return;
+
+    setIsDeletingReview(true);
+    try {
+      const response = await fetch('/api/reviews', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reviewId: userReview.id }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to delete review' }));
+        throw new Error(error.error || 'Failed to delete review');
+      }
+
+      setShowReviewForm(false);
+      setReviewRating(5);
+      setReviewComment('');
+
+      await refetchReviews();
+      await queryClient.invalidateQueries({ queryKey: ['movieReviews'] });
+      await queryClient.invalidateQueries({ queryKey: ['movieLogs'] });
+
+      toast.showSuccess('Review removed');
+    } catch (error) {
+      console.error('Failed to delete review:', error);
+      toast.showError(error instanceof Error ? error.message : 'Failed to delete review');
+    } finally {
+      setIsDeletingReview(false);
     }
   };
 
@@ -919,12 +966,23 @@ const TitleDetailView: React.FC<TitleDetailViewProps> = ({ movie, onBack }) => {
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-lg font-black text-main">Reviews</h2>
                   {session?.user?.id && (
-                    <button
-                      onClick={() => setShowReviewForm(!showReviewForm)}
-                      className="px-4 py-2 bg-accent text-white text-[9px] font-black uppercase tracking-wider rounded-lg hover:brightness-110 transition-all"
-                    >
-                      {userReview ? 'EDIT REVIEW' : 'ADD REVIEW'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {userReview && (
+                        <button
+                          onClick={handleDeleteReview}
+                          disabled={isDeletingReview}
+                          className="px-4 py-2 bg-red-500/20 border border-red-500/50 text-red-400 text-[9px] font-black uppercase tracking-wider rounded-lg hover:bg-red-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isDeletingReview ? 'REMOVING...' : 'REMOVE REVIEW'}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setShowReviewForm(!showReviewForm)}
+                        className="px-4 py-2 bg-accent text-white text-[9px] font-black uppercase tracking-wider rounded-lg hover:brightness-110 transition-all"
+                      >
+                        {userReview ? 'EDIT REVIEW' : 'ADD REVIEW'}
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -1000,46 +1058,11 @@ const TitleDetailView: React.FC<TitleDetailViewProps> = ({ movie, onBack }) => {
                 {reviews.length > 0 ? (
                   <div className="space-y-4">
                     {reviews.map((review: any) => (
-                      <div key={review.id} className="glass p-4 rounded-xl border-main bg-white/[0.02]">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-3">
-                            {review.users?.image && (
-                              <img 
-                                src={review.users.image} 
-                                alt={review.users.name}
-                                className="w-8 h-8 rounded-full"
-                              />
-                            )}
-                            <div>
-                              <div className="text-sm font-black text-main">
-                                {review.users?.name || 'Anonymous'}
-                                {review.user_id === session?.user?.id && (
-                                  <span className="ml-2 text-[10px] text-accent">(You)</span>
-                                )}
-                              </div>
-                              <div className="text-[10px] text-main/50">
-                                {new Date(review.created_at).toLocaleDateString()}
-                              </div>
-                            </div>
-                          </div>
-                          {review.rating && (
-                            <div className="flex items-center gap-1">
-                              {[...Array(5)].map((_, i) => (
-                                <i
-                                  key={i}
-                                  className={`fa-solid fa-star text-xs ${
-                                    i < review.rating ? 'text-yellow-500' : 'text-gray-600'
-                                  }`}
-                                ></i>
-                              ))}
-                              <span className="text-sm font-black text-main ml-1">{review.rating}/5</span>
-                            </div>
-                          )}
-                        </div>
-                        {review.comment && (
-                          <p className="text-sm text-main/70 mt-2">{review.comment}</p>
-                        )}
-                      </div>
+                      <ReviewCard
+                        key={review.id}
+                        review={review}
+                        currentUserId={session?.user?.id || null}
+                      />
                     ))}
                   </div>
                 ) : (
@@ -1212,5 +1235,225 @@ const TitleDetailView: React.FC<TitleDetailViewProps> = ({ movie, onBack }) => {
     </div>
   );
 };
+
+function ReviewCard({ review, currentUserId }: { review: any; currentUserId: string | null }) {
+  const [expanded, setExpanded] = useState(false);
+  const [showReplyForm, setShowReplyForm] = useState(false);
+  const [replyComment, setReplyComment] = useState('');
+  const [replyRating, setReplyRating] = useState<number | null>(null);
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const canReply = !!currentUserId && review.user_id !== currentUserId;
+  const toast = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: replies = [], isLoading } = useQuery({
+    queryKey: ['reviewReplies', review.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/reviews/${review.id}/replies`);
+      if (!res.ok) return [];
+      return await res.json();
+    },
+    enabled: expanded,
+  });
+
+  const submitReply = async () => {
+    if (!canReply) return;
+    const comment = replyComment.trim();
+    if (!comment) {
+      toast.showWarning('Please enter a reply');
+      return;
+    }
+
+    setIsSubmittingReply(true);
+    try {
+      const res = await fetch(`/api/reviews/${review.id}/replies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comment, rating: replyRating }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: 'Failed to post reply' }));
+        throw new Error(error.error || 'Failed to post reply');
+      }
+
+      setReplyComment('');
+      setReplyRating(null);
+      setShowReplyForm(false);
+      setExpanded(true);
+      await queryClient.invalidateQueries({ queryKey: ['reviewReplies', review.id] });
+      toast.showSuccess('Reply posted!');
+    } catch (e) {
+      console.error('Failed to post reply:', e);
+      toast.showError(e instanceof Error ? e.message : 'Failed to post reply');
+    } finally {
+      setIsSubmittingReply(false);
+    }
+  };
+
+  return (
+    <div className="glass p-4 rounded-xl border-main bg-white/[0.02]">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-3">
+          {review.users?.image && (
+            <img
+              src={review.users.image}
+              alt={review.users.name}
+              className="w-8 h-8 rounded-full"
+            />
+          )}
+          <div>
+            <div className="text-sm font-black text-main">
+              {review.users?.name || 'Anonymous'}
+              {review.user_id === currentUserId && (
+                <span className="ml-2 text-[10px] text-accent">(You)</span>
+              )}
+            </div>
+            <div className="text-[10px] text-main/50">
+              {new Date(review.created_at).toLocaleDateString()}
+            </div>
+          </div>
+        </div>
+        {review.rating && (
+          <div className="flex items-center gap-1">
+            {[...Array(5)].map((_, i) => (
+              <i
+                key={i}
+                className={`fa-solid fa-star text-xs ${
+                  i < review.rating ? 'text-yellow-500' : 'text-gray-600'
+                }`}
+              ></i>
+            ))}
+            <span className="text-sm font-black text-main ml-1">{review.rating}/5</span>
+          </div>
+        )}
+      </div>
+
+      {review.comment && <p className="text-sm text-main/70 mt-2">{review.comment}</p>}
+
+      <div className="mt-4 pt-4 border-t border-white/10">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => {
+              setExpanded((v) => !v);
+              if (!expanded) setShowReplyForm(false);
+            }}
+            className="text-[9px] font-black uppercase tracking-wider text-main/70 hover:text-accent transition-colors"
+          >
+            {expanded ? 'HIDE REPLIES' : 'VIEW REPLIES'}
+          </button>
+
+          {canReply && (
+            <button
+              onClick={() => {
+                setExpanded(true);
+                setShowReplyForm((v) => !v);
+              }}
+              className="px-3 py-1.5 bg-white/5 border border-main/30 text-main text-[9px] font-black uppercase tracking-wider rounded-lg hover:bg-white/10 transition-all"
+            >
+              {showReplyForm ? 'CANCEL' : 'REPLY'}
+            </button>
+          )}
+        </div>
+
+        {expanded && (
+          <div className="mt-3 space-y-3">
+            {showReplyForm && canReply && (
+              <div className="glass p-4 rounded-xl border-main bg-white/[0.02]">
+                <div className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-3">
+                  Reply (optional rating)
+                </div>
+
+                <div className="mb-3">
+                  <label className="text-[10px] font-bold text-main/70 mb-2 block">Rating (Optional)</label>
+                  <div className="flex gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setReplyRating(null)}
+                      className={`px-3 h-9 rounded-lg border transition-all text-[9px] font-black uppercase tracking-wider ${
+                        replyRating === null
+                          ? 'bg-white/10 border-main/40 text-main'
+                          : 'bg-white/5 border-main/30 text-main/60 hover:border-main/50'
+                      }`}
+                    >
+                      NONE
+                    </button>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setReplyRating(star)}
+                        className={`w-9 h-9 rounded-lg border-2 transition-all ${
+                          (replyRating || 0) >= star
+                            ? 'bg-yellow-500 border-yellow-500 text-white'
+                            : 'bg-white/5 border-main/30 text-main/50 hover:border-main/50'
+                        }`}
+                      >
+                        <i className="fa-solid fa-star text-[11px]"></i>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <textarea
+                  value={replyComment}
+                  onChange={(e) => setReplyComment(e.target.value)}
+                  placeholder="Write a reply..."
+                  className="w-full px-4 py-3 bg-white/5 border border-main/30 rounded-lg text-sm text-main placeholder-main/30 focus:outline-none focus:border-accent/50 resize-none"
+                  rows={3}
+                />
+
+                <div className="mt-3">
+                  <button
+                    onClick={submitReply}
+                    disabled={isSubmittingReply}
+                    className="px-5 py-2 bg-accent text-white text-[9px] font-black uppercase tracking-wider rounded-lg hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSubmittingReply ? 'POSTING...' : 'POST REPLY'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {isLoading ? (
+              <div className="text-xs text-main/50">Loading replies...</div>
+            ) : replies.length > 0 ? (
+              <div className="space-y-2">
+                {replies.map((reply: any) => (
+                  <div key={reply.id} className="glass p-3 rounded-xl border-main bg-white/[0.015]">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {reply.users?.image && (
+                          <img src={reply.users.image} alt={reply.users.name} className="w-6 h-6 rounded-full" />
+                        )}
+                        <div className="text-xs font-black text-main">{reply.users?.name || 'Anonymous'}</div>
+                        <div className="text-[10px] text-main/40">{new Date(reply.created_at).toLocaleDateString()}</div>
+                      </div>
+                      {reply.rating && (
+                        <div className="flex items-center gap-1">
+                          {[...Array(5)].map((_, i) => (
+                            <i
+                              key={i}
+                              className={`fa-solid fa-star text-[10px] ${
+                                i < reply.rating ? 'text-yellow-500' : 'text-gray-600'
+                              }`}
+                            ></i>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-sm text-main/70 mt-2">{reply.comment}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-main/50">No replies yet.</div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default TitleDetailView;

@@ -147,7 +147,7 @@ export async function transformTMDBMovieToMovie(tmdbMovie: TMDBMovie, watchlistI
   const genreIds = Array.isArray(tmdbMovie.genre_ids) ? tmdbMovie.genre_ids : [];
   const genres = genreIds
     .map(id => genreMap.get(id))
-    .filter(Boolean); // Remove undefined/null values
+    .filter((g): g is string => Boolean(g)); // Remove undefined/null values (and narrow type)
   
   // If genreMap is empty or doesn't have the IDs, and we have genre_ids, use 'Unknown'
   // This handles the case where genreMap hasn't loaded yet or doesn't have all genres
@@ -220,7 +220,7 @@ export function transformTMDBMovieToMovieSync(tmdbMovie: TMDBMovie, genreMap: Ma
   const genreIds = Array.isArray(tmdbMovie.genre_ids) ? tmdbMovie.genre_ids : [];
   const genres = genreIds
     .map(id => genreMap.get(id))
-    .filter(Boolean); // Remove undefined/null values
+    .filter((g): g is string => Boolean(g)); // Remove undefined/null values (and narrow type)
   
   // If genreMap is empty or doesn't have the IDs, and we have genre_ids, use 'Unknown'
   // This handles the case where genreMap hasn't loaded yet or doesn't have all genres

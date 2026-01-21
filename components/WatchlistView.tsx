@@ -143,12 +143,6 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
   const queryClient = useQueryClient();
   const toast = useToast();
   const gridRef = useRef<HTMLDivElement>(null);
-  
-  // Setup layout animation for the grid - animates when movies change or tab switches
-  useLayoutAnimation(gridRef, {
-    duration: 600,
-    ease: 'easeOutExpo',
-  }, [movies.length, tab, movies.map(m => m.id).join(',')]);
 
   // Fetch personal watchlist
   const { data: personalWatchlist = [], isLoading: personalLoading } = useQuery({
@@ -213,6 +207,16 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
   // Use prop movies if provided (for backwards compatibility), otherwise use fetched data
   const movies = propMovies || (tab === 'Personal' ? personalWatchlist : sharedWatchlist);
   const isLoading = tab === 'Personal' ? personalLoading : sharedLoading;
+
+  // Setup layout animation for the grid - animates when movies change or tab switches
+  useLayoutAnimation(
+    gridRef,
+    {
+      duration: 600,
+      ease: 'easeOutExpo',
+    },
+    [movies.length, tab, movies.map((m: Movie | MovieWithTeam) => m.id).join(',')]
+  );
 
   const handleDelete = async (movie: Movie | MovieWithTeam) => {
     if (!session?.user?.id) return;

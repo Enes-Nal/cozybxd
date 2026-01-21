@@ -138,6 +138,17 @@ CREATE TABLE IF NOT EXISTS reviews (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Review replies table (replies to other users' reviews, optional 1-5 star rating)
+CREATE TABLE IF NOT EXISTS review_replies (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  review_id UUID NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  rating INTEGER CHECK (rating IS NULL OR (rating >= 1 AND rating <= 5)),
+  comment TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Watchlist items
 CREATE TABLE IF NOT EXISTS watchlist_items (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -178,6 +189,7 @@ CREATE TABLE IF NOT EXISTS friend_requests (
   status TEXT NOT NULL DEFAULT 'pending',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
+  read_at TIMESTAMPTZ,
   UNIQUE(requester_id, recipient_id),
   CHECK (requester_id != recipient_id),
   CHECK (status IN ('pending', 'accepted', 'rejected', 'cancelled'))
@@ -245,6 +257,7 @@ CREATE INDEX IF NOT EXISTS idx_friends_friend_id ON friends(friend_id);
 CREATE INDEX IF NOT EXISTS idx_friend_requests_requester_id ON friend_requests(requester_id);
 CREATE INDEX IF NOT EXISTS idx_friend_requests_recipient_id ON friend_requests(recipient_id);
 CREATE INDEX IF NOT EXISTS idx_friend_requests_status ON friend_requests(status);
+CREATE INDEX IF NOT EXISTS idx_friend_requests_read_at ON friend_requests(recipient_id, read_at);
 
 -- Group messages indexes
 CREATE INDEX IF NOT EXISTS idx_group_messages_team_id ON group_messages(team_id, created_at DESC);

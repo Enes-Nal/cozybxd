@@ -235,3 +235,104 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function DELETE(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const supabase = createServerClient();
+
+  try {
+    // Support both JSON body and query params (helpful for clients that avoid DELETE bodies)
+    const searchParams = request.nextUrl.searchParams;
+    const reviewIdFromQuery = searchParams.get('reviewId');
+    const mediaIdFromQuery = searchParams.get('mediaId');
+    const tmdbIdFromQuery = searchParams.get('tmdbId');
+
+    let body: any = {};
+    try {
+      body = await request.json();
+    } catch {
+      // ignore - no JSON body
+    }
+
+    const reviewId = body?.reviewId || reviewIdFromQuery;
+    const mediaId = body?.mediaId || mediaIdFromQuery;
+    const tmdbId = body?.tmdbId || tmdbIdFromQuery;
+
+    // Prefer deleting by explicit reviewId (most precise)
+    if (reviewId) {
+      const { data: deleted, error } = await supabase
+        .from('reviews')
+        .delete()
+        .eq('id', reviewId)
+        .eq('user_id', session.user.id)
+        .select('id')
+        .limit(1);
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      if (!deleted || deleted.length === 0) {
+        return NextResponse.json({ error: 'Review not found' }, { status: 404 });
+      }
+
+      return NextResponse.json({ success: true, deletedId: deleted[0].id });
+    }
+
+    // Fallback: delete the current user's review for the given media/tmdb id
+    if (!mediaId && !tmdbId) {
+      return NextResponse.json(
+        { error: 'reviewId or mediaId/tmdbId required' },
+        { status: 400 }
+      );
+    }
+
+    let finalMediaId: string | null = mediaId || null;
+
+    if (!finalMediaId && tmdbId) {
+      const { data: media } = await supabase
+        .from('media')
+        .select('id')
+        .eq('tmdb_id', parseInt(tmdbId))
+        .single();
+
+      if (!media) {
+        return NextResponse.json({ error: 'Media not found' }, { status: 404 });
+      }
+
+      finalMediaId = media.id;
+    }
+
+    if (!finalMediaId) {
+      return NextResponse.json({ error: 'Could not determine media ID' }, { status: 400 });
+    }
+
+    const { data: deleted, error } = await supabase
+      .from('reviews')
+      .delete()
+      .eq('user_id', session.user.id)
+      .eq('media_id', finalMediaId)
+      .select('id')
+      .limit(1);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (!deleted || deleted.length === 0) {
+      return NextResponse.json({ error: 'Review not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, deletedId: deleted[0].id });
+  } catch (error) {
+    console.error('Review delete error:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete review' },
+      { status: 500 }
+    );
+  }
+}
+

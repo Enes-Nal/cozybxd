@@ -221,14 +221,19 @@ export async function DELETE(request: NextRequest) {
 
     // Mark as read when rejecting (only if read_at column exists)
     if (isRecipient) {
-      try {
-        await supabase
-          .from('friend_requests')
-          .update({ read_at: new Date().toISOString() })
-          .eq('id', requestId);
-      } catch (err) {
-        // Ignore error if read_at column doesn't exist
-        console.log('read_at column may not exist, skipping mark as read');
+      const { error: markReadError } = await supabase
+        .from('friend_requests')
+        .update({ read_at: new Date().toISOString() })
+        .eq('id', requestId);
+
+      // Supabase/PostgREST returns errors via the response object (not thrown exceptions).
+      // Ignore if the DB doesn't have read_at yet (or PostgREST schema cache is stale).
+      if (markReadError) {
+        if (markReadError.message && markReadError.message.includes('read_at')) {
+          console.log('read_at column may not exist, skipping mark as read');
+        } else {
+          console.error('Mark friend request as read error:', markReadError);
+        }
       }
     }
 
@@ -265,6 +270,10 @@ export async function PATCH(request: NextRequest) {
         .in('status', ['pending', 'accepted']);
 
       if (error) {
+        // If read_at doesn't exist yet, treat as a no-op for backwards compatibility.
+        if (error.message && error.message.includes('read_at')) {
+          return NextResponse.json({ success: true });
+        }
         console.error('Mark all friend requests as read error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
@@ -287,6 +296,10 @@ export async function PATCH(request: NextRequest) {
       .in('id', requestIds);
 
     if (error) {
+      // If read_at doesn't exist yet, treat as a no-op for backwards compatibility.
+      if (error.message && error.message.includes('read_at')) {
+        return NextResponse.json({ success: true });
+      }
       console.error('Mark friend requests as read error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }

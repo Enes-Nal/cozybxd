@@ -309,6 +309,25 @@ Create or update a review
 }
 ```
 
+## Review Reply Endpoints
+
+### GET `/api/reviews/[reviewId]/replies`
+Get replies for a review (includes author `users(*)`).
+
+### POST `/api/reviews/[reviewId]/replies`
+Create a reply to a review (must be signed in, cannot reply to your own review).
+
+Request body:
+
+```json
+{
+  "comment": "string (required)",
+  "rating": 1
+}
+```
+
+- `rating` is **optional**. If provided, it must be an integer **1–5**.
+
 **Response:**
 ```json
 {

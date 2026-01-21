@@ -118,9 +118,18 @@ export async function POST(request: NextRequest) {
 
     if (updateError) {
       console.error('Update friend request error:', updateError);
-      // Note: Friendship is already created, but we'll log the error
-      // In a real transaction system, we'd rollback, but Supabase doesn't support transactions
-      // The friendship is still valid, so we'll continue
+      // If the DB doesn't have read_at yet (or PostgREST schema cache is stale), retry without it.
+      if (updateError.message && updateError.message.includes('read_at')) {
+        const { error: retryError } = await supabase
+          .from('friend_requests')
+          .update({ status: 'accepted' })
+          .eq('id', requestId);
+
+        if (retryError) {
+          console.error('Retry update friend request error:', retryError);
+        }
+      }
+      // Note: Friendship is already created; we'll continue regardless.
     }
 
     // Get the current user's data for the notification

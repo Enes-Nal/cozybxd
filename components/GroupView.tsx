@@ -135,62 +135,49 @@ const GroupView: React.FC<GroupViewProps> = ({
     if (votingMovieId === id) return;
     
     const currentMovie = movies.find(m => m.id === id);
-    const currentUpvotes = currentMovie?.upvotes || 0;
-    const currentDownvotes = currentMovie?.downvotes || 0;
-    const currentUserVote = currentMovie?.userVote;
+    if (!currentMovie) return;
+    const currentUpvotes = currentMovie.upvotes || 0;
+    const currentDownvotes = currentMovie.downvotes || 0;
+    const currentUserVote = currentMovie.userVote;
     const currentScore = currentUpvotes - currentDownvotes;
-    const movieExistsInWatchlist = currentMovie !== undefined;
     
     setVotingMovieId(id);
     
-    // If movie doesn't exist in watchlist, add it optimistically first
-    if (!movieExistsInWatchlist && currentMovie) {
-      const optimisticMovie: Movie = {
-        ...currentMovie,
-        upvotes: 1,
-        downvotes: 0,
-        votes: 1,
-        userVote: 'upvote',
-      };
-      setMovies(prevMovies => [...prevMovies, optimisticMovie]);
-      queryClient.setQueryData<Movie[]>(['groupWatchlist', group.id], (old = []) => [...old, optimisticMovie]);
-    } else {
-      // Optimistic update for existing movie
-      setMovies(prevMovies => 
-        prevMovies.map(m => {
-          if (m.id !== id) return m;
-          let newUpvotes = currentUpvotes;
-          let newDownvotes = currentDownvotes;
-          let newUserVote: 'upvote' | 'downvote' | null = 'upvote';
-          let newScore = currentScore;
-          
-          if (currentUserVote === 'upvote') {
-            // Toggle off
-            newUpvotes = Math.max(0, newUpvotes - 1);
-            newUserVote = null;
-            newScore = newScore - 1;
-          } else if (currentUserVote === 'downvote') {
-            // Switch from downvote to upvote
-            newDownvotes = Math.max(0, newDownvotes - 1);
-            newUpvotes = newUpvotes + 1;
-            newUserVote = 'upvote';
-            newScore = newScore + 2; // +1 for removing downvote, +1 for adding upvote
-          } else {
-            // Add upvote
-            newUpvotes = newUpvotes + 1;
-            newScore = newScore + 1;
-          }
-          
-          return { 
-            ...m, 
-            upvotes: newUpvotes,
-            downvotes: newDownvotes,
-            votes: newScore,
-            userVote: newUserVote
-          };
-        })
-      );
-    }
+    // Optimistic update for existing movie
+    setMovies(prevMovies => 
+      prevMovies.map(m => {
+        if (m.id !== id) return m;
+        let newUpvotes = currentUpvotes;
+        let newDownvotes = currentDownvotes;
+        let newUserVote: 'upvote' | 'downvote' | null = 'upvote';
+        let newScore = currentScore;
+        
+        if (currentUserVote === 'upvote') {
+          // Toggle off
+          newUpvotes = Math.max(0, newUpvotes - 1);
+          newUserVote = null;
+          newScore = newScore - 1;
+        } else if (currentUserVote === 'downvote') {
+          // Switch from downvote to upvote
+          newDownvotes = Math.max(0, newDownvotes - 1);
+          newUpvotes = newUpvotes + 1;
+          newUserVote = 'upvote';
+          newScore = newScore + 2; // +1 for removing downvote, +1 for adding upvote
+        } else {
+          // Add upvote
+          newUpvotes = newUpvotes + 1;
+          newScore = newScore + 1;
+        }
+        
+        return { 
+          ...m, 
+          upvotes: newUpvotes,
+          downvotes: newDownvotes,
+          votes: newScore,
+          userVote: newUserVote
+        };
+      })
+    );
     
     // Show toast immediately for instant feedback
     const movie = movies.find(m => m.id === id) || currentMovie;
@@ -236,13 +223,6 @@ const GroupView: React.FC<GroupViewProps> = ({
               method: 'POST',
             });
           } else {
-            // Revert optimistic update on error
-            if (!movieExistsInWatchlist) {
-              setMovies(prevMovies => prevMovies.filter(m => m.id !== id));
-              queryClient.setQueryData<Movie[]>(['groupWatchlist', group.id], (old = []) => 
-                old.filter(m => m.id !== id)
-              );
-            }
             toast.showError('Failed to add movie to watchlist. Please try again.');
             return;
           }
@@ -269,30 +249,6 @@ const GroupView: React.FC<GroupViewProps> = ({
           voteSuccess = true;
         } else {
           // Revert optimistic update on error
-          if (movieExistsInWatchlist) {
-            setMovies(prevMovies => 
-              prevMovies.map(m => 
-                m.id === id ? { 
-                  ...m, 
-                  upvotes: currentUpvotes,
-                  downvotes: currentDownvotes,
-                  votes: currentScore,
-                  userVote: currentUserVote
-                } : m
-              )
-            );
-          } else {
-            setMovies(prevMovies => prevMovies.filter(m => m.id !== id));
-            queryClient.setQueryData<Movie[]>(['groupWatchlist', group.id], (old = []) => 
-              old.filter(m => m.id !== id)
-            );
-          }
-          toast.showError('Failed to upvote. Please try again.');
-        }
-      } catch (error) {
-        console.error('Failed to upvote:', error);
-        // Revert optimistic update on error
-        if (movieExistsInWatchlist) {
           setMovies(prevMovies => 
             prevMovies.map(m => 
               m.id === id ? { 
@@ -304,12 +260,22 @@ const GroupView: React.FC<GroupViewProps> = ({
               } : m
             )
           );
-        } else {
-          setMovies(prevMovies => prevMovies.filter(m => m.id !== id));
-          queryClient.setQueryData<Movie[]>(['groupWatchlist', group.id], (old = []) => 
-            old.filter(m => m.id !== id)
-          );
+          toast.showError('Failed to upvote. Please try again.');
         }
+      } catch (error) {
+        console.error('Failed to upvote:', error);
+        // Revert optimistic update on error
+        setMovies(prevMovies => 
+          prevMovies.map(m => 
+            m.id === id ? { 
+              ...m, 
+              upvotes: currentUpvotes,
+              downvotes: currentDownvotes,
+              votes: currentScore,
+              userVote: currentUserVote
+            } : m
+          )
+        );
         toast.showError('Failed to upvote. Please try again.');
       } finally {
         setVotingMovieId(null);
@@ -330,62 +296,49 @@ const GroupView: React.FC<GroupViewProps> = ({
     if (votingMovieId === id) return;
     
     const currentMovie = movies.find(m => m.id === id);
-    const currentUpvotes = currentMovie?.upvotes || 0;
-    const currentDownvotes = currentMovie?.downvotes || 0;
-    const currentUserVote = currentMovie?.userVote;
+    if (!currentMovie) return;
+    const currentUpvotes = currentMovie.upvotes || 0;
+    const currentDownvotes = currentMovie.downvotes || 0;
+    const currentUserVote = currentMovie.userVote;
     const currentScore = currentUpvotes - currentDownvotes;
-    const movieExistsInWatchlist = currentMovie !== undefined;
     
     setVotingMovieId(id);
     
-    // If movie doesn't exist in watchlist, add it optimistically first
-    if (!movieExistsInWatchlist && currentMovie) {
-      const optimisticMovie: Movie = {
-        ...currentMovie,
-        upvotes: 0,
-        downvotes: 1,
-        votes: -1,
-        userVote: 'downvote',
-      };
-      setMovies(prevMovies => [...prevMovies, optimisticMovie]);
-      queryClient.setQueryData<Movie[]>(['groupWatchlist', group.id], (old = []) => [...old, optimisticMovie]);
-    } else {
-      // Optimistic update for existing movie
-      setMovies(prevMovies => 
-        prevMovies.map(m => {
-          if (m.id !== id) return m;
-          let newUpvotes = currentUpvotes;
-          let newDownvotes = currentDownvotes;
-          let newUserVote: 'upvote' | 'downvote' | null = 'downvote';
-          let newScore = currentScore;
-          
-          if (currentUserVote === 'downvote') {
-            // Toggle off
-            newDownvotes = Math.max(0, newDownvotes - 1);
-            newUserVote = null;
-            newScore = newScore + 1;
-          } else if (currentUserVote === 'upvote') {
-            // Switch from upvote to downvote
-            newUpvotes = Math.max(0, newUpvotes - 1);
-            newDownvotes = newDownvotes + 1;
-            newUserVote = 'downvote';
-            newScore = newScore - 2; // -1 for removing upvote, -1 for adding downvote
-          } else {
-            // Add downvote
-            newDownvotes = newDownvotes + 1;
-            newScore = newScore - 1;
-          }
-          
-          return { 
-            ...m, 
-            upvotes: newUpvotes,
-            downvotes: newDownvotes,
-            votes: newScore,
-            userVote: newUserVote
-          };
-        })
-      );
-    }
+    // Optimistic update for existing movie
+    setMovies(prevMovies => 
+      prevMovies.map(m => {
+        if (m.id !== id) return m;
+        let newUpvotes = currentUpvotes;
+        let newDownvotes = currentDownvotes;
+        let newUserVote: 'upvote' | 'downvote' | null = 'downvote';
+        let newScore = currentScore;
+        
+        if (currentUserVote === 'downvote') {
+          // Toggle off
+          newDownvotes = Math.max(0, newDownvotes - 1);
+          newUserVote = null;
+          newScore = newScore + 1;
+        } else if (currentUserVote === 'upvote') {
+          // Switch from upvote to downvote
+          newUpvotes = Math.max(0, newUpvotes - 1);
+          newDownvotes = newDownvotes + 1;
+          newUserVote = 'downvote';
+          newScore = newScore - 2; // -1 for removing upvote, -1 for adding downvote
+        } else {
+          // Add downvote
+          newDownvotes = newDownvotes + 1;
+          newScore = newScore - 1;
+        }
+        
+        return { 
+          ...m, 
+          upvotes: newUpvotes,
+          downvotes: newDownvotes,
+          votes: newScore,
+          userVote: newUserVote
+        };
+      })
+    );
     
     // Show toast immediately for instant feedback
     const movie = movies.find(m => m.id === id) || currentMovie;
@@ -431,13 +384,6 @@ const GroupView: React.FC<GroupViewProps> = ({
               method: 'POST',
             });
           } else {
-            // Revert optimistic update on error
-            if (!movieExistsInWatchlist) {
-              setMovies(prevMovies => prevMovies.filter(m => m.id !== id));
-              queryClient.setQueryData<Movie[]>(['groupWatchlist', group.id], (old = []) => 
-                old.filter(m => m.id !== id)
-              );
-            }
             toast.showError('Failed to add movie to watchlist. Please try again.');
             return;
           }
@@ -464,30 +410,6 @@ const GroupView: React.FC<GroupViewProps> = ({
           voteSuccess = true;
         } else {
           // Revert optimistic update on error
-          if (movieExistsInWatchlist) {
-            setMovies(prevMovies => 
-              prevMovies.map(m => 
-                m.id === id ? { 
-                  ...m, 
-                  upvotes: currentUpvotes,
-                  downvotes: currentDownvotes,
-                  votes: currentScore,
-                  userVote: currentUserVote
-                } : m
-              )
-            );
-          } else {
-            setMovies(prevMovies => prevMovies.filter(m => m.id !== id));
-            queryClient.setQueryData<Movie[]>(['groupWatchlist', group.id], (old = []) => 
-              old.filter(m => m.id !== id)
-            );
-          }
-          toast.showError('Failed to downvote. Please try again.');
-        }
-      } catch (error) {
-        console.error('Failed to downvote:', error);
-        // Revert optimistic update on error
-        if (movieExistsInWatchlist) {
           setMovies(prevMovies => 
             prevMovies.map(m => 
               m.id === id ? { 
@@ -499,12 +421,22 @@ const GroupView: React.FC<GroupViewProps> = ({
               } : m
             )
           );
-        } else {
-          setMovies(prevMovies => prevMovies.filter(m => m.id !== id));
-          queryClient.setQueryData<Movie[]>(['groupWatchlist', group.id], (old = []) => 
-            old.filter(m => m.id !== id)
-          );
+          toast.showError('Failed to downvote. Please try again.');
         }
+      } catch (error) {
+        console.error('Failed to downvote:', error);
+        // Revert optimistic update on error
+        setMovies(prevMovies => 
+          prevMovies.map(m => 
+            m.id === id ? { 
+              ...m, 
+              upvotes: currentUpvotes,
+              downvotes: currentDownvotes,
+              votes: currentScore,
+              userVote: currentUserVote
+            } : m
+          )
+        );
         toast.showError('Failed to downvote. Please try again.');
       } finally {
         setVotingMovieId(null);
