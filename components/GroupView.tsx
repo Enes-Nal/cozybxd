@@ -139,128 +139,189 @@ const GroupView: React.FC<GroupViewProps> = ({
     const currentDownvotes = currentMovie?.downvotes || 0;
     const currentUserVote = currentMovie?.userVote;
     const currentScore = currentUpvotes - currentDownvotes;
+    const movieExistsInWatchlist = currentMovie !== undefined;
     
     setVotingMovieId(id);
     
-    // Optimistic update
-    setMovies(prevMovies => 
-      prevMovies.map(m => {
-        if (m.id !== id) return m;
-        let newUpvotes = currentUpvotes;
-        let newDownvotes = currentDownvotes;
-        let newUserVote: 'upvote' | 'downvote' | null = 'upvote';
-        let newScore = currentScore;
-        
-        if (currentUserVote === 'upvote') {
-          // Toggle off
-          newUpvotes = Math.max(0, newUpvotes - 1);
-          newUserVote = null;
-          newScore = newScore - 1;
-        } else if (currentUserVote === 'downvote') {
-          // Switch from downvote to upvote
-          newDownvotes = Math.max(0, newDownvotes - 1);
-          newUpvotes = newUpvotes + 1;
-          newUserVote = 'upvote';
-          newScore = newScore + 2; // +1 for removing downvote, +1 for adding upvote
-        } else {
-          // Add upvote
-          newUpvotes = newUpvotes + 1;
-          newScore = newScore + 1;
-        }
-        
-        return { 
-          ...m, 
-          upvotes: newUpvotes,
-          downvotes: newDownvotes,
-          votes: newScore,
-          userVote: newUserVote
-        };
-      })
-    );
-    
-    let voteSuccess = false;
-    try {
-      const mediaId = await syncMediaIfNeeded(id);
-      
-      let res = await fetch(`/api/watchlist/${mediaId}/upvote?teamId=${group.id}`, {
-        method: 'POST',
-      });
-      
-      // If not in watchlist, add it first then upvote
-      if (!res.ok && res.status === 404) {
-        const addRes = await fetch('/api/watchlist', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mediaId, teamId: group.id }),
-        });
-        if (addRes.ok) {
-          // Now upvote
-          res = await fetch(`/api/watchlist/${mediaId}/upvote?teamId=${group.id}`, {
-            method: 'POST',
-          });
-        }
-      }
-      
-      // Update with actual response
-      if (res.ok) {
-        const data = await res.json();
-        setMovies(prevMovies => 
-          prevMovies.map(m => 
-            m.id === id ? { 
-              ...m, 
-              upvotes: data.upvotes,
-              downvotes: data.downvotes,
-              votes: data.score,
-              userVote: data.userVote
-            } : m
-          )
-        );
-        voteSuccess = true;
-        const movie = movies.find(m => m.id === id);
-        if (currentUserVote === 'upvote') {
-          toast.showSuccess(`Removed upvote from ${movie?.title || 'movie'}`);
-        } else {
-          toast.showSuccess(`Upvoted ${movie?.title || 'movie'}`);
-        }
-      } else {
-        // Revert optimistic update on error
-        setMovies(prevMovies => 
-          prevMovies.map(m => 
-            m.id === id ? { 
-              ...m, 
-              upvotes: currentUpvotes,
-              downvotes: currentDownvotes,
-              votes: currentScore,
-              userVote: currentUserVote
-            } : m
-          )
-        );
-      }
-    } catch (error) {
-      console.error('Failed to upvote:', error);
-      // Revert optimistic update on error
+    // If movie doesn't exist in watchlist, add it optimistically first
+    if (!movieExistsInWatchlist && currentMovie) {
+      const optimisticMovie: Movie = {
+        ...currentMovie,
+        upvotes: 1,
+        downvotes: 0,
+        votes: 1,
+        userVote: 'upvote',
+      };
+      setMovies(prevMovies => [...prevMovies, optimisticMovie]);
+      queryClient.setQueryData<Movie[]>(['groupWatchlist', group.id], (old = []) => [...old, optimisticMovie]);
+    } else {
+      // Optimistic update for existing movie
       setMovies(prevMovies => 
-        prevMovies.map(m => 
-          m.id === id ? { 
+        prevMovies.map(m => {
+          if (m.id !== id) return m;
+          let newUpvotes = currentUpvotes;
+          let newDownvotes = currentDownvotes;
+          let newUserVote: 'upvote' | 'downvote' | null = 'upvote';
+          let newScore = currentScore;
+          
+          if (currentUserVote === 'upvote') {
+            // Toggle off
+            newUpvotes = Math.max(0, newUpvotes - 1);
+            newUserVote = null;
+            newScore = newScore - 1;
+          } else if (currentUserVote === 'downvote') {
+            // Switch from downvote to upvote
+            newDownvotes = Math.max(0, newDownvotes - 1);
+            newUpvotes = newUpvotes + 1;
+            newUserVote = 'upvote';
+            newScore = newScore + 2; // +1 for removing downvote, +1 for adding upvote
+          } else {
+            // Add upvote
+            newUpvotes = newUpvotes + 1;
+            newScore = newScore + 1;
+          }
+          
+          return { 
             ...m, 
-            upvotes: currentUpvotes,
-            downvotes: currentDownvotes,
-            votes: currentScore,
-            userVote: currentUserVote
-          } : m
-        )
+            upvotes: newUpvotes,
+            downvotes: newDownvotes,
+            votes: newScore,
+            userVote: newUserVote
+          };
+        })
       );
-      toast.showError('Failed to upvote. Please try again.');
-    } finally {
-      setVotingMovieId(null);
-      // Invalidate query in background to sync with server (but don't wait for it)
-      if (voteSuccess) {
-        // Use a small delay to ensure the database transaction is committed
-        setTimeout(() => {
-          queryClient.invalidateQueries({ queryKey: ['groupWatchlist', group.id] });
-        }, 100);
-      }
     }
+    
+    // Show toast immediately for instant feedback
+    const movie = movies.find(m => m.id === id) || currentMovie;
+    if (currentUserVote === 'upvote') {
+      toast.showSuccess(`Removed upvote from ${movie?.title || 'movie'}`);
+    } else {
+      toast.showSuccess(`Upvoted ${movie?.title || 'movie'}`);
+    }
+    
+    // Now do the actual API calls in the background (non-blocking)
+    (async () => {
+      let voteSuccess = false;
+      try {
+        const mediaId = await syncMediaIfNeeded(id);
+        
+        let res = await fetch(`/api/watchlist/${mediaId}/upvote?teamId=${group.id}`, {
+          method: 'POST',
+        });
+        
+        // If not in watchlist, add it first then upvote
+        if (!res.ok && res.status === 404) {
+          const addRes = await fetch('/api/watchlist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mediaId, teamId: group.id }),
+          });
+          if (addRes.ok) {
+            // Get the added movie from response
+            const addedMovie = await addRes.json();
+            // Update with actual data
+            setMovies(prevMovies => {
+              // Remove optimistic movie and add real one
+              const filtered = prevMovies.filter(m => m.id !== id && m.id !== mediaId);
+              return [...filtered, addedMovie];
+            });
+            // Update query cache
+            queryClient.setQueryData<Movie[]>(['groupWatchlist', group.id], (old = []) => {
+              const filtered = old.filter(m => m.id !== id && m.id !== mediaId);
+              return [...filtered, addedMovie];
+            });
+            // Now upvote
+            res = await fetch(`/api/watchlist/${mediaId}/upvote?teamId=${group.id}`, {
+              method: 'POST',
+            });
+          } else {
+            // Revert optimistic update on error
+            if (!movieExistsInWatchlist) {
+              setMovies(prevMovies => prevMovies.filter(m => m.id !== id));
+              queryClient.setQueryData<Movie[]>(['groupWatchlist', group.id], (old = []) => 
+                old.filter(m => m.id !== id)
+              );
+            }
+            toast.showError('Failed to add movie to watchlist. Please try again.');
+            return;
+          }
+        }
+        
+        // Update with actual response
+        if (res.ok) {
+          const data = await res.json();
+          setMovies(prevMovies => 
+            prevMovies.map(m => {
+              // Match by either the original id or the mediaId
+              if (m.id === id || m.id === mediaId) {
+                return { 
+                  ...m, 
+                  upvotes: data.upvotes,
+                  downvotes: data.downvotes,
+                  votes: data.score,
+                  userVote: data.userVote
+                };
+              }
+              return m;
+            })
+          );
+          voteSuccess = true;
+        } else {
+          // Revert optimistic update on error
+          if (movieExistsInWatchlist) {
+            setMovies(prevMovies => 
+              prevMovies.map(m => 
+                m.id === id ? { 
+                  ...m, 
+                  upvotes: currentUpvotes,
+                  downvotes: currentDownvotes,
+                  votes: currentScore,
+                  userVote: currentUserVote
+                } : m
+              )
+            );
+          } else {
+            setMovies(prevMovies => prevMovies.filter(m => m.id !== id));
+            queryClient.setQueryData<Movie[]>(['groupWatchlist', group.id], (old = []) => 
+              old.filter(m => m.id !== id)
+            );
+          }
+          toast.showError('Failed to upvote. Please try again.');
+        }
+      } catch (error) {
+        console.error('Failed to upvote:', error);
+        // Revert optimistic update on error
+        if (movieExistsInWatchlist) {
+          setMovies(prevMovies => 
+            prevMovies.map(m => 
+              m.id === id ? { 
+                ...m, 
+                upvotes: currentUpvotes,
+                downvotes: currentDownvotes,
+                votes: currentScore,
+                userVote: currentUserVote
+              } : m
+            )
+          );
+        } else {
+          setMovies(prevMovies => prevMovies.filter(m => m.id !== id));
+          queryClient.setQueryData<Movie[]>(['groupWatchlist', group.id], (old = []) => 
+            old.filter(m => m.id !== id)
+          );
+        }
+        toast.showError('Failed to upvote. Please try again.');
+      } finally {
+        setVotingMovieId(null);
+        // Invalidate query in background to sync with server (but don't wait for it)
+        if (voteSuccess) {
+          // Use a small delay to ensure the database transaction is committed
+          setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: ['groupWatchlist', group.id] });
+          }, 100);
+        }
+      }
+    })();
   };
 
   // Downvote handler with optimistic UI update
@@ -273,128 +334,189 @@ const GroupView: React.FC<GroupViewProps> = ({
     const currentDownvotes = currentMovie?.downvotes || 0;
     const currentUserVote = currentMovie?.userVote;
     const currentScore = currentUpvotes - currentDownvotes;
+    const movieExistsInWatchlist = currentMovie !== undefined;
     
     setVotingMovieId(id);
     
-    // Optimistic update
-    setMovies(prevMovies => 
-      prevMovies.map(m => {
-        if (m.id !== id) return m;
-        let newUpvotes = currentUpvotes;
-        let newDownvotes = currentDownvotes;
-        let newUserVote: 'upvote' | 'downvote' | null = 'downvote';
-        let newScore = currentScore;
-        
-        if (currentUserVote === 'downvote') {
-          // Toggle off
-          newDownvotes = Math.max(0, newDownvotes - 1);
-          newUserVote = null;
-          newScore = newScore + 1;
-        } else if (currentUserVote === 'upvote') {
-          // Switch from upvote to downvote
-          newUpvotes = Math.max(0, newUpvotes - 1);
-          newDownvotes = newDownvotes + 1;
-          newUserVote = 'downvote';
-          newScore = newScore - 2; // -1 for removing upvote, -1 for adding downvote
-        } else {
-          // Add downvote
-          newDownvotes = newDownvotes + 1;
-          newScore = newScore - 1;
-        }
-        
-        return { 
-          ...m, 
-          upvotes: newUpvotes,
-          downvotes: newDownvotes,
-          votes: newScore,
-          userVote: newUserVote
-        };
-      })
-    );
-    
-    let voteSuccess = false;
-    try {
-      const mediaId = await syncMediaIfNeeded(id);
-      
-      let res = await fetch(`/api/watchlist/${mediaId}/downvote?teamId=${group.id}`, {
-        method: 'POST',
-      });
-      
-      // If not in watchlist, add it first then downvote
-      if (!res.ok && res.status === 404) {
-        const addRes = await fetch('/api/watchlist', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mediaId, teamId: group.id }),
-        });
-        if (addRes.ok) {
-          // Now downvote
-          res = await fetch(`/api/watchlist/${mediaId}/downvote?teamId=${group.id}`, {
-            method: 'POST',
-          });
-        }
-      }
-      
-      // Update with actual response
-      if (res.ok) {
-        const data = await res.json();
-        setMovies(prevMovies => 
-          prevMovies.map(m => 
-            m.id === id ? { 
-              ...m, 
-              upvotes: data.upvotes,
-              downvotes: data.downvotes,
-              votes: data.score,
-              userVote: data.userVote
-            } : m
-          )
-        );
-        voteSuccess = true;
-        const movie = movies.find(m => m.id === id);
-        if (currentUserVote === 'downvote') {
-          toast.showSuccess(`Removed downvote from ${movie?.title || 'movie'}`);
-        } else {
-          toast.showSuccess(`Downvoted ${movie?.title || 'movie'}`);
-        }
-      } else {
-        // Revert optimistic update on error
-        setMovies(prevMovies => 
-          prevMovies.map(m => 
-            m.id === id ? { 
-              ...m, 
-              upvotes: currentUpvotes,
-              downvotes: currentDownvotes,
-              votes: currentScore,
-              userVote: currentUserVote
-            } : m
-          )
-        );
-      }
-    } catch (error) {
-      console.error('Failed to downvote:', error);
-      // Revert optimistic update on error
+    // If movie doesn't exist in watchlist, add it optimistically first
+    if (!movieExistsInWatchlist && currentMovie) {
+      const optimisticMovie: Movie = {
+        ...currentMovie,
+        upvotes: 0,
+        downvotes: 1,
+        votes: -1,
+        userVote: 'downvote',
+      };
+      setMovies(prevMovies => [...prevMovies, optimisticMovie]);
+      queryClient.setQueryData<Movie[]>(['groupWatchlist', group.id], (old = []) => [...old, optimisticMovie]);
+    } else {
+      // Optimistic update for existing movie
       setMovies(prevMovies => 
-        prevMovies.map(m => 
-          m.id === id ? { 
+        prevMovies.map(m => {
+          if (m.id !== id) return m;
+          let newUpvotes = currentUpvotes;
+          let newDownvotes = currentDownvotes;
+          let newUserVote: 'upvote' | 'downvote' | null = 'downvote';
+          let newScore = currentScore;
+          
+          if (currentUserVote === 'downvote') {
+            // Toggle off
+            newDownvotes = Math.max(0, newDownvotes - 1);
+            newUserVote = null;
+            newScore = newScore + 1;
+          } else if (currentUserVote === 'upvote') {
+            // Switch from upvote to downvote
+            newUpvotes = Math.max(0, newUpvotes - 1);
+            newDownvotes = newDownvotes + 1;
+            newUserVote = 'downvote';
+            newScore = newScore - 2; // -1 for removing upvote, -1 for adding downvote
+          } else {
+            // Add downvote
+            newDownvotes = newDownvotes + 1;
+            newScore = newScore - 1;
+          }
+          
+          return { 
             ...m, 
-            upvotes: currentUpvotes,
-            downvotes: currentDownvotes,
-            votes: currentScore,
-            userVote: currentUserVote
-          } : m
-        )
+            upvotes: newUpvotes,
+            downvotes: newDownvotes,
+            votes: newScore,
+            userVote: newUserVote
+          };
+        })
       );
-      toast.showError('Failed to downvote. Please try again.');
-    } finally {
-      setVotingMovieId(null);
-      // Invalidate query in background to sync with server (but don't wait for it)
-      if (voteSuccess) {
-        // Use a small delay to ensure the database transaction is committed
-        setTimeout(() => {
-          queryClient.invalidateQueries({ queryKey: ['groupWatchlist', group.id] });
-        }, 100);
-      }
     }
+    
+    // Show toast immediately for instant feedback
+    const movie = movies.find(m => m.id === id) || currentMovie;
+    if (currentUserVote === 'downvote') {
+      toast.showSuccess(`Removed downvote from ${movie?.title || 'movie'}`);
+    } else {
+      toast.showSuccess(`Downvoted ${movie?.title || 'movie'}`);
+    }
+    
+    // Now do the actual API calls in the background (non-blocking)
+    (async () => {
+      let voteSuccess = false;
+      try {
+        const mediaId = await syncMediaIfNeeded(id);
+        
+        let res = await fetch(`/api/watchlist/${mediaId}/downvote?teamId=${group.id}`, {
+          method: 'POST',
+        });
+        
+        // If not in watchlist, add it first then downvote
+        if (!res.ok && res.status === 404) {
+          const addRes = await fetch('/api/watchlist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mediaId, teamId: group.id }),
+          });
+          if (addRes.ok) {
+            // Get the added movie from response
+            const addedMovie = await addRes.json();
+            // Update with actual data
+            setMovies(prevMovies => {
+              // Remove optimistic movie and add real one
+              const filtered = prevMovies.filter(m => m.id !== id && m.id !== mediaId);
+              return [...filtered, addedMovie];
+            });
+            // Update query cache
+            queryClient.setQueryData<Movie[]>(['groupWatchlist', group.id], (old = []) => {
+              const filtered = old.filter(m => m.id !== id && m.id !== mediaId);
+              return [...filtered, addedMovie];
+            });
+            // Now downvote
+            res = await fetch(`/api/watchlist/${mediaId}/downvote?teamId=${group.id}`, {
+              method: 'POST',
+            });
+          } else {
+            // Revert optimistic update on error
+            if (!movieExistsInWatchlist) {
+              setMovies(prevMovies => prevMovies.filter(m => m.id !== id));
+              queryClient.setQueryData<Movie[]>(['groupWatchlist', group.id], (old = []) => 
+                old.filter(m => m.id !== id)
+              );
+            }
+            toast.showError('Failed to add movie to watchlist. Please try again.');
+            return;
+          }
+        }
+        
+        // Update with actual response
+        if (res.ok) {
+          const data = await res.json();
+          setMovies(prevMovies => 
+            prevMovies.map(m => {
+              // Match by either the original id or the mediaId
+              if (m.id === id || m.id === mediaId) {
+                return { 
+                  ...m, 
+                  upvotes: data.upvotes,
+                  downvotes: data.downvotes,
+                  votes: data.score,
+                  userVote: data.userVote
+                };
+              }
+              return m;
+            })
+          );
+          voteSuccess = true;
+        } else {
+          // Revert optimistic update on error
+          if (movieExistsInWatchlist) {
+            setMovies(prevMovies => 
+              prevMovies.map(m => 
+                m.id === id ? { 
+                  ...m, 
+                  upvotes: currentUpvotes,
+                  downvotes: currentDownvotes,
+                  votes: currentScore,
+                  userVote: currentUserVote
+                } : m
+              )
+            );
+          } else {
+            setMovies(prevMovies => prevMovies.filter(m => m.id !== id));
+            queryClient.setQueryData<Movie[]>(['groupWatchlist', group.id], (old = []) => 
+              old.filter(m => m.id !== id)
+            );
+          }
+          toast.showError('Failed to downvote. Please try again.');
+        }
+      } catch (error) {
+        console.error('Failed to downvote:', error);
+        // Revert optimistic update on error
+        if (movieExistsInWatchlist) {
+          setMovies(prevMovies => 
+            prevMovies.map(m => 
+              m.id === id ? { 
+                ...m, 
+                upvotes: currentUpvotes,
+                downvotes: currentDownvotes,
+                votes: currentScore,
+                userVote: currentUserVote
+              } : m
+            )
+          );
+        } else {
+          setMovies(prevMovies => prevMovies.filter(m => m.id !== id));
+          queryClient.setQueryData<Movie[]>(['groupWatchlist', group.id], (old = []) => 
+            old.filter(m => m.id !== id)
+          );
+        }
+        toast.showError('Failed to downvote. Please try again.');
+      } finally {
+        setVotingMovieId(null);
+        // Invalidate query in background to sync with server (but don't wait for it)
+        if (voteSuccess) {
+          // Use a small delay to ensure the database transaction is committed
+          setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: ['groupWatchlist', group.id] });
+          }, 100);
+        }
+      }
+    })();
   };
 
   // Remove handler with optimistic UI update
@@ -542,29 +664,31 @@ const GroupView: React.FC<GroupViewProps> = ({
   return (
     <>
       <div className="py-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-12">
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6 mb-12">
           <div className="flex items-start gap-4">
             <div className="relative group">
               {group.pictureUrl ? (
                 <img 
                   src={group.pictureUrl} 
                   alt={group.name}
-                  className="animate-image-fade-in w-20 h-20 rounded-2xl object-cover border border-white/10 cursor-pointer hover:opacity-80 active:scale-95 transition-all duration-200"
+                  className={`animate-image-fade-in w-20 h-20 rounded-2xl object-cover border border-white/10 ${isAdmin ? 'cursor-pointer hover:opacity-80 active:scale-95 transition-all duration-200' : ''}`}
                   loading="lazy"
-                  onClick={() => setIsEditPictureModalOpen(true)}
+                  onClick={() => isAdmin && setIsEditPictureModalOpen(true)}
                 />
               ) : (
                 <div 
-                  className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center cursor-pointer hover:bg-white/10 transition-colors"
-                  onClick={() => setIsEditPictureModalOpen(true)}
-                  title="Add group picture"
+                  className={`w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center ${isAdmin ? 'cursor-pointer hover:bg-white/10 transition-colors' : ''}`}
+                  onClick={() => isAdmin && setIsEditPictureModalOpen(true)}
+                  title={isAdmin ? "Add group picture" : undefined}
                 >
                   <i className="fa-solid fa-image text-gray-500"></i>
                 </div>
               )}
-              <div className="absolute inset-0 bg-black/0 hover:bg-black/20 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => setIsEditPictureModalOpen(true)}>
-                <i className="fa-solid fa-camera text-white text-xs"></i>
-              </div>
+              {isAdmin && (
+                <div className="absolute inset-0 bg-black/0 hover:bg-black/20 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => setIsEditPictureModalOpen(true)}>
+                  <i className="fa-solid fa-camera text-white text-xs"></i>
+                </div>
+              )}
             </div>
             <div>
               <div className="flex items-center gap-3 mb-2">
@@ -574,57 +698,59 @@ const GroupView: React.FC<GroupViewProps> = ({
             </div>
           </div>
           
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setIsMembersModalOpen(true)}
-              className="flex -space-x-3 hover:opacity-80 active:scale-95 transition-all duration-200 cursor-pointer group"
-              title="View all members"
-            >
-              {group.members.slice(0, 5).map(m => (
-                <img key={m.id} src={m.avatar} className="w-10 h-10 rounded-full border-2 border-[#0a0a0a] group-hover:border-accent/50 transition-all-smooth animate-image-fade-in" alt={m.name} title={m.name} loading="lazy" />
-              ))}
-              {group.members.length > 5 && (
-                <div className="w-10 h-10 rounded-full border-2 border-[#0a0a0a] bg-white/5 flex items-center justify-center text-xs font-bold text-gray-400 group-hover:border-accent/50 transition-colors">
-                  +{group.members.length - 5}
-                </div>
+          <div className="flex flex-col items-end gap-4 ml-auto">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setIsMembersModalOpen(true)}
+                className="flex -space-x-3 hover:opacity-80 active:scale-95 transition-all duration-200 cursor-pointer group"
+                title="View all members"
+              >
+                {group.members.slice(0, 5).map(m => (
+                  <img key={m.id} src={m.avatar} className="w-10 h-10 rounded-full border-2 border-[#0a0a0a] group-hover:border-accent/50 transition-all-smooth animate-image-fade-in" alt={m.name} title={m.name} loading="lazy" />
+                ))}
+                {group.members.length > 5 && (
+                  <div className="w-10 h-10 rounded-full border-2 border-[#0a0a0a] bg-white/5 flex items-center justify-center text-xs font-bold text-gray-400 group-hover:border-accent/50 transition-colors">
+                    +{group.members.length - 5}
+                  </div>
+                )}
+              </button>
+              <button 
+                onClick={() => setIsInviteModalOpen(true)}
+                className="bg-white/5 hover:bg-white/10 active:scale-95 p-3 rounded-xl transition-all duration-200 overflow-hidden"
+                title="Invite people"
+              >
+                <i className="fa-solid fa-user-plus text-gray-400"></i>
+              </button>
+              {isAdmin && (
+                <>
+                  <button 
+                    onClick={() => {
+                      router.push(`/?tab=Group Settings&group=${group.id}`);
+                    }}
+                    className="bg-white/5 hover:bg-white/10 active:scale-95 p-3 rounded-xl transition-all duration-200 overflow-hidden"
+                    title="Group settings"
+                  >
+                    <i className="fa-solid fa-cog text-gray-400"></i>
+                  </button>
+                  <button 
+                    onClick={handleDeleteGroup}
+                    className="bg-white/5 hover:bg-red-500/20 active:scale-95 p-3 rounded-xl transition-all duration-200 overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Delete group"
+                    disabled={deleteGroupMutation.isPending}
+                  >
+                    <i className="fa-solid fa-trash text-red-400"></i>
+                  </button>
+                </>
               )}
-            </button>
-            <button 
-              onClick={() => setIsInviteModalOpen(true)}
-              className="bg-white/5 hover:bg-white/10 active:scale-95 p-3 rounded-xl transition-all duration-200 overflow-hidden"
-              title="Invite people"
-            >
-              <i className="fa-solid fa-user-plus text-gray-400"></i>
-            </button>
-            {isAdmin && (
-              <>
-                <button 
-                  onClick={() => {
-                    router.push(`/?tab=Group Settings&group=${group.id}`);
-                  }}
-                  className="bg-white/5 hover:bg-white/10 active:scale-95 p-3 rounded-xl transition-all duration-200 overflow-hidden"
-                  title="Group settings"
-                >
-                  <i className="fa-solid fa-cog text-gray-400"></i>
-                </button>
-                <button 
-                  onClick={handleDeleteGroup}
-                  className="bg-white/5 hover:bg-red-500/20 active:scale-95 p-3 rounded-xl transition-all duration-200 overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Delete group"
-                  disabled={deleteGroupMutation.isPending}
-                >
-                  <i className="fa-solid fa-trash text-red-400"></i>
-                </button>
-              </>
-            )}
-            <button 
-              onClick={handleLeaveGroup}
-              className="bg-white/5 hover:bg-white/10 active:scale-95 p-3 rounded-xl transition-all duration-200 overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Leave group"
-              disabled={leaveGroupMutation.isPending}
-            >
+              <button 
+                onClick={handleLeaveGroup}
+                className="bg-white/5 hover:bg-white/10 active:scale-95 p-3 rounded-xl transition-all duration-200 overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Leave group"
+                disabled={leaveGroupMutation.isPending}
+              >
               <i className="fa-solid fa-sign-out-alt text-gray-400"></i>
             </button>
+            </div>
           </div>
         </div>
 

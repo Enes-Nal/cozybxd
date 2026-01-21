@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Movie, User } from '@/lib/types';
 import RemoveMovieModal from './RemoveMovieModal';
+import { useLayoutAnimation } from '@/lib/hooks/useLayoutAnimation';
 
 // Animated number component for smooth vote count transitions
 const AnimatedVoteCount: React.FC<{ value: number; className?: string }> = ({ value, className = '' }) => {
@@ -102,6 +103,97 @@ const getGenreColor = (genre: string): string => {
 
 const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownvote, onSchedule, onSelect, onRemove, users, personalWatchlist = [], isGroupWatchlist = false, votingMovieId = null }) => {
   const [movieToRemove, setMovieToRemove] = useState<Movie | null>(null);
+  const [imdbRatings, setImdbRatings] = useState<Record<string, number>>({});
+  const ratingsFetchedRef = useRef<Set<string>>(new Set());
+  const gridRef = useRef<HTMLDivElement>(null);
+  
+  // Setup layout animation for the grid - animates when movies change
+  useLayoutAnimation(gridRef, {
+    duration: 600,
+    ease: 'easeOutExpo',
+  }, [movies.length, movies.map(m => m.id).join(',')]);
+  
+  // Fetch IMDb ratings for movies that don't have them
+  useEffect(() => {
+    console.log('MovieGrid useEffect triggered, movies count:', movies.length);
+    console.log('Current imdbRatings state:', imdbRatings);
+    
+    const fetchRatings = async () => {
+      // Find movies without IMDb ratings that haven't been fetched yet
+      const moviesToFetch = movies.filter(movie => {
+        const movieId = movie.id;
+        // Skip if already has rating or already fetched
+        if (movie.imdbRating || ratingsFetchedRef.current.has(movieId)) {
+          return false;
+        }
+        // Only fetch for TMDB movies (format: tmdb-{id})
+        return movieId.startsWith('tmdb-');
+      });
+
+      console.log(`Movies to fetch ratings for: ${moviesToFetch.length}`, moviesToFetch.map(m => m.id).slice(0, 5));
+
+      if (moviesToFetch.length === 0) {
+        console.log('No movies to fetch ratings for');
+        return;
+      }
+
+      // Extract TMDB IDs
+      const tmdbIds = moviesToFetch.map(movie => {
+        const tmdbId = movie.id.replace('tmdb-', '');
+        return parseInt(tmdbId, 10);
+      }).filter(id => !isNaN(id));
+
+      if (tmdbIds.length === 0) return;
+
+      // Mark as fetched to avoid duplicate requests
+      moviesToFetch.forEach(movie => {
+        ratingsFetchedRef.current.add(movie.id);
+      });
+
+      try {
+        console.log(`Fetching IMDb ratings for ${tmdbIds.length} movies:`, tmdbIds.slice(0, 5));
+        const response = await fetch('/api/media/imdb-ratings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ tmdbIds }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Received IMDb ratings response:', data);
+          if (data.ratings && Object.keys(data.ratings).length > 0) {
+            console.log(`Setting ${Object.keys(data.ratings).length} IMDb ratings`);
+            setImdbRatings(prev => ({ ...prev, ...data.ratings }));
+          } else {
+            console.warn('No ratings in response:', data);
+          }
+        } else {
+          const errorText = await response.text();
+          console.error('Failed to fetch IMDb ratings:', response.status, errorText);
+        }
+      } catch (error) {
+        console.error('Failed to fetch IMDb ratings:', error);
+      }
+    };
+
+    fetchRatings();
+  }, [movies]);
+  
+  // Helper to get IMDb rating for a movie
+  const getImdbRating = (movie: Movie): number | undefined => {
+    // First check if movie already has rating
+    if (movie.imdbRating) {
+      return movie.imdbRating;
+    }
+    // Then check fetched ratings
+    const fetchedRating = imdbRatings[movie.id];
+    if (fetchedRating) {
+      return fetchedRating;
+    }
+    return undefined;
+  };
   
   // Helper to check if movie is in personal watchlist
   const isInWatchlist = (movieId: string) => {
@@ -128,10 +220,12 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
       return false;
     });
   };
+
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-10">
+    <div ref={gridRef} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-10">
       {movies.map((movie, idx) => {
         const staggerClass = idx < 5 ? `animate-stagger-${idx + 1}` : 'animate-fade-in';
+        const imdbRating = getImdbRating(movie);
         return (
         <div 
           key={`${movie.id}-${idx}`} 
@@ -281,11 +375,13 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
           </div>
 
           <div className="mt-4 px-1">
-            <div className="flex gap-1 mb-1.5">
-              <span className={`text-[9px] uppercase font-black tracking-[0.15em] ${getGenreColor(movie.genre[0] || '')}`}>
-                {movie.genre[0]}
-              </span>
-            </div>
+            {movie.genre && movie.genre.length > 0 && movie.genre[0] && (
+              <div className="flex gap-1 mb-1.5">
+                <span className={`text-[9px] uppercase font-black tracking-[0.15em] ${getGenreColor(movie.genre[0])}`}>
+                  {movie.genre[0]}
+                </span>
+              </div>
+            )}
             <h3 className="text-sm font-bold leading-tight truncate mb-1 text-main">
               {movie.title}
             </h3>
@@ -295,7 +391,7 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
                 <span className="opacity-30">•</span>
                 <span className="flex items-center gap-1">
                   <i className="fa-solid fa-star text-yellow-500 text-[9px]"></i>
-                  <span>{movie.imdbRating ? movie.imdbRating.toFixed(1) : 'N/A'}</span>
+                  <span>{imdbRating ? imdbRating.toFixed(1) : 'N/A'}</span>
                 </span>
               </>
               {isGroupWatchlist && movie.votes !== undefined && movie.votes !== 0 && (

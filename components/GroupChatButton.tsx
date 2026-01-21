@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/supabase';
 import GroupChatModal from './GroupChatModal';
 
@@ -17,6 +18,11 @@ const GroupChatButton: React.FC<GroupChatButtonProps> = ({ teamId, currentUser }
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [lastReadTime, setLastReadTime] = useState<Date>(new Date());
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Track unread messages
   useEffect(() => {
@@ -56,20 +62,34 @@ const GroupChatButton: React.FC<GroupChatButtonProps> = ({ teamId, currentUser }
     };
   }, [teamId, isOpen, currentUser.id, lastReadTime]);
 
+  const chatButton = (
+    <button
+      onClick={() => setIsOpen(true)}
+      className="w-14 h-14 bg-accent hover:bg-accent/80 rounded-full shadow-2xl flex items-center justify-center text-white transition-all hover:scale-110 group"
+      style={{ 
+        position: 'fixed', 
+        right: '1.5rem', 
+        bottom: '1.5rem', 
+        left: 'auto',
+        top: 'auto',
+        zIndex: 100,
+        margin: 0,
+        padding: 0
+      }}
+      title="Open chat"
+    >
+      <i className="fa-solid fa-comments text-xl"></i>
+      {unreadCount > 0 && (
+        <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-xs font-bold animate-pulse z-[101]">
+          {unreadCount > 9 ? '9+' : unreadCount}
+        </span>
+      )}
+    </button>
+  );
+
   return (
     <>
-      <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-accent hover:bg-accent/80 rounded-full shadow-2xl flex items-center justify-center text-white transition-all hover:scale-110 z-50 group"
-        title="Open chat"
-      >
-        <i className="fa-solid fa-comments text-xl"></i>
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-xs font-bold animate-pulse">
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
-        )}
-      </button>
+      {mounted && typeof window !== 'undefined' && !isOpen && createPortal(chatButton, document.body)}
 
       <GroupChatModal
         teamId={teamId}

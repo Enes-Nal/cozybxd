@@ -539,138 +539,151 @@ function HomeContent() {
                     movies={filteredAndSortedMovies}
                     personalWatchlist={personalWatchlist}
                     onVote={async (id) => {
-                      try {
-                        // Find the current movie
-                        const currentMovie = filteredAndSortedMovies.find(mov => mov.id === id);
-                        if (!currentMovie) return;
-                        
-                        // Check if already in watchlist
-                        const isInWatchlist = personalWatchlist.some((m: Movie) => {
-                          if (m.id === id) return true;
+                      // Find the current movie
+                      const currentMovie = filteredAndSortedMovies.find(mov => mov.id === id);
+                      if (!currentMovie) return;
+                      
+                      // Check if already in watchlist
+                      const isInWatchlist = personalWatchlist.some((m: Movie) => {
+                        if (m.id === id) return true;
+                        if (id.startsWith('tmdb-')) {
+                          const tmdbId = id.replace('tmdb-', '');
+                          if (m.id === `tmdb-${tmdbId}`) return true;
+                        }
+                        if (m.title === currentMovie.title) return true;
+                        return false;
+                      });
+                      
+                      // Optimistic update - update UI IMMEDIATELY (instant feedback)
+                      const previousWatchlist = personalWatchlist;
+                      let newWatchlist: Movie[];
+                      
+                      if (isInWatchlist) {
+                        // Optimistically remove
+                        newWatchlist = personalWatchlist.filter((m: Movie) => {
+                          if (m.id === id) return false;
                           if (id.startsWith('tmdb-')) {
                             const tmdbId = id.replace('tmdb-', '');
-                            if (m.id === `tmdb-${tmdbId}`) return true;
+                            if (m.id === `tmdb-${tmdbId}`) return false;
                           }
-                          if (m.title === currentMovie.title) return true;
-                          return false;
+                          if (m.title === currentMovie.title) return false;
+                          return true;
                         });
-                        
-                        // Optimistic update - update UI immediately
-                        const previousWatchlist = personalWatchlist;
-                        let newWatchlist: Movie[];
-                        
-                        if (isInWatchlist) {
-                          // Optimistically remove
-                          newWatchlist = personalWatchlist.filter((m: Movie) => {
-                            if (m.id === id) return false;
-                            if (id.startsWith('tmdb-')) {
-                              const tmdbId = id.replace('tmdb-', '');
-                              if (m.id === `tmdb-${tmdbId}`) return false;
-                            }
-                            if (m.title === currentMovie.title) return false;
-                            return true;
-                          });
-                        } else {
-                          // Optimistically add
-                          newWatchlist = [...personalWatchlist, currentMovie];
-                        }
-                        
-                        // Update the query cache immediately
-                        queryClient.setQueryData(['watchlist', 'personal'], newWatchlist);
-                        
-                        // Now do the actual API call in the background
-                        // Extract mediaId from id (could be tmdb-123, youtube-123, or uuid)
-                        let mediaId = id.startsWith('tmdb-') ? id.replace('tmdb-', '') : 
-                                     id.startsWith('youtube-') ? id.replace('youtube-', '') : id;
-                        let actualMediaId = mediaId;
-                        
-                        // If it's a TMDB ID, sync it first to get the database media ID
-                        if (id.startsWith('tmdb-')) {
-                          const syncRes = await fetch('/api/media/sync', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ tmdbId: mediaId, type: 'movie' }),
-                          });
-                          
-                          if (!syncRes.ok) {
-                            // Revert optimistic update on error
-                            queryClient.setQueryData(['watchlist', 'personal'], previousWatchlist);
-                            const errorData = await syncRes.json().catch(() => ({ error: 'Failed to sync' }));
-                            console.error('Failed to sync media:', errorData);
-                            alert('Failed to add movie. Please try again.');
-                            return;
-                          }
-                          
-                          const media = await syncRes.json();
-                          actualMediaId = media.id;
-                        } else if (id.startsWith('youtube-')) {
-                          // If it's a YouTube video, sync it first to get the database media ID
-                          const syncRes = await fetch('/api/media/sync', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ youtubeId: mediaId }),
-                          });
-                          
-                          if (!syncRes.ok) {
-                            // Revert optimistic update on error
-                            queryClient.setQueryData(['watchlist', 'personal'], previousWatchlist);
-                            const errorData = await syncRes.json().catch(() => ({ error: 'Failed to sync' }));
-                            console.error('Failed to sync YouTube video:', errorData);
-                            alert('Failed to add YouTube video. Please try again.');
-                            return;
-                          }
-                          
-                          const media = await syncRes.json();
-                          actualMediaId = media.id;
-                        }
-                        
-                        if (isInWatchlist) {
-                          // Remove from watchlist
-                          const deleteRes = await fetch(`/api/watchlist?mediaId=${actualMediaId}`, {
-                            method: 'DELETE',
-                          });
-                          
-                          if (!deleteRes.ok) {
-                            // Revert optimistic update on error
-                            queryClient.setQueryData(['watchlist', 'personal'], previousWatchlist);
-                            const errorData = await deleteRes.json().catch(() => ({ error: 'Failed to delete' }));
-                            console.error('Failed to remove from watchlist:', errorData);
-                            toast.showError('Failed to remove from watchlist. Please try again.');
-                            return;
-                          }
-                          toast.showSuccess(`Removed ${currentMovie.title} from watchlist`);
-                        } else {
-                          // Add to watchlist
-                          const addRes = await fetch('/api/watchlist', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ mediaId: actualMediaId }),
-                          });
-                          
-                          if (!addRes.ok) {
-                            // Revert optimistic update on error
-                            queryClient.setQueryData(['watchlist', 'personal'], previousWatchlist);
-                            const errorData = await addRes.json().catch(() => ({ error: 'Failed to add' }));
-                            console.error('Failed to add to watchlist:', errorData);
-                            const errorMessage = errorData.error || 'Failed to add to watchlist. Please try again.';
-                            if (errorData.error === 'Already in watchlist') {
-                              toast.showWarning('Already in watchlist');
-                            } else {
-                              toast.showError(errorMessage);
-                            }
-                            return;
-                          }
-                          toast.showSuccess(`Added ${currentMovie.title} to watchlist!`);
-                        }
-                        
-                        // Refetch to ensure we have the latest data (with correct IDs)
-                        await refetchPersonalWatchlist();
-                      } catch (error) {
-                        // Revert optimistic update on error
-                        queryClient.setQueryData(['watchlist', 'personal'], personalWatchlist);
-                        console.error('Failed to toggle watchlist:', error);
-                        toast.showError('An error occurred. Please try again.');
+                      } else {
+                        // Optimistically add
+                        newWatchlist = [...personalWatchlist, currentMovie];
                       }
+                      
+                      // Update the query cache immediately - UI updates instantly!
+                      queryClient.setQueryData(['watchlist', 'personal'], newWatchlist);
+                      
+                      // Now do the actual API calls in the background (non-blocking)
+                      // Extract mediaId from id (could be tmdb-123, youtube-123, or uuid)
+                      let mediaId = id.startsWith('tmdb-') ? id.replace('tmdb-', '') : 
+                                   id.startsWith('youtube-') ? id.replace('youtube-', '') : id;
+                      
+                      // Fire off API calls in background - don't await, just handle errors
+                      (async () => {
+                        try {
+                          let actualMediaId = mediaId;
+                          
+                          // If it's a TMDB ID, sync it first to get the database media ID
+                          if (id.startsWith('tmdb-')) {
+                            const syncRes = await fetch('/api/media/sync', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ tmdbId: mediaId, type: 'movie' }),
+                            });
+                            
+                            if (!syncRes.ok) {
+                              // Revert optimistic update on error
+                              queryClient.setQueryData(['watchlist', 'personal'], previousWatchlist);
+                              const errorData = await syncRes.json().catch(() => ({ error: 'Failed to sync' }));
+                              console.error('Failed to sync media:', errorData);
+                              toast.showError('Failed to add movie. Please try again.');
+                              return;
+                            }
+                            
+                            const media = await syncRes.json();
+                            actualMediaId = media.id;
+                          } else if (id.startsWith('youtube-')) {
+                            // If it's a YouTube video, sync it first to get the database media ID
+                            const syncRes = await fetch('/api/media/sync', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ youtubeId: mediaId }),
+                            });
+                            
+                            if (!syncRes.ok) {
+                              // Revert optimistic update on error
+                              queryClient.setQueryData(['watchlist', 'personal'], previousWatchlist);
+                              const errorData = await syncRes.json().catch(() => ({ error: 'Failed to sync' }));
+                              console.error('Failed to sync YouTube video:', errorData);
+                              toast.showError('Failed to add YouTube video. Please try again.');
+                              return;
+                            }
+                            
+                            const media = await syncRes.json();
+                            actualMediaId = media.id;
+                          }
+                          
+                          if (isInWatchlist) {
+                            // Remove from watchlist
+                            const deleteRes = await fetch(`/api/watchlist?mediaId=${actualMediaId}`, {
+                              method: 'DELETE',
+                            });
+                            
+                            if (!deleteRes.ok) {
+                              // Revert optimistic update on error
+                              queryClient.setQueryData(['watchlist', 'personal'], previousWatchlist);
+                              const errorData = await deleteRes.json().catch(() => ({ error: 'Failed to delete' }));
+                              console.error('Failed to remove from watchlist:', errorData);
+                              toast.showError('Failed to remove from watchlist. Please try again.');
+                              return;
+                            }
+                            toast.showSuccess(`Removed ${currentMovie.title} from watchlist`);
+                          } else {
+                            // Add to watchlist
+                            const addRes = await fetch('/api/watchlist', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ mediaId: actualMediaId }),
+                            });
+                            
+                            if (!addRes.ok) {
+                              // Revert optimistic update on error
+                              queryClient.setQueryData(['watchlist', 'personal'], previousWatchlist);
+                              const errorData = await addRes.json().catch(() => ({ error: 'Failed to add' }));
+                              console.error('Failed to add to watchlist:', errorData);
+                              const errorMessage = errorData.error || 'Failed to add to watchlist. Please try again.';
+                              if (errorData.error === 'Already in watchlist') {
+                                toast.showWarning('Already in watchlist');
+                              } else {
+                                toast.showError(errorMessage);
+                              }
+                              return;
+                            }
+                            
+                            // Update with actual data from server (in case IDs changed)
+                            const addedMovie = await addRes.json();
+                            queryClient.setQueryData<Movie[]>(['watchlist', 'personal'], (old = []) => {
+                              // Replace optimistic movie with real one
+                              const filtered = old.filter(m => m.id !== id && m.id !== actualMediaId);
+                              return [...filtered, addedMovie];
+                            });
+                            
+                            toast.showSuccess(`Added ${currentMovie.title} to watchlist!`);
+                          }
+                          
+                          // Silently refetch in background to ensure consistency
+                          refetchPersonalWatchlist().catch(() => {});
+                        } catch (error) {
+                          // Revert optimistic update on error
+                          queryClient.setQueryData(['watchlist', 'personal'], previousWatchlist);
+                          console.error('Failed to toggle watchlist:', error);
+                          toast.showError('An error occurred. Please try again.');
+                        }
+                      })();
                     }}
                     onSchedule={(id) => setSchedulingMovie(movies.find(m => m.id === id) || null)} 
                     onSelect={handleMovieSelect}
@@ -779,82 +792,143 @@ function HomeContent() {
           movie={schedulingMovie} 
           onClose={() => setSchedulingMovie(null)} 
           onConfirm={async (groupId: string, interestLevel: number) => {
-            try {
-              let mediaId = schedulingMovie.id.startsWith('tmdb-') 
-                ? schedulingMovie.id.replace('tmdb-', '')
-                : schedulingMovie.id.startsWith('youtube-')
-                ? schedulingMovie.id.replace('youtube-', '')
-                : schedulingMovie.id;
-              let actualMediaId = mediaId;
-              
-              // If it's a TMDB ID, sync it first to get the database media ID
-              if (schedulingMovie.id.startsWith('tmdb-')) {
-                const syncRes = await fetch('/api/media/sync', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ tmdbId: mediaId, type: 'movie' }),
-                });
-                
-                if (!syncRes.ok) {
-                  const errorData = await syncRes.json().catch(() => ({ error: 'Failed to sync' }));
-                  console.error('Failed to sync media:', errorData);
-                  alert('Failed to add movie. Please try again.');
-                  return;
-                }
-                
-                const media = await syncRes.json();
-                actualMediaId = media.id;
-              } else if (schedulingMovie.id.startsWith('youtube-')) {
-                // If it's a YouTube video, sync it first to get the database media ID
-                const syncRes = await fetch('/api/media/sync', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ youtubeId: mediaId }),
-                });
-                
-                if (!syncRes.ok) {
-                  const errorData = await syncRes.json().catch(() => ({ error: 'Failed to sync' }));
-                  console.error('Failed to sync YouTube video:', errorData);
-                  alert('Failed to add YouTube video. Please try again.');
-                  return;
-                }
-                
-                const media = await syncRes.json();
-                actualMediaId = media.id;
-              }
-              
-              // Add to group watchlist
-              const addRes = await fetch('/api/watchlist', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mediaId: actualMediaId, teamId: groupId }),
-              });
-              
-              if (!addRes.ok) {
-                const errorData = await addRes.json().catch(() => ({ error: 'Failed to add' }));
-                console.error('Failed to add to watchlist:', errorData);
-                const errorMessage = errorData.error || 'Failed to add movie to watchlist. Please try again.';
-                if (errorData.error === 'Already in watchlist') {
-                  toast.showWarning('Already in watchlist');
-                } else {
-                  toast.showError(errorMessage);
-                }
-                return;
-              }
-              
-              // Refresh watchlist if viewing that group
-              if (activeGroup === groupId) {
-                queryClient.invalidateQueries({ queryKey: ['groupWatchlist', groupId] });
-                queryClient.invalidateQueries({ queryKey: ['group', groupId] });
-              }
-              
-              // Close modal on success
-              toast.showSuccess(`Added ${schedulingMovie.title} to group watchlist!`);
-              setSchedulingMovie(null);
-            } catch (error) {
-              console.error('Error adding to watchlist:', error);
-              toast.showError('An error occurred. Please try again.');
+            // Optimistically update UI IMMEDIATELY (instant feedback)
+            const previousGroupMovies = groupMovies;
+            if (activeGroup === groupId) {
+              // Create a temporary movie object for optimistic update
+              const optimisticMovie: Movie = {
+                ...schedulingMovie,
+                id: schedulingMovie.id, // Use original ID for now
+                upvotes: 0,
+                downvotes: 0,
+                votes: 0,
+                userVote: null,
+              };
+              // Update local state immediately - UI updates instantly!
+              setGroupMovies(prev => [...prev, optimisticMovie]);
+              // Update query cache immediately
+              queryClient.setQueryData<Movie[]>(['groupWatchlist', groupId], (old = []) => [...old, optimisticMovie]);
             }
+            
+            // Close modal immediately for instant feedback
+            setSchedulingMovie(null);
+            
+            // Now do the actual API calls in the background (non-blocking)
+            (async () => {
+              try {
+                let mediaId = schedulingMovie.id.startsWith('tmdb-') 
+                  ? schedulingMovie.id.replace('tmdb-', '')
+                  : schedulingMovie.id.startsWith('youtube-')
+                  ? schedulingMovie.id.replace('youtube-', '')
+                  : schedulingMovie.id;
+                let actualMediaId = mediaId;
+                
+                // If it's a TMDB ID, sync it first to get the database media ID
+                if (schedulingMovie.id.startsWith('tmdb-')) {
+                  const syncRes = await fetch('/api/media/sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tmdbId: mediaId, type: 'movie' }),
+                  });
+                  
+                  if (!syncRes.ok) {
+                    // Revert optimistic update on error
+                    if (activeGroup === groupId) {
+                      setGroupMovies(previousGroupMovies);
+                      queryClient.setQueryData(['groupWatchlist', groupId], previousGroupMovies);
+                    }
+                    const errorData = await syncRes.json().catch(() => ({ error: 'Failed to sync' }));
+                    console.error('Failed to sync media:', errorData);
+                    toast.showError('Failed to add movie. Please try again.');
+                    return;
+                  }
+                  
+                  const media = await syncRes.json();
+                  actualMediaId = media.id;
+                } else if (schedulingMovie.id.startsWith('youtube-')) {
+                  // If it's a YouTube video, sync it first to get the database media ID
+                  const syncRes = await fetch('/api/media/sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ youtubeId: mediaId }),
+                  });
+                  
+                  if (!syncRes.ok) {
+                    // Revert optimistic update on error
+                    if (activeGroup === groupId) {
+                      setGroupMovies(previousGroupMovies);
+                      queryClient.setQueryData(['groupWatchlist', groupId], previousGroupMovies);
+                    }
+                    const errorData = await syncRes.json().catch(() => ({ error: 'Failed to sync' }));
+                    console.error('Failed to sync YouTube video:', errorData);
+                    toast.showError('Failed to add YouTube video. Please try again.');
+                    return;
+                  }
+                  
+                  const media = await syncRes.json();
+                  actualMediaId = media.id;
+                }
+                
+                // Add to group watchlist
+                const addRes = await fetch('/api/watchlist', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ mediaId: actualMediaId, teamId: groupId }),
+                });
+                
+                if (!addRes.ok) {
+                  // Revert optimistic update on error
+                  if (activeGroup === groupId) {
+                    setGroupMovies(previousGroupMovies);
+                    queryClient.setQueryData(['groupWatchlist', groupId], previousGroupMovies);
+                  }
+                  const errorData = await addRes.json().catch(() => ({ error: 'Failed to add' }));
+                  console.error('Failed to add to watchlist:', errorData);
+                  const errorMessage = errorData.error || 'Failed to add movie to watchlist. Please try again.';
+                  if (errorData.error === 'Already in watchlist') {
+                    toast.showWarning('Already in watchlist');
+                  } else {
+                    toast.showError(errorMessage);
+                  }
+                  return;
+                }
+                
+                // Get the actual movie data from the response
+                const addedMovie = await addRes.json();
+                
+                // Show success message only after API call succeeds
+                toast.showSuccess(`Added ${schedulingMovie.title} to group watchlist!`);
+                
+                // Update with actual data if viewing that group
+                if (activeGroup === groupId) {
+                  // Replace optimistic update with actual data
+                  setGroupMovies(prev => {
+                    // Remove the optimistic movie and add the real one
+                    const filtered = prev.filter(m => m.id !== actualMediaId && m.id !== schedulingMovie.id);
+                    return [...filtered, addedMovie];
+                  });
+                  // Update query cache with actual data
+                  queryClient.setQueryData<Movie[]>(['groupWatchlist', groupId], (old = []) => {
+                    const filtered = old.filter(m => m.id !== actualMediaId && m.id !== schedulingMovie.id);
+                    return [...filtered, addedMovie];
+                  });
+                } else {
+                  // If not viewing that group, just invalidate to refresh when they navigate to it
+                  queryClient.invalidateQueries({ queryKey: ['groupWatchlist', groupId] });
+                }
+                
+                // Also invalidate group query to ensure consistency
+                queryClient.invalidateQueries({ queryKey: ['group', groupId] });
+              } catch (error) {
+                // Revert optimistic update on error
+                if (activeGroup === groupId) {
+                  setGroupMovies(previousGroupMovies);
+                  queryClient.setQueryData(['groupWatchlist', groupId], previousGroupMovies);
+                }
+                console.error('Error adding to watchlist:', error);
+                toast.showError('An error occurred. Please try again.');
+              }
+            })();
           }} 
         />
       )}

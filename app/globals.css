@@ -214,25 +214,6 @@ button:active, a:active, [role="button"]:active {
   transform: scale(0.96);
 }
 
-/* Ripple effect for buttons */
-button::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  transform: translate(-50%, -50%);
-  transition: width 0.3s, height 0.3s;
-}
-
-button:active::before {
-  width: 300px;
-  height: 300px;
-}
-
 /* Smooth hover effects */
 .hover-lift {
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -295,11 +276,6 @@ button:active::before {
 /* Card hover effects */
 .card-hover {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.card-hover:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 /* Hide Scrollbars globally */

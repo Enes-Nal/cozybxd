@@ -46,11 +46,13 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onSchedule, onSel
           </div>
 
           <div className="mt-4 px-1">
-            <div className="flex gap-1 mb-1.5">
-              <span className="text-[9px] uppercase font-black text-gray-500 tracking-[0.15em]">
-                {movie.genre[0]}
-              </span>
-            </div>
+            {movie.genre && movie.genre.length > 0 && movie.genre[0] && (
+              <div className="flex gap-1 mb-1.5">
+                <span className="text-[9px] uppercase font-black text-gray-500 tracking-[0.15em]">
+                  {movie.genre[0]}
+                </span>
+              </div>
+            )}
             <h3 className="text-sm font-bold leading-tight group-hover:text-[var(--accent-color)] transition-colors truncate mb-1 text-main">
               {movie.title}
             </h3>

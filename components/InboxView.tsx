@@ -68,12 +68,66 @@ const InboxView: React.FC = () => {
     },
   });
 
+  // Mark as read mutation
+  const markAsReadMutation = useMutation({
+    mutationFn: async (requestIds: string[]) => {
+      const res = await fetch('/api/friends/requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestIds }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to mark as read');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['friendRequests'] });
+      toast.showSuccess('Marked as read');
+    },
+    onError: (error: Error) => {
+      toast.showError(error.message || 'Failed to mark as read');
+    },
+  });
+
+  // Mark all as read mutation
+  const markAllAsReadMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/friends/requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markAllAsRead: true }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to mark all as read');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['friendRequests'] });
+      toast.showSuccess('All marked as read');
+    },
+    onError: (error: Error) => {
+      toast.showError(error.message || 'Failed to mark all as read');
+    },
+  });
+
   const handleAccept = (requestId: string) => {
     acceptRequestMutation.mutate(requestId);
   };
 
   const handleReject = (requestId: string) => {
     rejectRequestMutation.mutate(requestId);
+  };
+
+  const handleMarkAsRead = (requestId: string) => {
+    markAsReadMutation.mutate([requestId]);
+  };
+
+  const handleMarkAllAsRead = () => {
+    markAllAsReadMutation.mutate();
   };
 
   const formatTime = (dateString: string) => {
@@ -96,15 +150,32 @@ const InboxView: React.FC = () => {
       id: req.id,
       type: 'friend_request',
       from: req.user.name || req.user.username || 'Unknown',
-      content: 'sent you a friend request',
+      avatar: req.user.avatar,
+      content: req.status === 'accepted' ? "'s friend request" : 'sent you a friend request',
       time: formatTime(req.created_at),
       requestId: req.id,
+      status: req.status,
+      read_at: req.read_at,
+      isRead: !!req.read_at || req.status === 'accepted',
     })),
   ];
 
+  const unreadCount = allNotifications.filter(n => !n.isRead).length;
+
   return (
     <div className="py-8 max-w-4xl view-transition">
-      <h2 className="text-3xl font-black uppercase tracking-tight mb-10 text-main animate-slide-down">Inbox</h2>
+      <div className="flex items-center justify-between mb-10">
+        <h2 className="text-3xl font-black uppercase tracking-tight text-main animate-slide-down">Inbox</h2>
+        {unreadCount > 0 && (
+          <button
+            onClick={handleMarkAllAsRead}
+            disabled={markAllAsReadMutation.isPending}
+            className="text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-accent transition-all-smooth disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-xl border border-gray-500/30 hover:border-accent/50"
+          >
+            {markAllAsReadMutation.isPending ? 'Marking...' : 'Mark All as Read'}
+          </button>
+        )}
+      </div>
       
       {isLoadingRequests ? (
         <div className="flex flex-col items-center justify-center py-20">
@@ -127,43 +198,91 @@ const InboxView: React.FC = () => {
         <div className="space-y-4">
           {allNotifications.map((n, idx) => {
             const staggerClass = idx < 5 ? `animate-stagger-${Math.min(idx + 1, 5)}` : 'animate-fade-in';
+            const isAccepted = n.type === 'friend_request' && n.status === 'accepted';
+            const isRead = n.isRead;
             return (
-            <div key={n.id} className={`glass p-8 rounded-[2rem] border-white/5 flex items-center justify-between group hover:bg-black/[0.02] transition-all-smooth card-hover ${staggerClass}`}>
+            <div key={n.id} className={`glass p-8 rounded-[2rem] border-white/5 flex items-center justify-between group transition-all-smooth ${isAccepted || isRead ? 'opacity-60 grayscale' : 'hover:bg-black/[0.02] card-hover'} ${staggerClass}`}>
               <div className="flex items-center gap-6">
-                <div className="w-14 h-14 rounded-2xl bg-black/[0.03] flex items-center justify-center text-accent border border-main">
-                  <i className={`fa-solid ${n.type === 'friend_request' ? 'fa-user-plus' : n.type === 'invite' ? 'fa-user-group' : n.type === 'vote' ? 'fa-check-to-slot' : 'fa-bell'} text-lg`}></i>
-                </div>
+                {!isRead && n.type === 'friend_request' && n.avatar ? (
+                  <div className={`w-14 h-14 rounded-2xl overflow-hidden border border-main flex items-center justify-center bg-black/[0.03] ${isAccepted ? 'opacity-70' : ''}`}>
+                    <img 
+                      src={n.avatar} 
+                      alt={n.from}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        // Fallback to icon if image fails to load
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent) {
+                          parent.innerHTML = '<i class="fa-solid fa-user-plus text-lg text-accent"></i>';
+                        }
+                      }}
+                    />
+                  </div>
+                ) : !isRead ? (
+                  <div className={`w-14 h-14 rounded-2xl bg-black/[0.03] flex items-center justify-center text-accent border border-main ${isAccepted ? 'opacity-70' : ''}`}>
+                    <i className={`fa-solid ${n.type === 'friend_request' ? 'fa-user-plus' : n.type === 'invite' ? 'fa-user-group' : n.type === 'vote' ? 'fa-check-to-slot' : 'fa-bell'} text-lg`}></i>
+                  </div>
+                ) : null}
                 <div>
-                  <p className="text-sm font-bold">
-                    <span className="text-accent font-black">{n.from}</span> 
-                    <span className="text-main ml-1">{n.content}</span>
+                  <p className={`text-sm font-bold ${isAccepted || isRead ? 'text-gray-500' : ''}`}>
+                    <span className={`${isAccepted || isRead ? 'text-gray-400' : 'text-accent'} font-black`}>{n.from}</span> 
+                    <span className={`${isAccepted || isRead ? 'text-gray-500' : 'text-main'} ml-1`}>{n.content}</span>
                   </p>
                   <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1.5">{n.time}</p>
                 </div>
               </div>
-              {n.type === 'friend_request' && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleAccept(n.requestId)}
-                    disabled={acceptRequestMutation.isPending || rejectRequestMutation.isPending}
-                    className="bg-accent hover:brightness-110 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all-smooth no-glow shadow-lg shadow-accent/10 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-                  >
-                    {acceptRequestMutation.isPending ? 'Accepting...' : 'Accept'}
-                  </button>
-                  <button
-                    onClick={() => handleReject(n.requestId)}
-                    disabled={acceptRequestMutation.isPending || rejectRequestMutation.isPending}
-                    className="bg-red-500/10 border border-red-500/50 text-red-500 hover:bg-red-500/20 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all-smooth disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-                  >
-                    {rejectRequestMutation.isPending ? 'Rejecting...' : 'Reject'}
-                  </button>
-                </div>
-              )}
-              {n.type !== 'friend_request' && (
-                <button className="bg-accent hover:brightness-110 text-white px-10 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all no-glow shadow-lg shadow-accent/10">
-                  {n.action || 'View'}
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {n.type === 'friend_request' && isAccepted ? (
+                  <div className="px-6 py-3 rounded-2xl bg-gray-500/20 border border-gray-500/30">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Accepted</span>
+                  </div>
+                ) : n.type === 'friend_request' && !isAccepted ? (
+                  <>
+                    {!isRead && (
+                      <button
+                        onClick={() => handleMarkAsRead(n.requestId)}
+                        disabled={markAsReadMutation.isPending}
+                        className="text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-accent transition-all-smooth disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-xl border border-gray-500/30 hover:border-accent/50"
+                      >
+                        Mark as Read
+                      </button>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleAccept(n.requestId)}
+                        disabled={acceptRequestMutation.isPending || rejectRequestMutation.isPending}
+                        className="bg-accent hover:brightness-110 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all-smooth no-glow shadow-lg shadow-accent/10 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                      >
+                        {acceptRequestMutation.isPending ? 'Accepting...' : 'Accept'}
+                      </button>
+                      <button
+                        onClick={() => handleReject(n.requestId)}
+                        disabled={acceptRequestMutation.isPending || rejectRequestMutation.isPending}
+                        className="bg-red-500/10 border border-red-500/50 text-red-500 hover:bg-red-500/20 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all-smooth disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                      >
+                        {rejectRequestMutation.isPending ? 'Rejecting...' : 'Reject'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {!isRead && (
+                      <button
+                        onClick={() => handleMarkAsRead(n.requestId)}
+                        disabled={markAsReadMutation.isPending}
+                        className="text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-accent transition-all-smooth disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-xl border border-gray-500/30 hover:border-accent/50"
+                      >
+                        Mark as Read
+                      </button>
+                    )}
+                    <button className="bg-accent hover:brightness-110 text-white px-10 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all no-glow shadow-lg shadow-accent/10">
+                      {n.action || 'View'}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
             );
           })}

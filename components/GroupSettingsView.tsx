@@ -38,6 +38,10 @@ const GroupSettingsView: React.FC<GroupSettingsViewProps> = ({ groupId, onBack }
   });
   const [showExpirationDropdown, setShowExpirationDropdown] = useState(false);
   const expirationDropdownRef = useRef<HTMLDivElement>(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [editedName, setEditedName] = useState('');
+  const [editedDescription, setEditedDescription] = useState('');
 
   // Fetch group data
   const { data: groupData, isLoading: groupLoading } = useQuery({
@@ -86,6 +90,40 @@ const GroupSettingsView: React.FC<GroupSettingsViewProps> = ({ groupId, onBack }
       toast.showError(error.message || 'Failed to update setting');
     },
   });
+
+  // Update group name/description mutation
+  const updateGroupInfoMutation = useMutation({
+    mutationFn: async (data: { name?: string; description?: string }) => {
+      const res = await fetch(`/api/teams/${groupId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to update group');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['group', groupId] });
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      setIsEditingName(false);
+      setIsEditingDescription(false);
+      toast.showSuccess('Group information updated');
+    },
+    onError: (error: Error) => {
+      toast.showError(error.message || 'Failed to update group');
+    },
+  });
+
+  // Initialize edited values when group data loads
+  useEffect(() => {
+    if (group) {
+      setEditedName(group.name);
+      setEditedDescription(group.description || '');
+    }
+  }, [group]);
 
   // Generate invite code mutation
   const generateInviteCodeMutation = useMutation({
@@ -254,6 +292,112 @@ const GroupSettingsView: React.FC<GroupSettingsViewProps> = ({ groupId, onBack }
       <p className="text-sm text-gray-400 mb-10">Manage group preferences and invite codes</p>
       
       <div className="space-y-8">
+        {/* Group Information */}
+        <section>
+          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--accent-color)] mb-6">
+            Group Information
+          </h3>
+          <div className="glass p-6 rounded-[2rem] border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent space-y-6">
+            {/* Group Name */}
+            <div>
+              <label className="text-xs font-bold text-gray-400 mb-2 block">Group Name</label>
+              {isEditingName ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={editedName}
+                    onChange={(e) => setEditedName(e.target.value)}
+                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-accent/50 focus:bg-white/10 transition-all"
+                    placeholder="Enter group name"
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => {
+                      if (editedName.trim()) {
+                        updateGroupInfoMutation.mutate({ name: editedName.trim() });
+                      }
+                    }}
+                    disabled={!editedName.trim() || updateGroupInfoMutation.isPending}
+                    className="px-4 py-2.5 bg-accent text-black rounded-xl text-sm font-bold hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsEditingName(false);
+                      setEditedName(group?.name || '');
+                    }}
+                    disabled={updateGroupInfoMutation.isPending}
+                    className="px-4 py-2.5 bg-white/5 border border-white/10 text-gray-400 rounded-xl text-sm font-bold hover:bg-white/10 transition-all disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <p className="flex-1 text-sm font-bold">{group.name}</p>
+                  <button
+                    onClick={() => setIsEditingName(true)}
+                    className="px-3 py-2 text-gray-400 hover:text-white transition-colors"
+                    title="Edit name"
+                  >
+                    <i className="fa-solid fa-pencil text-xs"></i>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Group Description */}
+            <div>
+              <label className="text-xs font-bold text-gray-400 mb-2 block">Description</label>
+              {isEditingDescription ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={editedDescription}
+                    onChange={(e) => setEditedDescription(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-accent/50 focus:bg-white/10 transition-all resize-none"
+                    placeholder="Enter group description"
+                    rows={3}
+                    autoFocus
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        updateGroupInfoMutation.mutate({ description: editedDescription.trim() || null });
+                      }}
+                      disabled={updateGroupInfoMutation.isPending}
+                      className="px-4 py-2.5 bg-accent text-black rounded-xl text-sm font-bold hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsEditingDescription(false);
+                        setEditedDescription(group?.description || '');
+                      }}
+                      disabled={updateGroupInfoMutation.isPending}
+                      className="px-4 py-2.5 bg-white/5 border border-white/10 text-gray-400 rounded-xl text-sm font-bold hover:bg-white/10 transition-all disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2">
+                  <p className="flex-1 text-sm text-gray-300">{group.description || 'No description'}</p>
+                  <button
+                    onClick={() => setIsEditingDescription(true)}
+                    className="px-3 py-2 text-gray-400 hover:text-white transition-colors"
+                    title="Edit description"
+                  >
+                    <i className="fa-solid fa-pencil text-xs"></i>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
         {/* Interest Level Voting */}
         <section>
           <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--accent-color)] mb-6">

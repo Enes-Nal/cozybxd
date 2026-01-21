@@ -295,7 +295,7 @@ const GroupChatModal: React.FC<GroupChatModalProps> = ({
       {/* Modal */}
       <div className="fixed inset-0 z-[200] flex items-end justify-end p-4 pointer-events-none">
         <div className="pointer-events-auto w-full max-w-md h-[600px] flex flex-col animate-in slide-in-from-bottom-4 duration-300">
-        <div className="glass rounded-t-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.03] to-transparent flex flex-col h-full shadow-2xl">
+        <div className="glass rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.03] to-transparent flex flex-col h-full shadow-2xl">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-white/10">
             <div className="flex items-center gap-3">
@@ -362,9 +362,9 @@ const GroupChatModal: React.FC<GroupChatModalProps> = ({
                 return (
                   <div
                     key={message.id}
-                    className={`flex gap-2 group relative ${
+                    className={`flex gap-3 group relative ${
                       ownMessage ? 'flex-row-reverse' : ''
-                    } ${isFirstInGroup ? 'mt-4' : '-mt-0.5'}`}
+                    } ${isFirstInGroup ? 'mt-4' : 'mt-6'}`}
                   >
                     {/* Avatar - only show for first message in group */}
                     <div className="w-8 h-8 flex-shrink-0">
@@ -406,7 +406,7 @@ const GroupChatModal: React.FC<GroupChatModalProps> = ({
                     >
                       {/* Name and time - only show for first message in group */}
                       {isFirstInGroup && (
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-2">
                           <span className="text-xs font-bold text-gray-300">
                             {message.users?.name || 'Unknown'}
                           </span>
@@ -446,11 +446,11 @@ const GroupChatModal: React.FC<GroupChatModalProps> = ({
                       </div>
                     ) : (
                       <div
-                        className={`px-4 rounded-2xl ${
+                        className={`px-4 py-3 rounded-2xl ${
                           ownMessage
                             ? 'bg-accent text-white'
                             : 'bg-white/5 text-gray-200'
-                        } ${isFirstInGroup ? 'py-2' : 'py-1.5'}`}
+                        }`}
                       >
                         <p className="text-sm whitespace-pre-wrap break-words">
                           {message.message}

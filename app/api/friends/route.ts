@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
       if (friendUsers) {
         friends = friendUsers.map((user: any) => ({
           ...transformUserToFrontend(user),
+          username: user.username || null,
           isDirectFriend: true,
         }));
       }

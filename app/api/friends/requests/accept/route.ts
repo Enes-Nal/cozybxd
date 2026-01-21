@@ -107,10 +107,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update the friend request status to accepted
+    // Update the friend request status to accepted and mark as read
     const { error: updateError } = await supabase
       .from('friend_requests')
-      .update({ status: 'accepted' })
+      .update({ 
+        status: 'accepted',
+        read_at: new Date().toISOString()
+      })
       .eq('id', requestId);
 
     if (updateError) {
@@ -118,6 +121,31 @@ export async function POST(request: NextRequest) {
       // Note: Friendship is already created, but we'll log the error
       // In a real transaction system, we'd rollback, but Supabase doesn't support transactions
       // The friendship is still valid, so we'll continue
+    }
+
+    // Get the current user's data for the notification
+    const { data: currentUserData, error: currentUserError } = await supabase
+      .from('users')
+      .select('name')
+      .eq('id', session.user.id)
+      .single();
+
+    // Create a notification for the requester that their friend request was accepted
+    const requesterName = currentUserData?.name || session.user.name || 'Someone';
+    const { error: notificationError } = await supabase
+      .from('notifications')
+      .insert({
+        user_id: friendRequest.requester_id,
+        type: 'friend_request_accepted',
+        title: 'Friend Request Accepted',
+        message: `${requesterName} accepted your friend request`,
+        related_user_id: session.user.id,
+        is_read: false,
+      });
+
+    if (notificationError) {
+      console.error('Create notification error:', notificationError);
+      // Don't fail the request if notification creation fails
     }
 
     // Get the friend's full data

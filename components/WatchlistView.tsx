@@ -1,10 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Movie } from '@/lib/types';
 import { useToast } from './Toast';
+import { useLayoutAnimation } from '@/lib/hooks/useLayoutAnimation';
+
+// Extended Movie type with team information for shared watchlists
+interface MovieWithTeam extends Movie {
+  teamId?: string;
+  teamName?: string;
+}
 
 const NewListModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [listName, setListName] = useState('');
@@ -135,6 +142,13 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
   const [isNewListModalOpen, setIsNewListModalOpen] = useState(false);
   const queryClient = useQueryClient();
   const toast = useToast();
+  const gridRef = useRef<HTMLDivElement>(null);
+  
+  // Setup layout animation for the grid - animates when movies change or tab switches
+  useLayoutAnimation(gridRef, {
+    duration: 600,
+    ease: 'easeOutExpo',
+  }, [movies.length, tab, movies.map(m => m.id).join(',')]);
 
   // Fetch personal watchlist
   const { data: personalWatchlist = [], isLoading: personalLoading } = useQuery({
@@ -158,37 +172,70 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
     enabled: sessionStatus === 'authenticated',
   });
 
-  // Fetch watchlist for first team (for shared tab)
-  const firstTeamId = teamsData.length > 0 ? teamsData[0].id : null;
-  const { data: sharedWatchlist = [], isLoading: sharedLoading } = useQuery({
-    queryKey: ['watchlist', 'shared', firstTeamId],
+  // Get team IDs for query key dependency
+  const teamIds = useMemo(() => teamsData.map((team: any) => team.id).sort().join(','), [teamsData]);
+
+  // Fetch all team watchlists
+  const teamWatchlistResults = useQuery({
+    queryKey: ['watchlist', 'shared', 'all', teamIds],
     queryFn: async () => {
-      if (!firstTeamId) return [];
-      const res = await fetch(`/api/watchlist?teamId=${firstTeamId}`);
-      if (!res.ok) return [];
-      return res.json();
+      if (teamsData.length === 0) return [];
+      
+      // Fetch watchlists for all teams in parallel
+      const results = await Promise.all(
+        teamsData.map(async (team: any) => {
+          try {
+            const res = await fetch(`/api/watchlist?teamId=${team.id}`);
+            if (!res.ok) return [];
+            const movies = await res.json();
+            // Add team information to each movie
+            return movies.map((movie: Movie) => ({
+              ...movie,
+              teamId: team.id,
+              teamName: team.name,
+            } as MovieWithTeam));
+          } catch (error) {
+            console.error(`Error fetching watchlist for team ${team.id}:`, error);
+            return [];
+          }
+        })
+      );
+      
+      // Flatten the array of arrays into a single array
+      return results.flat();
     },
-    enabled: sessionStatus === 'authenticated' && !!firstTeamId,
+    enabled: sessionStatus === 'authenticated' && teamsData.length > 0,
   });
+
+  const sharedWatchlist: MovieWithTeam[] = teamWatchlistResults.data || [];
+  const sharedLoading = teamWatchlistResults.isLoading;
 
   // Use prop movies if provided (for backwards compatibility), otherwise use fetched data
   const movies = propMovies || (tab === 'Personal' ? personalWatchlist : sharedWatchlist);
   const isLoading = tab === 'Personal' ? personalLoading : sharedLoading;
 
-  const handleDelete = async (movie: Movie) => {
+  const handleDelete = async (movie: Movie | MovieWithTeam) => {
     if (!session?.user?.id) return;
 
     const isPersonal = tab === 'Personal';
-    const teamId = isPersonal ? null : firstTeamId;
+    const movieWithTeam = movie as MovieWithTeam;
+    const teamId = isPersonal ? null : movieWithTeam.teamId;
     const queryKey = isPersonal 
       ? ['watchlist', 'personal']
-      : ['watchlist', 'shared', firstTeamId];
+      : ['watchlist', 'shared', 'all'];
 
     // Optimistic update: remove from cache immediately
-    const previousWatchlist = queryClient.getQueryData<Movie[]>(queryKey) || [];
-    queryClient.setQueryData<Movie[]>(queryKey, (old = []) => 
-      old.filter(m => m.id !== movie.id)
-    );
+    const previousWatchlist = queryClient.getQueryData<MovieWithTeam[]>(queryKey) || [];
+    if (isPersonal) {
+      queryClient.setQueryData<Movie[]>(queryKey, (old = []) => 
+        old.filter(m => m.id !== movie.id)
+      );
+    } else {
+      // For shared watchlists, filter by both id and teamId to ensure we remove the right one
+      queryClient.setQueryData<MovieWithTeam[]>(queryKey, (old = []) => 
+        old.filter(m => !(m.id === movie.id && (m as MovieWithTeam).teamId === movieWithTeam.teamId))
+      );
+    }
 
     try {
       // Make DELETE request
@@ -238,7 +285,16 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
       }
 
       // Refetch to ensure consistency
-      await queryClient.invalidateQueries({ queryKey });
+      if (isPersonal) {
+        await queryClient.invalidateQueries({ queryKey: ['watchlist', 'personal'] });
+      } else {
+        // Invalidate all shared watchlists
+        await queryClient.invalidateQueries({ queryKey: ['watchlist', 'shared', 'all'] });
+        // Also invalidate individual team queries
+        teamsData.forEach((team: any) => {
+          queryClient.invalidateQueries({ queryKey: ['watchlist', 'shared', team.id] });
+        });
+      }
       toast.showSuccess('Removed from watchlist');
     } catch (error) {
       // Revert optimistic update on error
@@ -254,7 +310,7 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
       <div className="flex justify-between items-center mb-10">
         <h2 className="text-3xl font-black uppercase tracking-tight text-main">WATCHLISTS</h2>
         <div className="flex bg-black/[0.03] p-1 rounded-2xl border border-main">
-          {['Personal', `Shared (${teamsData.length})`].map(t => {
+          {['Personal', `Shared (${sharedWatchlist.length})`].map(t => {
             const isPersonal = t.startsWith('Personal');
             const isActive = (isPersonal && tab === 'Personal') || (!isPersonal && tab === 'Shared');
             return (
@@ -289,40 +345,51 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {movies.map((movie: Movie) => (
-          <div key={movie.id} className="glass rounded-[2rem] p-5 flex gap-5 hover:border-accent/40 transition-all duration-300 group hover:scale-[1.02] active:scale-100">
-            {movie.poster ? (
-              <img src={movie.poster} className="w-20 h-28 rounded-xl object-cover shadow-sm" alt={movie.title} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-            ) : (
-              <div className="w-20 h-28 rounded-xl bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center shadow-sm">
-                <i className="fa-solid fa-image text-gray-600 text-xl"></i>
-              </div>
-            )}
-            <div className="flex-1 flex flex-col justify-between py-1">
-              <div>
-                <h4 className="font-black text-sm text-main group-hover:text-accent transition-colors">{movie.title}</h4>
-                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter mt-1">{movie.year} • {movie.runtime}</p>
-              </div>
-              <div className="flex gap-2">
-                <button className="flex-1 bg-accent text-white text-[10px] font-black uppercase tracking-widest py-2 rounded-xl hover:brightness-110 active:scale-95 transition-all duration-200">
-                  Watch
-                </button>
-                <button 
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleDelete(movie);
-                  }}
-                  className="px-3 text-gray-400 hover:text-accent active:scale-90 transition-all duration-200"
-                  title="Remove from watchlist"
-                >
-                  <i className="fa-solid fa-trash-can text-xs"></i>
-                </button>
+        <div ref={gridRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {movies.map((movie: Movie | MovieWithTeam) => {
+            const movieWithTeam = movie as MovieWithTeam;
+            const isSharedTab = tab === 'Shared';
+            return (
+            <div key={`${movie.id}-${movieWithTeam.teamId || 'personal'}`} className="glass rounded-[2rem] p-5 flex gap-5 hover:border-accent/40 transition-all duration-300 group hover:scale-[1.02] active:scale-100">
+              {movie.poster ? (
+                <img src={movie.poster} className="w-20 h-28 rounded-xl object-cover shadow-sm" alt={movie.title} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+              ) : (
+                <div className="w-20 h-28 rounded-xl bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center shadow-sm">
+                  <i className="fa-solid fa-image text-gray-600 text-xl"></i>
+                </div>
+              )}
+              <div className="flex-1 flex flex-col justify-between py-1">
+                <div>
+                  <h4 className="font-black text-sm text-main group-hover:text-accent transition-colors">{movie.title}</h4>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter">{movie.year} • {movie.runtime}</p>
+                    {isSharedTab && movieWithTeam.teamName && (
+                      <span className="text-[9px] text-accent font-bold uppercase tracking-tighter ml-2 px-2 py-0.5 bg-accent/10 rounded-md">
+                        {movieWithTeam.teamName}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button className="flex-1 bg-accent text-white text-[10px] font-black uppercase tracking-widest py-2 rounded-xl hover:brightness-110 active:scale-95 transition-all duration-200">
+                    Watch
+                  </button>
+                  <button 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleDelete(movie);
+                    }}
+                    className="px-3 text-gray-400 hover:text-accent active:scale-90 transition-all duration-200"
+                    title="Remove from watchlist"
+                  >
+                    <i className="fa-solid fa-trash-can text-xs"></i>
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-          ))}
+            );
+          })}
         
           <button 
           onClick={() => setIsNewListModalOpen(true)}

@@ -1,16 +1,18 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Movie } from '@/lib/types';
 import { useToast } from './Toast';
+import { useLayoutAnimation } from '@/lib/hooks/useLayoutAnimation';
 
 const HistoryView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) => {
   const { status: sessionStatus } = useSession();
   const queryClient = useQueryClient();
   const toast = useToast();
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const timelineRef = useRef<HTMLDivElement>(null);
 
   // Fetch history from API
   const { data: historyData = [], isLoading } = useQuery({
@@ -25,6 +27,12 @@ const HistoryView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) => 
 
   // Use prop movies if provided (for backwards compatibility), otherwise use fetched data
   const movies = propMovies || historyData;
+  
+  // Setup layout animation for the timeline - animates when movies change
+  useLayoutAnimation(timelineRef, {
+    duration: 500,
+    ease: 'easeOutExpo',
+  }, [movies.length, movies.map((m: any) => m.id).join(',')]);
 
   const handleDelete = async (movie: any) => {
     if (sessionStatus !== 'authenticated') return;
@@ -97,7 +105,7 @@ const HistoryView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) => 
           </p>
         </div>
       ) : (
-        <div className="relative border-l-2 border-main ml-4 pl-8 space-y-12 pb-20">
+        <div ref={timelineRef} className="relative border-l-2 border-main ml-4 pl-8 space-y-12 pb-20">
           {movies.map((movie: any, idx: number) => {
             const watchedDate = movie.watchedAt ? new Date(movie.watchedAt) : new Date();
             const month = watchedDate.toLocaleString('default', { month: 'short' }).toUpperCase();

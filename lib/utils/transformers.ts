@@ -143,7 +143,17 @@ async function getGenreMap(): Promise<Map<number, string>> {
 
 export async function transformTMDBMovieToMovie(tmdbMovie: TMDBMovie, watchlistItem?: any, logs?: any[]): Promise<Movie> {
   const genreMap = await getGenreMap();
-  const genres = tmdbMovie.genre_ids.map(id => genreMap.get(id) || 'Unknown').filter(Boolean);
+  // Handle missing or empty genre_ids - ensure we always have an array
+  const genreIds = Array.isArray(tmdbMovie.genre_ids) ? tmdbMovie.genre_ids : [];
+  const genres = genreIds
+    .map(id => genreMap.get(id))
+    .filter(Boolean); // Remove undefined/null values
+  
+  // If genreMap is empty or doesn't have the IDs, and we have genre_ids, use 'Unknown'
+  // This handles the case where genreMap hasn't loaded yet or doesn't have all genres
+  const finalGenres = genres.length > 0 
+    ? genres 
+    : (genreIds.length > 0 ? ['Unknown'] : []);
   
   const runtime = (tmdbMovie.runtime != null && tmdbMovie.runtime > 0)
     ? (() => {
@@ -191,7 +201,7 @@ export async function transformTMDBMovieToMovie(tmdbMovie: TMDBMovie, watchlistI
     poster: getPosterUrl(tmdbMovie.poster_path),
     year,
     runtime,
-    genre: genres.length > 0 ? genres : ['Unknown'],
+    genre: finalGenres.length > 0 ? finalGenres : ['Unknown'],
     description: tmdbMovie.overview || undefined,
     priority,
     status,
@@ -206,7 +216,17 @@ export async function transformTMDBMovieToMovie(tmdbMovie: TMDBMovie, watchlistI
 
 // Synchronous version for when genres are already known
 export function transformTMDBMovieToMovieSync(tmdbMovie: TMDBMovie, genreMap: Map<number, string>, watchlistItem?: any, logs?: any[]): Movie {
-  const genres = tmdbMovie.genre_ids.map(id => genreMap.get(id) || 'Unknown').filter(Boolean);
+  // Handle missing or empty genre_ids - ensure we always have an array
+  const genreIds = Array.isArray(tmdbMovie.genre_ids) ? tmdbMovie.genre_ids : [];
+  const genres = genreIds
+    .map(id => genreMap.get(id))
+    .filter(Boolean); // Remove undefined/null values
+  
+  // If genreMap is empty or doesn't have the IDs, and we have genre_ids, use 'Unknown'
+  // This handles the case where genreMap hasn't loaded yet or doesn't have all genres
+  const finalGenres = genres.length > 0 
+    ? genres 
+    : (genreIds.length > 0 ? ['Unknown'] : []);
   
   const runtime = (tmdbMovie.runtime != null && tmdbMovie.runtime > 0)
     ? (() => {
@@ -254,7 +274,7 @@ export function transformTMDBMovieToMovieSync(tmdbMovie: TMDBMovie, genreMap: Ma
     poster: getPosterUrl(tmdbMovie.poster_path),
     year,
     runtime,
-    genre: genres.length > 0 ? genres : ['Unknown'],
+    genre: finalGenres.length > 0 ? finalGenres : ['Unknown'],
     description: tmdbMovie.overview || undefined,
     priority,
     status,

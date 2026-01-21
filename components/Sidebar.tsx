@@ -34,7 +34,7 @@ const GroupItem: React.FC<{
       className="w-full flex items-center gap-4 px-5 py-3 rounded-xl transition-all duration-200 text-gray-400 hover:text-main hover:bg-black/[0.05] active:scale-[0.98] group"
     >
       {hasPicture ? (
-        <div className="relative shrink-0 transition-transform duration-200 group-hover:scale-110">
+        <div className="relative shrink-0 flex items-center justify-center transition-transform duration-200 group-hover:scale-110">
           <img 
             src={pictureUrl} 
             alt={name}
@@ -43,7 +43,7 @@ const GroupItem: React.FC<{
           />
         </div>
       ) : (
-        <div className={`w-1.5 h-1.5 rounded-full ${color} transition-transform duration-200 group-hover:scale-125 shrink-0`}></div>
+        <div className={`w-1.5 h-1.5 rounded-full ${color} transition-transform duration-200 group-hover:scale-125 shrink-0 self-center`}></div>
       )}
       <span className="text-sm font-semibold truncate text-main transition-colors duration-200 group-hover:text-accent">{name}</span>
     </button>
@@ -104,12 +104,23 @@ const Sidebar: React.FC<SidebarProps> = ({
     enabled: !!session,
   });
 
-  const friends: User[] = friendsData;
+  // Fetch incoming friend requests for inbox notification
+  const { data: incomingRequests = [] } = useQuery({
+    queryKey: ['friendRequests', 'incoming'],
+    queryFn: async () => {
+      const res = await fetch('/api/friends/requests?type=incoming');
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!session,
+    refetchInterval: 30000, // Refetch every 30 seconds to check for new requests
+  });
 
+  const friends: User[] = friendsData;
 
   const navItems = [
     { id: 'Home', icon: 'fa-house' },
-    { id: 'Inbox', icon: 'fa-envelope', badge: false },
+    { id: 'Inbox', icon: 'fa-envelope', badge: incomingRequests.length > 0 },
     { id: 'Watchlists', icon: 'fa-list-check' },
     { id: 'History', icon: 'fa-clock-rotate-left' }
   ];
@@ -155,7 +166,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <div className="relative transition-transform duration-300">
                   <i className={`fa-solid ${item.icon} text-sm w-5 transition-transform duration-300 ${activeTab === item.id ? 'scale-110' : ''}`}></i>
                   {item.badge && (
-                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#ff4444] rounded-full border-2 border-sidebar animate-pulse"></span>
+                    <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full border-2 border-sidebar shadow-lg shadow-red-500/50 animate-pulse"></span>
                   )}
                 </div>
                 <span className="text-sm font-semibold transition-all duration-300">{item.id}</span>

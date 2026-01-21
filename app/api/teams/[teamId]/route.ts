@@ -114,7 +114,7 @@ export async function PATCH(
   }
 
   const body = await request.json();
-  const { pictureUrl, interestLevelVotingEnabled } = body;
+  const { pictureUrl, interestLevelVotingEnabled, name, description } = body;
 
   // Build update data - only include fields if they're being set
   const updateData: Record<string, any> = {
@@ -127,6 +127,14 @@ export async function PATCH(
   
   if (interestLevelVotingEnabled !== undefined) {
     updateData.interest_level_voting_enabled = interestLevelVotingEnabled === true;
+  }
+  
+  if (name !== undefined) {
+    updateData.name = name;
+  }
+  
+  if (description !== undefined) {
+    updateData.description = description === null ? null : description;
   }
 
   // Try the update using direct Supabase client
