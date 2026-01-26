@@ -155,23 +155,24 @@ export async function POST(
         .eq('id', mediaId)
         .single();
 
-      await supabase
-        .from('team_activity_logs')
-        .insert({
-          team_id: teamId,
-          user_id: session.user.id,
-          activity_type: 'movie_upvoted',
-          media_id: mediaId,
-          metadata: media ? { 
-            title: media.title,
-            type: media.type,
-            action: voteAction
-          } : { action: voteAction },
-        })
-        .catch((err) => {
-          // Don't fail the request if logging fails
-          console.error('Failed to log activity:', err);
-        });
+      try {
+        await supabase
+          .from('team_activity_logs')
+          .insert({
+            team_id: teamId,
+            user_id: session.user.id,
+            activity_type: 'movie_upvoted',
+            media_id: mediaId,
+            metadata: media ? { 
+              title: media.title,
+              type: media.type,
+              action: voteAction
+            } : { action: voteAction },
+          });
+      } catch (err) {
+        // Don't fail the request if logging fails
+        console.error('Failed to log activity:', err);
+      }
     }
     
     return NextResponse.json({ 

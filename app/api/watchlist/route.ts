@@ -185,22 +185,23 @@ export async function POST(request: NextRequest) {
 
     // Log activity: movie added (only for team watchlists)
     if (teamId) {
-      await supabase
-        .from('team_activity_logs')
-        .insert({
-          team_id: teamId,
-          user_id: session.user.id,
-          activity_type: 'movie_added',
-          media_id: mediaId,
-          metadata: { 
-            title: existingMedia.title,
-            type: existingMedia.type
-          },
-        })
-        .catch((err) => {
-          // Don't fail the request if logging fails
-          console.error('Failed to log activity:', err);
-        });
+      try {
+        await supabase
+          .from('team_activity_logs')
+          .insert({
+            team_id: teamId,
+            user_id: session.user.id,
+            activity_type: 'movie_added',
+            media_id: mediaId,
+            metadata: { 
+              title: existingMedia.title,
+              type: existingMedia.type
+            },
+          });
+      } catch (err) {
+        // Don't fail the request if logging fails
+        console.error('Failed to log activity:', err);
+      }
     }
 
     const movie = transformMediaToMovie(watchlistItem.media, watchlistItem);
@@ -292,22 +293,23 @@ export async function DELETE(request: NextRequest) {
           .eq('id', actualMediaId)
           .single();
 
-        await supabase
-          .from('team_activity_logs')
-          .insert({
-            team_id: teamId,
-            user_id: session.user.id,
-            activity_type: 'movie_removed',
-            media_id: actualMediaId,
-            metadata: media ? { 
-              title: media.title,
-              type: media.type
-            } : {},
-          })
-          .catch((err) => {
-            // Don't fail the request if logging fails
-            console.error('Failed to log activity:', err);
-          });
+        try {
+          await supabase
+            .from('team_activity_logs')
+            .insert({
+              team_id: teamId,
+              user_id: session.user.id,
+              activity_type: 'movie_removed',
+              media_id: actualMediaId,
+              metadata: media ? { 
+                title: media.title,
+                type: media.type
+              } : {},
+            });
+        } catch (err) {
+          // Don't fail the request if logging fails
+          console.error('Failed to log activity:', err);
+        }
       }
 
       return NextResponse.json({ success: true });

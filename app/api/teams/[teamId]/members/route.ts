@@ -95,22 +95,23 @@ export async function DELETE(
   }
 
   // Log activity: member left (or was removed)
-  await supabase
-    .from('team_activity_logs')
-    .insert({
-      team_id: teamId,
-      user_id: userIdToRemove,
-      activity_type: 'member_left',
-      metadata: { 
-        action: targetUserId ? 'removed' : 'left',
-        removed_by: targetUserId ? session.user.id : null,
-        removed_by_name: targetUserId ? session.user.name || session.user.email || 'Unknown' : null,
-      },
-    })
-    .catch((err) => {
-      // Don't fail the request if logging fails
-      console.error('Failed to log activity:', err);
-    });
+  try {
+    await supabase
+      .from('team_activity_logs')
+      .insert({
+        team_id: teamId,
+        user_id: userIdToRemove,
+        activity_type: 'member_left',
+        metadata: { 
+          action: targetUserId ? 'removed' : 'left',
+          removed_by: targetUserId ? session.user.id : null,
+          removed_by_name: targetUserId ? session.user.name || session.user.email || 'Unknown' : null,
+        },
+      });
+  } catch (err) {
+    // Don't fail the request if logging fails
+    console.error('Failed to log activity:', err);
+  }
 
   // Create notification if user was kicked (not if they left themselves)
   if (targetUserId && targetUserId !== session.user.id) {
@@ -125,21 +126,22 @@ export async function DELETE(
     const teamName = team.name || 'the group';
 
     // Create notification for the kicked user
-    await supabase
-      .from('notifications')
-      .insert({
-        user_id: userIdToRemove,
-        type: 'team_member_removed',
-        title: 'Removed from Group',
-        message: `${adminName} removed you from "${teamName}"`,
-        related_user_id: session.user.id,
-        related_team_id: teamId,
-        is_read: false,
-      })
-      .catch((err) => {
-        // Don't fail the request if notification creation fails
-        console.error('Failed to create notification:', err);
-      });
+    try {
+      await supabase
+        .from('notifications')
+        .insert({
+          user_id: userIdToRemove,
+          type: 'team_member_removed',
+          title: 'Removed from Group',
+          message: `${adminName} removed you from "${teamName}"`,
+          related_user_id: session.user.id,
+          related_team_id: teamId,
+          is_read: false,
+        });
+    } catch (err) {
+      // Don't fail the request if notification creation fails
+      console.error('Failed to create notification:', err);
+    }
   }
 
   return NextResponse.json({ success: true });

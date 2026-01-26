@@ -176,18 +176,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Log activity: member joined
-    await supabase
-      .from('team_activity_logs')
-      .insert({
-        team_id: teamId,
-        user_id: session.user.id,
-        activity_type: 'member_joined',
-        metadata: { action: 'joined' },
-      })
-      .catch((err) => {
-        // Don't fail the request if logging fails
-        console.error('Failed to log activity:', err);
-      });
+    try {
+      await supabase
+        .from('team_activity_logs')
+        .insert({
+          team_id: teamId,
+          user_id: session.user.id,
+          activity_type: 'member_joined',
+          metadata: { action: 'joined' },
+        });
+    } catch (err) {
+      // Don't fail the request if logging fails
+      console.error('Failed to log activity:', err);
+    }
 
     // Record the action after successful team join
     await recordAction(session.user.id, 'join_team');
