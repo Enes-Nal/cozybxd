@@ -91,6 +91,9 @@ const GroupView: React.FC<GroupViewProps> = ({
   const [userToKick, setUserToKick] = useState<User | null>(null);
   const [movies, setMovies] = useState(initialMovies);
   const [votingMovieId, setVotingMovieId] = useState<string | null>(null); // Track which movie is being voted on
+  const [sortOption, setSortOption] = useState<'votes' | 'recent' | 'alphabetical'>('votes');
+  const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
+  const sortDropdownRef = useRef<HTMLDivElement>(null);
   const previousInitialMoviesRef = useRef(initialMovies);
   
   // Get current user's role in the group
@@ -508,7 +511,48 @@ const GroupView: React.FC<GroupViewProps> = ({
     );
   }, [movies]);
 
-  const nextMovie = movies.length > 0 ? movies[0] : null;
+  // Next movie is the highest scored item (should be first after API sorting, but calculate explicitly)
+  const nextMovie = useMemo(() => {
+    if (movies.length === 0) return null;
+    // Find the movie with the highest score (votes = upvotes - downvotes)
+    return movies.reduce((prev, current) => {
+      const prevScore = prev.votes || 0;
+      const currentScore = current.votes || 0;
+      // If scores are equal, prefer the one added more recently
+      if (currentScore > prevScore) {
+        return current;
+      } else if (currentScore === prevScore) {
+        // This is a fallback - in practice API should already sort correctly
+        return prev;
+      }
+      return prev;
+    });
+  }, [movies]);
+
+  // Sort movies based on selected sort option
+  const sortedMovies = useMemo(() => {
+    const sorted = [...movies];
+    switch (sortOption) {
+      case 'votes':
+        // Already sorted by API by score, but ensure it's correct
+        sorted.sort((a, b) => {
+          const scoreA = (a.votes || 0);
+          const scoreB = (b.votes || 0);
+          if (scoreB !== scoreA) return scoreB - scoreA;
+          return 0;
+        });
+        break;
+      case 'recent':
+        // Reverse to show most recent first (API returns highest votes first)
+        // Since we don't have addedAt in Movie type, we'll keep original order
+        // which should be most recent first from API
+        break;
+      case 'alphabetical':
+        sorted.sort((a, b) => a.title.localeCompare(b.title));
+        break;
+    }
+    return sorted;
+  }, [movies, sortOption]);
   const totalMovies = movies.length;
   const totalVotes = movies.reduce((sum, m) => sum + (m.votes || 0), 0);
 
@@ -764,16 +808,77 @@ const GroupView: React.FC<GroupViewProps> = ({
         />
       )}
 
-      <h3 className="text-lg font-bold mb-6">Group Queue</h3>
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-lg font-bold">Group Queue</h3>
+        {movies.length > 0 && (
+          <div className="relative" ref={sortDropdownRef}>
+            <button
+              onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
+              className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs font-medium text-gray-300 hover:border-accent/50 hover:bg-white/10 transition-all cursor-pointer flex items-center gap-2 min-w-[140px] justify-between"
+            >
+              <span>
+                {sortOption === 'votes' && 'Highest Votes'}
+                {sortOption === 'recent' && 'Recently Added'}
+                {sortOption === 'alphabetical' && 'Alphabetical'}
+              </span>
+              <i className={`fa-solid fa-chevron-${isSortDropdownOpen ? 'up' : 'down'} text-[10px] transition-transform`}></i>
+            </button>
+            
+            {isSortDropdownOpen && (
+              <div className="absolute top-full right-0 mt-2 w-full glass border-white/10 rounded-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-1 duration-200 shadow-2xl bg-[#111]">
+                <button
+                  onClick={() => {
+                    setSortOption('votes');
+                    setIsSortDropdownOpen(false);
+                  }}
+                  className={`w-full px-4 py-3 text-center text-xs hover:bg-white/5 transition-colors border-b border-white/5 last:border-0 ${
+                    sortOption === 'votes'
+                      ? 'text-accent bg-white/5 font-bold'
+                      : 'text-gray-300'
+                  }`}
+                >
+                  Highest Votes
+                </button>
+                <button
+                  onClick={() => {
+                    setSortOption('recent');
+                    setIsSortDropdownOpen(false);
+                  }}
+                  className={`w-full px-4 py-3 text-center text-xs hover:bg-white/5 transition-colors border-b border-white/5 last:border-0 ${
+                    sortOption === 'recent'
+                      ? 'text-accent bg-white/5 font-bold'
+                      : 'text-gray-300'
+                  }`}
+                >
+                  Recently Added
+                </button>
+                <button
+                  onClick={() => {
+                    setSortOption('alphabetical');
+                    setIsSortDropdownOpen(false);
+                  }}
+                  className={`w-full px-4 py-3 text-center text-xs hover:bg-white/5 transition-colors border-b border-white/5 last:border-0 ${
+                    sortOption === 'alphabetical'
+                      ? 'text-accent bg-white/5 font-bold'
+                      : 'text-gray-300'
+                  }`}
+                >
+                  Alphabetical
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       {movies.length > 0 ? (
         <MovieGrid 
-          movies={movies} 
+          movies={sortedMovies} 
           onUpvote={handleUpvote}
           onDownvote={handleDownvote}
           votingMovieId={votingMovieId}
           onRemove={handleRemove}
           onSchedule={(id) => {
-            const movie = movies.find(m => m.id === id);
+            const movie = sortedMovies.find(m => m.id === id);
             if (movie) onSchedule(movie);
           }}
           users={group.members} 

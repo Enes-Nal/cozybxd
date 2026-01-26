@@ -32,3 +32,4 @@ CREATE TRIGGER update_notifications_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_notifications_updated_at();
 
+

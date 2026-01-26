@@ -37,9 +37,7 @@ export async function GET(
         media(*)
       `)
       .eq('team_id', teamId)
-      .is('user_id', null)
-      .order('upvotes', { ascending: false })
-      .order('added_at', { ascending: false });
+      .is('user_id', null);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -79,16 +77,30 @@ export async function GET(
       voteMap[vote.watchlist_item_id] = vote.vote_type;
     });
 
-    // Transform to front-end format
+    // Transform to front-end format and calculate scores
     const movies = (watchlistItems || []).map((item: any) => {
       const itemWithVote = {
         ...item,
         userVote: voteMap[item.id] || null
       };
-      return transformMediaToMovie(item.media, itemWithVote, logsByMedia[item.media_id] || []);
+      const movie = transformMediaToMovie(item.media, itemWithVote, logsByMedia[item.media_id] || []);
+      // Calculate score (upvotes - downvotes) for sorting
+      const score = (item.upvotes || 0) - (item.downvotes || 0);
+      return { ...movie, _sortScore: score, _addedAt: item.added_at };
     });
 
-    return NextResponse.json(movies);
+    // Sort by score (descending), then by added_at (descending)
+    movies.sort((a: any, b: any) => {
+      if (b._sortScore !== a._sortScore) {
+        return b._sortScore - a._sortScore;
+      }
+      return new Date(b._addedAt).getTime() - new Date(a._addedAt).getTime();
+    });
+
+    // Remove temporary sort fields
+    const sortedMovies = movies.map(({ _sortScore, _addedAt, ...movie }: any) => movie);
+
+    return NextResponse.json(sortedMovies);
   } catch (error) {
     console.error('Team watchlist fetch error:', error);
     return NextResponse.json(

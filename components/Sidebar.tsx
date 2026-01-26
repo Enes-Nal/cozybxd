@@ -118,9 +118,14 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const friends: User[] = friendsData;
 
+  // Calculate unread count - only count requests that are pending and not read
+  const unreadCount = incomingRequests.filter((req: any) => 
+    req.status === 'pending' && !req.read_at
+  ).length;
+
   const navItems = [
     { id: 'Home', icon: 'fa-house' },
-    { id: 'Inbox', icon: 'fa-envelope', badge: incomingRequests.length > 0 },
+    { id: 'Inbox', icon: 'fa-envelope', badge: unreadCount > 0 },
     { id: 'Watchlists', icon: 'fa-list-check' },
     { id: 'History', icon: 'fa-clock-rotate-left' }
   ];

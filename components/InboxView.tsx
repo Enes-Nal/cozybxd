@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from './Toast';
@@ -107,12 +107,34 @@ const InboxView: React.FC = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['friendRequests'] });
-      toast.showSuccess('All marked as read');
+      // Don't show toast for automatic marking
     },
     onError: (error: Error) => {
-      toast.showError(error.message || 'Failed to mark all as read');
+      // Silently fail for automatic marking - don't show error toast
+      console.error('Failed to mark all as read:', error);
     },
   });
+
+  // Track the last set of request IDs we've marked as read
+  const lastMarkedRequestIdsRef = useRef<Set<string>>(new Set());
+
+  // Automatically mark all unread requests as read when inbox is viewed
+  useEffect(() => {
+    if (incomingRequests.length > 0 && session) {
+      const unreadRequests = incomingRequests.filter((req: any) => 
+        req.status === 'pending' && !req.read_at
+      );
+      
+      // Only mark as read if there are unread requests we haven't already marked
+      const unreadRequestIds = new Set(unreadRequests.map((req: any) => req.id));
+      const hasNewUnread = Array.from(unreadRequestIds).some(id => !lastMarkedRequestIdsRef.current.has(id));
+      
+      if (unreadRequests.length > 0 && hasNewUnread) {
+        lastMarkedRequestIdsRef.current = unreadRequestIds;
+        markAllAsReadMutation.mutate();
+      }
+    }
+  }, [incomingRequests, session, markAllAsReadMutation]);
 
   const handleAccept = (requestId: string) => {
     acceptRequestMutation.mutate(requestId);

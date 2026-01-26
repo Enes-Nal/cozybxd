@@ -19,3 +19,4 @@ CREATE INDEX IF NOT EXISTS idx_review_replies_review_id ON review_replies(review
 CREATE INDEX IF NOT EXISTS idx_review_replies_created_at ON review_replies(created_at);
 
 
+

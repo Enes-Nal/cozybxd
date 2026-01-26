@@ -9,11 +9,12 @@ const NewListModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
       <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-in zoom-in-95 duration-300">
-        <button onClick={onClose} className="absolute top-8 right-8 text-gray-500 hover:text-white transition-colors">
-          <i className="fa-solid fa-xmark text-xl"></i>
-        </button>
-
-        <h2 className="text-2xl font-black mb-2">Create New List</h2>
+        <div className="flex items-start justify-between mb-2">
+          <h2 className="text-2xl font-black">Create New List</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+            <i className="fa-solid fa-xmark text-xl"></i>
+          </button>
+        </div>
         <p className="text-sm text-gray-400 mb-8">Organize your cinematic discoveries.</p>
 
         <div className="space-y-6">
@@ -109,16 +110,6 @@ const WatchlistView: React.FC<{ movies: Movie[] }> = ({ movies }) => {
             </div>
           </div>
         ))}
-        
-        <button 
-          onClick={() => setIsNewListModalOpen(true)}
-          className="border-2 border-dashed border-main rounded-[2rem] p-8 flex flex-col items-center justify-center text-gray-400 hover:text-accent hover:border-accent/40 transition-all min-h-[144px]"
-        >
-          <div className="w-10 h-10 rounded-full bg-black/[0.03] flex items-center justify-center mb-4 border border-main group-hover:border-accent/40">
-            <i className="fa-solid fa-plus text-xs"></i>
-          </div>
-          <span className="text-[10px] font-black uppercase tracking-widest">NEW LIST</span>
-        </button>
       </div>
 
       {isNewListModalOpen && <NewListModal onClose={() => setIsNewListModalOpen(false)} />}

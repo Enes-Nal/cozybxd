@@ -255,7 +255,34 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
             </div>
             {/* Vote buttons - always visible for group watchlists, hover-only for personal */}
             {isGroupWatchlist ? (
-              <div className="absolute top-3 right-3 z-10 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+              <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                {/* Vote count display - compact version */}
+                {(movie.upvotes !== undefined || movie.downvotes !== undefined || movie.votes !== undefined) && (
+                  <div className="bg-black/80 backdrop-blur-sm border border-white/20 rounded-lg px-2 py-1 flex items-center gap-1.5 text-[10px] mb-0.5">
+                    <div className="flex items-center gap-0.5">
+                      <i className="fa-solid fa-arrow-up text-[9px] text-green-400"></i>
+                      <span className="font-bold text-white">{movie.upvotes || 0}</span>
+                    </div>
+                    {(movie.downvotes || 0) > 0 && (
+                      <>
+                        <span className="text-white/30">|</span>
+                        <div className="flex items-center gap-0.5">
+                          <i className="fa-solid fa-arrow-down text-[9px] text-red-400"></i>
+                          <span className="font-bold text-white">{movie.downvotes || 0}</span>
+                        </div>
+                      </>
+                    )}
+                    {movie.votes !== undefined && (
+                      <>
+                        <span className="text-white/30">|</span>
+                        <span className="font-bold text-accent">
+                          {movie.votes > 0 ? '+' : ''}{movie.votes}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                )}
+                
                 {/* Upvote button */}
                 <button 
                   onClick={(e) => {
@@ -269,14 +296,14 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
                     }
                   }}
                   disabled={votingMovieId === movie.id}
-                  className={`px-2.5 py-2 rounded-lg flex items-center justify-center gap-1.5 active:scale-90 transition-all duration-150 border shadow-lg hover:scale-105 ${
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center active:scale-90 transition-all duration-150 border shadow-lg hover:scale-105 ${
                     movie.userVote === 'upvote'
                       ? 'bg-[var(--accent-color)]/90 border-[var(--accent-color)]/50'
                       : 'bg-black/60 backdrop-blur-sm border-white/20 hover:bg-[var(--accent-color)]/30'
                   } ${votingMovieId === movie.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                   title={`Upvote ${movie.title}`}
                 >
-                  <i className={`fa-solid fa-arrow-up text-[10px] ${
+                  <i className={`fa-solid fa-arrow-up text-[11px] ${
                     movie.userVote === 'upvote' ? 'text-white' : 'text-white/70'
                   }`}></i>
                 </button>
@@ -294,14 +321,14 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
                     }
                   }}
                   disabled={votingMovieId === movie.id}
-                  className={`px-2.5 py-2 rounded-lg flex items-center justify-center gap-1.5 active:scale-90 transition-all duration-150 border shadow-lg hover:scale-105 ${
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center active:scale-90 transition-all duration-150 border shadow-lg hover:scale-105 ${
                     movie.userVote === 'downvote'
                       ? 'bg-red-600/90 border-red-400/50'
                       : 'bg-black/60 backdrop-blur-sm border-white/20 hover:bg-red-600/30'
                   } ${votingMovieId === movie.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                   title={`Downvote ${movie.title}`}
                 >
-                  <i className={`fa-solid fa-arrow-down text-[10px] ${
+                  <i className={`fa-solid fa-arrow-down text-[11px] ${
                     movie.userVote === 'downvote' ? 'text-white' : 'text-white/70'
                   }`}></i>
                 </button>
@@ -314,10 +341,10 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
                       e.stopPropagation();
                       setMovieToRemove(movie);
                     }}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-all duration-200 bg-red-600/90 border border-red-400/50 hover:bg-red-600 hover:scale-110"
+                    className="w-9 h-9 rounded-lg flex items-center justify-center active:scale-90 transition-all duration-200 bg-red-600/90 border border-red-400/50 hover:bg-red-600 hover:scale-110"
                     title={`Remove ${movie.title} from queue`}
                   >
-                    <i className="fa-solid fa-trash-can text-[10px] text-white"></i>
+                    <i className="fa-solid fa-trash-can text-[11px] text-white"></i>
                   </button>
                 )}
               </div>
