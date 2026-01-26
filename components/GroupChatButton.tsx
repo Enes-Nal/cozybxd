@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/supabase';
 import GroupChatModal from './GroupChatModal';
+import { useAnimations } from './AnimationProvider';
 
 interface GroupChatButtonProps {
   teamId: string;
@@ -19,6 +20,9 @@ const GroupChatButton: React.FC<GroupChatButtonProps> = ({ teamId, currentUser }
   const [unreadCount, setUnreadCount] = useState(0);
   const [lastReadTime, setLastReadTime] = useState<Date>(new Date());
   const [mounted, setMounted] = useState(false);
+  const [buttonPosition, setButtonPosition] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const { experimentalAnimations } = useAnimations();
 
   useEffect(() => {
     setMounted(true);
@@ -62,9 +66,23 @@ const GroupChatButton: React.FC<GroupChatButtonProps> = ({ teamId, currentUser }
     };
   }, [teamId, isOpen, currentUser.id, lastReadTime]);
 
+  const handleOpen = () => {
+    if (buttonRef.current && experimentalAnimations) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setButtonPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+        width: rect.width,
+        height: rect.height,
+      });
+    }
+    setIsOpen(true);
+  };
+
   const chatButton = (
     <button
-      onClick={() => setIsOpen(true)}
+      ref={buttonRef}
+      onClick={handleOpen}
       className="w-14 h-14 bg-accent hover:bg-accent/80 rounded-full shadow-2xl flex items-center justify-center text-white transition-all hover:scale-110 group"
       style={{ 
         position: 'fixed', 
@@ -95,7 +113,11 @@ const GroupChatButton: React.FC<GroupChatButtonProps> = ({ teamId, currentUser }
         teamId={teamId}
         currentUser={currentUser}
         isOpen={isOpen}
-        onClose={() => setIsOpen(false)}
+        onClose={() => {
+          setIsOpen(false);
+          setButtonPosition(null);
+        }}
+        buttonPosition={buttonPosition}
       />
     </>
   );

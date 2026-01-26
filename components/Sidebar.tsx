@@ -126,8 +126,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     { id: 'Home', icon: 'fa-house' },
     { id: 'Inbox', icon: 'fa-envelope', badge: unreadCount > 0 },
-    { id: 'Watchlists', icon: 'fa-list-check' },
-    { id: 'History', icon: 'fa-clock-rotate-left' }
+    { id: 'My Stuff', icon: 'fa-box' }
   ];
 
   // Map teams to workspaces format
@@ -179,29 +178,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             ))}
           </nav>
 
-          <section className="space-y-1">
-            <div className="flex items-center justify-between px-5 mb-4">
-              <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black">Friends</p>
-              <button onClick={onAddFriendClick} className="text-accent hover:opacity-80 p-1 transition-all duration-200 active:scale-90 hover:scale-110"><i className="fa-solid fa-user-plus text-xs"></i></button>
-            </div>
-            <div className="space-y-2">
-              {friends.map(friend => (
-                <div 
-                  key={friend.id} 
-                  onClick={() => onFriendSelect(friend)}
-                  className="flex items-center gap-3 px-4 py-2 rounded-xl hover:bg-black/[0.05] transition-all duration-200 group cursor-pointer relative active:scale-[0.98]"
-                >
-                  <div className="relative transition-transform duration-200 group-hover:scale-110">
-                    <img src={friend.avatar} className="w-8 h-8 rounded-full border border-main transition-all duration-200" alt={friend.name} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold truncate text-main transition-colors duration-200 group-hover:text-accent">{friend.name}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
           <div className="space-y-1">
             <div className="flex items-center justify-between px-5 mb-4">
               <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black">Groups</p>
@@ -239,6 +215,29 @@ const Sidebar: React.FC<SidebarProps> = ({
               </div>
             )}
           </div>
+
+          <section className="space-y-1">
+            <div className="flex items-center justify-between px-5 mb-4">
+              <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black">Friends</p>
+              <button onClick={onAddFriendClick} className="text-accent hover:opacity-80 p-1 transition-all duration-200 active:scale-90 hover:scale-110"><i className="fa-solid fa-user-plus text-xs"></i></button>
+            </div>
+            <div className="space-y-2">
+              {friends.map(friend => (
+                <div 
+                  key={friend.id} 
+                  onClick={() => onFriendSelect(friend)}
+                  className="flex items-center gap-3 px-4 py-2 rounded-xl hover:bg-black/[0.05] transition-all duration-200 group cursor-pointer relative active:scale-[0.98]"
+                >
+                  <div className="relative transition-transform duration-200 group-hover:scale-110">
+                    <img src={friend.avatar} className="w-8 h-8 rounded-full border border-main transition-all duration-200" alt={friend.name} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold truncate text-main transition-colors duration-200 group-hover:text-accent">{friend.name}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
       </div>
 

@@ -89,10 +89,10 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, image, banner, username } = body;
+    const { name, image, username } = body;
 
     // Build update object with only provided fields
-    const updateData: { name?: string | null; image?: string | null; banner_url?: string | null; username?: string } = {};
+    const updateData: { name?: string | null; image?: string | null; username?: string } = {};
     if (name !== undefined) {
       const trimmedName = typeof name === 'string' ? name.trim() : String(name).trim();
       if (trimmedName) {
@@ -111,9 +111,6 @@ export async function PATCH(request: NextRequest) {
     }
     if (image !== undefined) {
       updateData.image = image.trim() || null;
-    }
-    if (banner !== undefined) {
-      updateData.banner_url = banner.trim() || null;
     }
     if (username !== undefined && username !== null) {
       // Username must be lowercase and trimmed

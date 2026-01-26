@@ -6,9 +6,30 @@ import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
 import { User } from '@/lib/types';
 import EditProfileModal from './EditProfileModal';
+import AdvancedSettingsModal from './AdvancedSettingsModal';
+import { useAnimations } from './AnimationProvider';
 
 const SettingsView: React.FC = () => {
   const { data: session } = useSession();
+  const { experimentalAnimations, setExperimentalAnimations } = useAnimations();
+  const [isAdvancedSettingsOpen, setIsAdvancedSettingsOpen] = useState(false);
+  
+  // Navbar experimental feature
+  const [useNavbar, setUseNavbar] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('useNavbar');
+      return saved === 'true';
+    }
+    return false;
+  });
+
+  const toggleNavbar = () => {
+    const newVal = !useNavbar;
+    setUseNavbar(newVal);
+    localStorage.setItem('useNavbar', newVal ? 'true' : 'false');
+    // Reload page to apply navbar change
+    window.location.reload();
+  };
   
   // Fetch current user data
   const { data: currentUserData, isLoading: userLoading } = useQuery({
@@ -33,6 +54,20 @@ const SettingsView: React.FC = () => {
     return false;
   });
   const [currentAccent, setCurrentAccent] = useState(() => localStorage.getItem('accent') || '#FF47C8');
+  const [cornerRadius, setCornerRadius] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('cornerRadius');
+      return saved || '25px';
+    }
+    return '25px';
+  });
+  const [fontFamily, setFontFamily] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('fontFamily');
+      return saved || 'Inter';
+    }
+    return 'Inter';
+  });
 
   const toggleLightMode = () => {
     const newVal = !isLightMode;
@@ -49,6 +84,32 @@ const SettingsView: React.FC = () => {
     window.dispatchEvent(new Event('accentColorChanged'));
   };
 
+  const changeCornerRadius = (radius: string) => {
+    setCornerRadius(radius);
+    document.documentElement.style.setProperty('--corner-radius', radius);
+    localStorage.setItem('cornerRadius', radius);
+  };
+
+  const changeFontFamily = (font: string) => {
+    setFontFamily(font);
+    let fontFamilyValue = '';
+    switch (font) {
+      case 'Inter':
+        fontFamilyValue = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+        break;
+      case 'Roboto':
+        fontFamilyValue = "'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+        break;
+      case 'Poppins':
+        fontFamilyValue = "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+        break;
+      default:
+        fontFamilyValue = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    }
+    document.documentElement.style.setProperty('--font-family', fontFamilyValue);
+    localStorage.setItem('fontFamily', font);
+  };
+
   const accents = [
     { name: 'Pink', color: '#FF47C8' },
     { name: 'Rose', color: '#ff6b6b' },
@@ -58,7 +119,7 @@ const SettingsView: React.FC = () => {
     { name: 'Violet', color: '#8b5cf6' }
   ];
 
-  // Apply accent color on mount if not already set
+  // Apply accent color, corner radius, and font family on mount if not already set
   useEffect(() => {
     const savedAccent = localStorage.getItem('accent');
     if (!savedAccent) {
@@ -66,6 +127,26 @@ const SettingsView: React.FC = () => {
     } else {
       document.documentElement.style.setProperty('--accent-color', savedAccent);
     }
+    
+    const savedCornerRadius = localStorage.getItem('cornerRadius') || '25px';
+    document.documentElement.style.setProperty('--corner-radius', savedCornerRadius);
+    
+    const savedFontFamily = localStorage.getItem('fontFamily') || 'Inter';
+    let fontFamilyValue = '';
+    switch (savedFontFamily) {
+      case 'Inter':
+        fontFamilyValue = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+        break;
+      case 'Roboto':
+        fontFamilyValue = "'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+        break;
+      case 'Poppins':
+        fontFamilyValue = "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+        break;
+      default:
+        fontFamilyValue = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    }
+    document.documentElement.style.setProperty('--font-family', fontFamilyValue);
   }, []);
 
   return (
@@ -134,6 +215,85 @@ const SettingsView: React.FC = () => {
         </section>
 
         <section>
+          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--accent-color)] mb-6">Advanced</h3>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between glass p-6 rounded-2xl border-main">
+              <div>
+                <p className="text-sm font-bold text-main">Experimental Animations</p>
+                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter mt-1">Enable premium motion design and physics-based transitions.</p>
+              </div>
+              <div 
+                onClick={() => {
+                  if (!experimentalAnimations) {
+                    setIsAdvancedSettingsOpen(true);
+                  } else {
+                    setExperimentalAnimations(false);
+                  }
+                }}
+                className={`w-12 h-6 rounded-full relative cursor-pointer transition-colors ${experimentalAnimations ? 'bg-[var(--accent-color)]' : 'bg-gray-400/20'}`}
+              >
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${experimentalAnimations ? 'right-1' : 'left-1'}`}></div>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between glass p-6 rounded-2xl border-main">
+              <div>
+                <p className="text-sm font-bold text-main">Navbar Layout</p>
+                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter mt-1">Use horizontal navbar instead of sidebar (experimental).</p>
+              </div>
+              <div 
+                onClick={toggleNavbar}
+                className={`w-12 h-6 rounded-full relative cursor-pointer transition-colors ${useNavbar ? 'bg-[var(--accent-color)]' : 'bg-gray-400/20'}`}
+              >
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${useNavbar ? 'right-1' : 'left-1'}`}></div>
+              </div>
+            </div>
+
+            <div className="glass p-6 rounded-2xl border-main">
+              <p className="text-sm font-bold text-main mb-4">Corner Radius</p>
+              <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter mb-4">Adjust the roundness of UI elements (experimental).</p>
+              <div className="flex gap-3">
+                {['0px', '25px', '50px'].map(radius => (
+                  <button
+                    key={radius}
+                    onClick={() => changeCornerRadius(radius)}
+                    className={`px-4 py-2 text-xs font-black uppercase tracking-widest transition-all border-2 ${
+                      cornerRadius === radius
+                        ? 'bg-[var(--accent-color)] text-white border-[var(--accent-color)]'
+                        : 'bg-transparent text-main border-main hover:bg-main/5'
+                    }`}
+                    style={{ borderRadius: radius }}
+                  >
+                    {radius}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="glass p-6 rounded-2xl border-main">
+              <p className="text-sm font-bold text-main mb-4">Font Family</p>
+              <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter mb-4">Change the default font used throughout the website (experimental).</p>
+              <div className="flex gap-3 flex-wrap">
+                {['Inter', 'Roboto', 'Poppins'].map(font => (
+                  <button
+                    key={font}
+                    onClick={() => changeFontFamily(font)}
+                    className={`px-4 py-2 text-xs font-black uppercase tracking-widest transition-all border-2 ${
+                      fontFamily === font
+                        ? 'bg-[var(--accent-color)] text-white border-[var(--accent-color)]'
+                        : 'bg-transparent text-main border-main hover:bg-main/5'
+                    }`}
+                    style={{ fontFamily: font === 'Inter' ? "'Inter', sans-serif" : font === 'Roboto' ? "'Roboto', sans-serif" : "'Poppins', sans-serif" }}
+                  >
+                    {font}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section>
           <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--accent-color)] mb-6">Danger Zone</h3>
           <button className="w-full text-left p-6 rounded-2xl border border-[var(--accent-color)]/20 text-[var(--accent-color)] text-sm font-black uppercase tracking-widest hover:bg-[var(--accent-color)]/5 transition-all">
             Delete cozybxd account
@@ -149,6 +309,12 @@ const SettingsView: React.FC = () => {
           currentUsername={currentUserData?.username || null}
         />
       )}
+
+      <AdvancedSettingsModal
+        isOpen={isAdvancedSettingsOpen}
+        onClose={() => setIsAdvancedSettingsOpen(false)}
+        onConfirm={() => setExperimentalAnimations(true)}
+      />
     </div>
   );
 };

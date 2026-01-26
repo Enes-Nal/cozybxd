@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Movie, User } from '@/lib/types';
 import RemoveMovieModal from './RemoveMovieModal';
 import { useLayoutAnimation } from '@/lib/hooks/useLayoutAnimation';
+import { useAnimations } from './AnimationProvider';
 
 // Animated number component for smooth vote count transitions
 const AnimatedVoteCount: React.FC<{ value: number; className?: string }> = ({ value, className = '' }) => {
@@ -102,6 +103,7 @@ const getGenreColor = (genre: string): string => {
 };
 
 const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownvote, onSchedule, onSelect, onRemove, users, personalWatchlist = [], isGroupWatchlist = false, votingMovieId = null }) => {
+  const { experimentalAnimations } = useAnimations();
   const [movieToRemove, setMovieToRemove] = useState<Movie | null>(null);
   const [imdbRatings, setImdbRatings] = useState<Record<string, number>>({});
   const ratingsFetchedRef = useRef<Set<string>>(new Set());
@@ -229,8 +231,11 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
         return (
         <div 
           key={`${movie.id}-${idx}`} 
-          className={`relative rounded-2xl cursor-pointer group card-hover ${staggerClass}`}
+          className={`relative rounded-2xl cursor-pointer group card-hover ${
+            experimentalAnimations ? 'card-enter' : staggerClass
+          }`}
           onClick={() => onSelect(movie)}
+          style={experimentalAnimations ? { animationDelay: `${idx * 30}ms` } : undefined}
         >
           {/* Vote count badge - always visible for group watchlists (Reddit-style score) */}
           {isGroupWatchlist && (movie.votes !== undefined && movie.votes !== 0) && (
@@ -246,8 +251,8 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
           )}
 
           <div className="aspect-[2/3] overflow-hidden relative rounded-2xl border border-main bg-[#111]">
-            {/* Runtime badge overlay - always visible */}
-            <div className="absolute bottom-3 left-3 z-10 backdrop-blur-sm px-2.5 py-1 rounded-lg flex items-center gap-1.5 border border-white/20 bg-black/60">
+            {/* Runtime badge overlay - always visible at bottom */}
+            <div className="absolute bottom-3 left-3 z-10 backdrop-blur-sm px-2.5 py-1 rounded-lg flex items-center gap-1.5 border border-white/20 bg-black/60" style={{ bottom: '0.75rem', top: 'auto' }}>
               <i className="fa-solid fa-clock text-[10px] text-white/80"></i>
               <span className="text-[10px] font-bold text-white">
                 {movie.runtime && movie.runtime.trim() ? movie.runtime : 'N/A'}

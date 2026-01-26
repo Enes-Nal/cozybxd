@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Movie } from '@/lib/types';
 import { GoogleGenAI, Type } from '@google/genai';
+import { useAnimations } from './AnimationProvider';
 
 interface RandomPickerModalProps {
   movies: Movie[];
@@ -11,9 +12,11 @@ interface RandomPickerModalProps {
 }
 
 const RandomPickerModal: React.FC<RandomPickerModalProps> = ({ movies, onClose, onSelect }) => {
+  const { experimentalAnimations } = useAnimations();
   const [picking, setPicking] = useState(false);
   const [result, setResult] = useState<Movie | null>(null);
   const [mood, setMood] = useState('Anything');
+  const [isExiting, setIsExiting] = useState(false);
 
   const moods = ['Anything', 'Action Packed', 'Emotional', 'Cerebral', 'Lighthearted'];
 
@@ -32,14 +35,40 @@ const RandomPickerModal: React.FC<RandomPickerModalProps> = ({ movies, onClose, 
     setPicking(false);
   };
 
+  const handleClose = () => {
+    if (experimentalAnimations) {
+      setIsExiting(true);
+      setTimeout(() => {
+        onClose();
+        setIsExiting(false);
+      }, 250);
+    } else {
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
-      <div className="glass w-full max-w-lg rounded-[3rem] p-10 relative border-white/10 no-glow overflow-visible">
+    <div 
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 ${
+        experimentalAnimations 
+          ? isExiting ? '' : 'experimental-animations:animate-modal-backdrop'
+          : ''
+      }`}
+      style={experimentalAnimations ? { animation: isExiting ? 'none' : undefined } : undefined}
+    >
+      <div 
+        className={`glass w-full max-w-lg rounded-[3rem] p-10 relative border-white/10 no-glow overflow-visible ${
+          experimentalAnimations 
+            ? isExiting ? 'modal-exit' : 'experimental-animations:animate-modal-content'
+            : ''
+        }`}
+        style={experimentalAnimations ? { animation: isExiting ? 'none' : undefined } : undefined}
+      >
         {/* Decorative background element */}
         <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-600/10 rounded-full blur-3xl"></div>
         
         <div className="absolute top-6 right-6 z-10">
-          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+          <button onClick={handleClose} className="text-gray-500 hover:text-white transition-colors">
             <i className="fa-solid fa-xmark text-xl"></i>
           </button>
         </div>

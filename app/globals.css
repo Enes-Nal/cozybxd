@@ -11,6 +11,8 @@
   --accent-color: #FF47C8;
   --sidebar-hover: rgba(255, 255, 255, 0.05);
   --glass-blur: 10px;
+  --corner-radius: 25px;
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 body.light-mode {
@@ -25,11 +27,36 @@ body.light-mode {
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-family);
   background-color: var(--bg-color);
   color: var(--text-main);
   margin: 0;
-  transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1), color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1), color 0.5s cubic-bezier(0.4, 0, 0.2, 1), font-family 0.3s ease;
+}
+
+/* Apply corner radius globally to common UI elements */
+.glass,
+button:not([class*="rounded-full"]):not([class*="rounded-none"]),
+input:not([class*="rounded-full"]):not([class*="rounded-none"]),
+select:not([class*="rounded-full"]):not([class*="rounded-none"]),
+textarea:not([class*="rounded-full"]):not([class*="rounded-none"]),
+[class*="rounded-xl"]:not([class*="rounded-full"]):not([class*="rounded-none"]),
+[class*="rounded-2xl"]:not([class*="rounded-full"]):not([class*="rounded-none"]),
+[class*="rounded-lg"]:not([class*="rounded-full"]):not([class*="rounded-none"]),
+[class*="rounded-md"]:not([class*="rounded-full"]):not([class*="rounded-none"]),
+[class*="rounded-sm"]:not([class*="rounded-full"]):not([class*="rounded-none"]),
+[class*="rounded-["]:not([class*="rounded-full"]):not([class*="rounded-none"]) {
+  border-radius: var(--corner-radius) !important;
+}
+
+/* Preserve full rounding for circular elements */
+[class*="rounded-full"] {
+  border-radius: 9999px !important;
+}
+
+/* Preserve no rounding when explicitly set */
+[class*="rounded-none"] {
+  border-radius: 0 !important;
 }
 
 /* Make all buttons show pointer cursor on hover */
@@ -315,4 +342,367 @@ body.light-mode .glass {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* ============================================
+   EXPERIMENTAL ANIMATIONS SYSTEM
+   ============================================ */
+
+/* Only apply when experimental-animations class is on html */
+.experimental-animations {
+  /* Enable smooth transitions globally */
+}
+
+/* 1. CHAT MORPH ANIMATION */
+.experimental-animations .chat-morph-enter {
+  animation: chatMorphEnter 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.experimental-animations .chat-morph-exit {
+  animation: chatMorphExit 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes chatMorphEnter {
+  0% {
+    opacity: 0;
+    transform: scale(0.8) translateY(20px);
+    border-radius: 50%;
+  }
+  60% {
+    transform: scale(1.05) translateY(-5px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    border-radius: 2.5rem;
+  }
+}
+
+@keyframes chatMorphExit {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    border-radius: 2.5rem;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8) translateY(20px);
+    border-radius: 50%;
+  }
+}
+
+/* 2. PAGE TRANSITIONS */
+.experimental-animations .page-transition-out {
+  animation: pageTransitionOut 350ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.experimental-animations .page-transition-in {
+  animation: pageTransitionIn 350ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes pageTransitionOut {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+}
+
+@keyframes pageTransitionIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 3. MODAL ANIMATIONS */
+.experimental-animations .animate-modal-backdrop {
+  animation: modalBackdropEnter 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.experimental-animations .animate-modal-content {
+  animation: modalContentEnter 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.experimental-animations .modal-exit {
+  animation: modalExit 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes modalBackdropEnter {
+  0% {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  100% {
+    opacity: 1;
+    backdrop-filter: blur(12px);
+  }
+}
+
+@keyframes modalContentEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes modalExit {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.96);
+  }
+}
+
+/* 4. DROPDOWN & MENU ANIMATIONS */
+.experimental-animations .dropdown-enter {
+  animation: dropdownEnter 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.experimental-animations .dropdown-item {
+  animation: dropdownItemEnter 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.experimental-animations .dropdown-item:nth-child(1) { animation-delay: 0ms; }
+.experimental-animations .dropdown-item:nth-child(2) { animation-delay: 20ms; }
+.experimental-animations .dropdown-item:nth-child(3) { animation-delay: 40ms; }
+.experimental-animations .dropdown-item:nth-child(4) { animation-delay: 60ms; }
+.experimental-animations .dropdown-item:nth-child(5) { animation-delay: 80ms; }
+.experimental-animations .dropdown-item:nth-child(n+6) { animation-delay: 100ms; }
+
+@keyframes dropdownEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes dropdownItemEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 5. BUTTON INTERACTIONS */
+.experimental-animations button:not(:disabled),
+.experimental-animations [role="button"]:not(:disabled) {
+  transition: all 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.experimental-animations button:hover:not(:disabled),
+.experimental-animations [role="button"]:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.experimental-animations button:active:not(:disabled),
+.experimental-animations [role="button"]:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* 6. CARD ANIMATIONS */
+.experimental-animations .card-hover {
+  transition: all 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.experimental-animations .card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+}
+
+.experimental-animations .card-hover:hover img {
+  transform: scale(1.02);
+  transition: transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.experimental-animations .card-enter {
+  animation: cardEnter 400ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.experimental-animations .card-enter:nth-child(1) { animation-delay: 0ms; }
+.experimental-animations .card-enter:nth-child(2) { animation-delay: 30ms; }
+.experimental-animations .card-enter:nth-child(3) { animation-delay: 60ms; }
+.experimental-animations .card-enter:nth-child(4) { animation-delay: 90ms; }
+.experimental-animations .card-enter:nth-child(5) { animation-delay: 120ms; }
+.experimental-animations .card-enter:nth-child(n+6) { animation-delay: 150ms; }
+
+@keyframes cardEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 7. LIST ITEM ANIMATIONS */
+.experimental-animations .list-item-enter {
+  animation: listItemEnter 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.experimental-animations .list-item-exit {
+  animation: listItemExit 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes listItemEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+    max-height: 0;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 500px;
+  }
+}
+
+@keyframes listItemExit {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 500px;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px);
+    max-height: 0;
+  }
+}
+
+/* 8. TOAST ANIMATIONS */
+.experimental-animations .toast-enter {
+  animation: toastEnter 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.experimental-animations .toast-exit {
+  animation: toastExit 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes toastEnter {
+  0% {
+    opacity: 0;
+    transform: translateX(100%) scale(0.9);
+  }
+  60% {
+    transform: translateX(-5px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes toastExit {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(100%) scale(0.9);
+  }
+}
+
+/* 9. CHAT MESSAGE ANIMATIONS */
+.experimental-animations .chat-message-enter {
+  animation: chatMessageEnter 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes chatMessageEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.95);
+  }
+  60% {
+    transform: translateY(-2px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 10. TAB SWITCHING */
+.experimental-animations .tab-content-enter {
+  animation: tabContentEnter 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.experimental-animations .tab-content-exit {
+  animation: tabContentExit 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes tabContentEnter {
+  0% {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes tabContentExit {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+}
+
+/* SKELETON SHIMMER */
+.experimental-animations .skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--card-bg) 0%,
+    var(--panel-bg) 50%,
+    var(--card-bg) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* NAVBAR MODE - Center content */
+.navbar-mode [class*="max-w-"] {
+  margin-left: auto;
+  margin-right: auto;
 }

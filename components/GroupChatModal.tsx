@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from './Toast';
+import { useAnimations } from './AnimationProvider';
 
 interface ChatMessage {
   id: string;
@@ -17,6 +18,12 @@ interface ChatMessage {
   };
 }
 
+interface TeamInfo {
+  id: string;
+  name: string;
+  picture?: string;
+}
+
 interface GroupChatModalProps {
   teamId: string;
   currentUser: {
@@ -26,34 +33,88 @@ interface GroupChatModalProps {
   };
   isOpen: boolean;
   onClose: () => void;
+  buttonPosition?: { x: number; y: number; width: number; height: number } | null;
 }
 
 const GroupChatModal: React.FC<GroupChatModalProps> = ({ 
   teamId, 
   currentUser, 
   isOpen, 
-  onClose 
+  onClose,
+  buttonPosition
 }) => {
   const toast = useToast();
+  const { experimentalAnimations } = useAnimations();
+  const [isExiting, setIsExiting] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
+  const [teamInfo, setTeamInfo] = useState<TeamInfo | null>(null);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [isNearBottom, setIsNearBottom] = useState(true);
 
   // Scroll to bottom when messages change
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (smooth = true) => {
+    messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
+  };
+
+  // Check if user is near bottom of chat
+  const checkScrollPosition = () => {
+    if (!chatContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    setIsNearBottom(distanceFromBottom < 200);
+    setShowScrollToBottom(distanceFromBottom > 300);
   };
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && isNearBottom) {
       scrollToBottom();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, isOpen]);
+
+  // Load team info
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const loadTeamInfo = async () => {
+      try {
+        const res = await fetch(`/api/teams/${teamId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setTeamInfo({
+            id: data.id,
+            name: data.name,
+            picture: data.picture,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load team info:', error);
+      }
+    };
+
+    loadTeamInfo();
+  }, [teamId, isOpen]);
+
+  // Set up scroll listener
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+
+    container.addEventListener('scroll', checkScrollPosition);
+    checkScrollPosition(); // Initial check
+
+    return () => {
+      container.removeEventListener('scroll', checkScrollPosition);
+    };
+  }, [messages]);
 
   // Load initial messages when modal opens
   useEffect(() => {
@@ -230,6 +291,7 @@ const GroupChatModal: React.FC<GroupChatModalProps> = ({
     }
   };
 
+  // Format timestamp for display
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -251,30 +313,103 @@ const GroupChatModal: React.FC<GroupChatModalProps> = ({
     });
   };
 
+  // Format timestamp for gap indicators
+  const formatTimestamp = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    
+    const diffDays = Math.floor((today.getTime() - messageDate.getTime()) / 86400000);
+    
+    if (diffDays === 0) {
+      return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+    } else if (diffDays === 1) {
+      return 'Yesterday ' + date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+    } else if (diffDays < 7) {
+      return date.toLocaleDateString('en-US', {
+        weekday: 'short',
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+    } else {
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+    }
+  };
+
+  // Check if there's a significant time gap between messages (5 minutes)
+  const hasTimeGap = (current: ChatMessage, previous: ChatMessage | null) => {
+    if (!previous) return true;
+    const currentTime = new Date(current.created_at).getTime();
+    const previousTime = new Date(previous.created_at).getTime();
+    return (currentTime - previousTime) > 5 * 60 * 1000; // 5 minutes
+  };
+
+  // Detect and format links in message text
+  const formatMessageText = (text: string) => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = text.split(urlRegex);
+    
+    return parts.map((part, index) => {
+      if (urlRegex.test(part)) {
+        return (
+          <a
+            key={index}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent underline underline-offset-2 hover:text-accent/80 transition-colors"
+          >
+            {part}
+          </a>
+        );
+      }
+      return <span key={index}>{part}</span>;
+    });
+  };
+
   const isOwnMessage = (message: ChatMessage) => {
     return message.user_id === currentUser.id;
   };
 
-  // Group consecutive messages from the same user within 80 seconds
+  // Group consecutive messages from the same user within 2 minutes
   const groupMessages = (messages: ChatMessage[]) => {
     if (messages.length === 0) return [];
 
-    const grouped: Array<{ message: ChatMessage; isFirstInGroup: boolean; isLastInGroup: boolean }> = [];
+    const grouped: Array<{ 
+      message: ChatMessage; 
+      isFirstInGroup: boolean; 
+      isLastInGroup: boolean;
+      showTimestamp: boolean;
+    }> = [];
     
     for (let i = 0; i < messages.length; i++) {
       const current = messages[i];
       const prev = messages[i - 1];
+      const next = messages[i + 1];
       
       const isFirstInGroup = !prev || 
         prev.user_id !== current.user_id || 
-        (new Date(current.created_at).getTime() - new Date(prev.created_at).getTime()) > 80000;
+        (new Date(current.created_at).getTime() - new Date(prev.created_at).getTime()) > 120000; // 2 minutes
       
-      const next = messages[i + 1];
       const isLastInGroup = !next || 
         next.user_id !== current.user_id || 
-        (new Date(next.created_at).getTime() - new Date(current.created_at).getTime()) > 80000;
+        (new Date(next.created_at).getTime() - new Date(current.created_at).getTime()) > 120000;
       
-      grouped.push({ message: current, isFirstInGroup, isLastInGroup });
+      const showTimestamp = hasTimeGap(current, prev);
+      
+      grouped.push({ message: current, isFirstInGroup, isLastInGroup, showTimestamp });
     }
     
     return grouped;
@@ -282,220 +417,348 @@ const GroupChatModal: React.FC<GroupChatModalProps> = ({
 
   const groupedMessages = groupMessages(messages);
 
+  const handleClose = () => {
+    if (experimentalAnimations) {
+      setIsExiting(true);
+      setTimeout(() => {
+        onClose();
+        setIsExiting(false);
+      }, 250);
+    } else {
+      onClose();
+    }
+  };
+
   if (!isOpen) return null;
+
+  const morphStyle = experimentalAnimations && buttonPosition ? {
+    '--morph-x': `${buttonPosition.x}px`,
+    '--morph-y': `${buttonPosition.y}px`,
+    '--morph-width': `${buttonPosition.width}px`,
+    '--morph-height': `${buttonPosition.height}px`,
+  } as React.CSSProperties : {};
 
   return (
     <>
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 z-[199] bg-black/50 backdrop-blur-sm animate-in fade-in duration-300"
-        onClick={onClose}
+        className={`fixed inset-0 z-[199] bg-black/60 backdrop-blur-sm ${
+          experimentalAnimations 
+            ? isExiting ? '' : 'experimental-animations:animate-modal-backdrop'
+            : 'animate-in fade-in duration-300'
+        }`}
+        onClick={handleClose}
+        style={experimentalAnimations ? { animation: isExiting ? 'none' : undefined } : undefined}
       />
       
       {/* Modal */}
       <div className="fixed inset-0 z-[200] flex items-end justify-end p-4 pointer-events-none">
-        <div className="pointer-events-auto w-full max-w-md h-[600px] flex flex-col animate-in slide-in-from-bottom-4 duration-300">
-        <div className="glass rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.03] to-transparent flex flex-col h-full shadow-2xl">
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-white/10">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center">
-                <i className="fa-solid fa-comments text-white"></i>
+        <div 
+          className={`pointer-events-auto w-full max-w-md h-[600px] flex flex-col ${
+            experimentalAnimations 
+              ? isExiting ? 'chat-morph-exit' : 'chat-morph-enter'
+              : 'animate-in slide-in-from-bottom-4 duration-300'
+          }`}
+          style={morphStyle}
+        >
+          <div className="glass rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.03] to-transparent flex flex-col h-full shadow-2xl overflow-hidden">
+            {/* Enhanced Header */}
+            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-gradient-to-r from-white/[0.02] to-transparent">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                {teamInfo?.picture ? (
+                  <img
+                    src={teamInfo.picture}
+                    alt={teamInfo.name}
+                    className="w-12 h-12 rounded-full object-cover flex-shrink-0 shadow-lg"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-accent to-purple-500 flex items-center justify-center flex-shrink-0 shadow-lg">
+                    <i className="fa-solid fa-comments text-white text-lg"></i>
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-bold text-white truncate">
+                    {teamInfo?.name || 'Group Chat'}
+                  </h3>
+                  <p className="text-xs text-gray-400">
+                    {messages.length === 0 
+                      ? 'No messages yet' 
+                      : messages.length === 1 
+                      ? '1 message' 
+                      : `${messages.length} messages`}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-lg font-bold">Chat</h3>
-                <p className="text-xs text-gray-400">{messages.length} messages</p>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors text-gray-400 hover:text-white"
+                  title="Search"
+                >
+                  <i className="fa-solid fa-magnifying-glass text-sm"></i>
+                </button>
+                <button
+                  className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors text-gray-400 hover:text-white"
+                  title="More options"
+                >
+                  <i className="fa-solid fa-ellipsis-vertical text-sm"></i>
+                </button>
+                <button
+                  onClick={handleClose}
+                  className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors text-gray-400 hover:text-white"
+                  title="Close"
+                >
+                  <i className="fa-solid fa-xmark text-sm"></i>
+                </button>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors"
-            >
-              <i className="fa-solid fa-xmark text-gray-400"></i>
-            </button>
-          </div>
 
-          {/* Messages container */}
-          <div className="flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent relative">
-            {/* Delete confirmation popup - centered in the entire chat modal */}
-            {deletingMessageId && (
-              <div className="absolute inset-0 flex items-center justify-center z-50 bg-black">
-                <div className="bg-white/10 border border-white/20 rounded-xl p-4 max-w-xs mx-4">
-                  <p className="text-sm text-gray-200 mb-4 text-center">
-                    Are you sure you want to delete this message?
-                  </p>
-                  <div className="flex gap-2 justify-center">
-                    <button
-                      onClick={() => handleDeleteMessage(deletingMessageId)}
-                      className="px-4 py-2 bg-red-500 hover:bg-red-600 rounded-lg text-sm font-medium transition-colors"
-                    >
-                      Delete
-                    </button>
-                    <button
-                      onClick={() => setDeletingMessageId(null)}
-                      className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors"
-                    >
-                      Cancel
-                    </button>
+            {/* Messages container with background texture */}
+            <div 
+              ref={chatContainerRef}
+              onScroll={checkScrollPosition}
+              className="flex-1 overflow-y-auto px-4 py-6 relative bg-gradient-to-b from-transparent via-white/[0.01] to-transparent"
+              style={{
+                backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.02) 1px, transparent 0)',
+                backgroundSize: '20px 20px'
+              }}
+            >
+              {/* Delete confirmation popup */}
+              {deletingMessageId && (
+                <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/80 backdrop-blur-sm">
+                  <div className="bg-white/10 border border-white/20 rounded-xl p-4 max-w-xs mx-4 shadow-2xl">
+                    <p className="text-sm text-gray-200 mb-4 text-center">
+                      Are you sure you want to delete this message?
+                    </p>
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        onClick={() => handleDeleteMessage(deletingMessageId)}
+                        className="px-4 py-2 bg-red-500 hover:bg-red-600 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        Delete
+                      </button>
+                      <button
+                        onClick={() => setDeletingMessageId(null)}
+                        className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-            {isLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mx-auto mb-4"></div>
-                  <p className="text-gray-400 text-sm">Loading chat...</p>
+              )}
+
+              {/* Scroll to bottom button */}
+              {showScrollToBottom && (
+                <button
+                  onClick={() => scrollToBottom()}
+                  className="fixed bottom-24 right-8 w-10 h-10 rounded-full bg-accent hover:bg-accent/90 text-white shadow-lg flex items-center justify-center transition-all hover:scale-110 z-10"
+                  title="Scroll to bottom"
+                >
+                  <i className="fa-solid fa-chevron-down text-sm"></i>
+                </button>
+              )}
+
+              {isLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mx-auto mb-4"></div>
+                    <p className="text-gray-400 text-sm">Loading chat...</p>
+                  </div>
                 </div>
-              </div>
-            ) : messages.length === 0 ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <i className="fa-solid fa-comments text-4xl text-gray-500 mb-4"></i>
-                  <p className="text-gray-400 text-sm">No messages yet</p>
-                  <p className="text-gray-500 text-xs mt-1">Start the conversation!</p>
+              ) : messages.length === 0 ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div className="text-5xl mb-4">💬</div>
+                    <p className="text-gray-300 text-base font-medium mb-1">Start the conversation</p>
+                    <p className="text-gray-500 text-sm">Send a message to begin chatting</p>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              groupedMessages.map(({ message, isFirstInGroup, isLastInGroup }, index) => {
-                const ownMessage = isOwnMessage(message);
-                return (
-                  <div
-                    key={message.id}
-                    className={`flex gap-3 group relative ${
-                      ownMessage ? 'flex-row-reverse' : ''
-                    } ${isFirstInGroup ? 'mt-4' : 'mt-6'}`}
-                  >
-                    {/* Avatar - only show for first message in group */}
-                    <div className="w-8 h-8 flex-shrink-0">
-                      {isFirstInGroup ? (
-                        <img
-                          src={message.users?.image || '/default-avatar.png'}
-                          alt={message.users?.name || 'User'}
-                          className="w-8 h-8 rounded-full"
-                        />
-                      ) : (
-                        <div className="w-8" /> // Spacer to align messages
-                      )}
-                    </div>
-                    
-                    {/* Edit/Delete buttons - only for own messages, on the left side */}
-                    {ownMessage && editingMessageId !== message.id && (
-                      <div className="flex flex-col justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity order-first">
-                        <button
-                          onClick={() => handleStartEdit(message)}
-                          className="w-6 h-6 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-                          title="Edit message"
-                        >
-                          <i className="fa-solid fa-pencil text-xs text-gray-400"></i>
-                        </button>
-                        <button
-                          onClick={() => setDeletingMessageId(message.id)}
-                          className="w-6 h-6 flex items-center justify-center rounded-full bg-white/10 hover:bg-red-500/20 transition-colors"
-                          title="Delete message"
-                        >
-                          <i className="fa-solid fa-trash text-xs text-red-400"></i>
-                        </button>
-                      </div>
-                    )}
-                    
-                    <div
-                      className={`flex flex-col max-w-[70%] ${
-                        ownMessage ? 'items-end' : 'items-start'
-                      }`}
-                    >
-                      {/* Name and time - only show for first message in group */}
-                      {isFirstInGroup && (
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-xs font-bold text-gray-300">
-                            {message.users?.name || 'Unknown'}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {formatTime(message.created_at)}
-                          </span>
+              ) : (
+                <div className="space-y-1">
+                {groupedMessages.map(({ message, isFirstInGroup, isLastInGroup, showTimestamp }, index) => {
+                  const ownMessage = isOwnMessage(message);
+                  const prevMessage = index > 0 ? groupedMessages[index - 1]?.message : null;
+                  
+                  return (
+                    <React.Fragment key={message.id}>
+                      {/* Timestamp divider for gaps */}
+                      {showTimestamp && (
+                        <div className="flex items-center justify-center my-4">
+                          <div className="px-3 py-1 rounded-full bg-white/5 border border-white/10">
+                            <span className="text-xs text-gray-500">
+                              {formatTimestamp(message.created_at)}
+                            </span>
+                          </div>
                         </div>
                       )}
-                      {editingMessageId === message.id ? (
-                      <div className="flex gap-2 w-full">
-                        <input
-                          type="text"
-                          value={editText}
-                          onChange={(e) => setEditText(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              handleSaveEdit(message.id);
-                            } else if (e.key === 'Escape') {
-                              handleCancelEdit();
-                            }
-                          }}
-                          className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-accent"
-                          autoFocus
-                        />
-                        <button
-                          onClick={() => handleSaveEdit(message.id)}
-                          className="px-3 py-2 bg-accent hover:bg-accent/80 rounded-lg text-sm font-medium transition-colors"
-                        >
-                          Save
-                        </button>
-                        <button
-                          onClick={handleCancelEdit}
-                          className="px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-sm transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <div
-                        className={`px-4 py-3 rounded-2xl ${
-                          ownMessage
-                            ? 'bg-accent text-white'
-                            : 'bg-white/5 text-gray-200'
-                        }`}
-                      >
-                        <p className="text-sm whitespace-pre-wrap break-words">
-                          {message.message}
-                        </p>
-                        {message.updated_at !== message.created_at && (
-                          <span className="text-xs opacity-70 mt-1 block">
-                            (edited)
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-              })
-            )}
-            <div ref={messagesEndRef} />
-          </div>
 
-          {/* Message input */}
-          <div className="p-4 border-t border-white/10">
-            <form onSubmit={handleSendMessage} className="flex gap-2">
-              <input
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Type a message..."
-                className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:border-accent transition-colors"
-                maxLength={5000}
-                disabled={isSending}
-              />
-              <button
-                type="submit"
-                disabled={!newMessage.trim() || isSending}
-                className="px-6 py-3 bg-accent hover:bg-accent/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-medium transition-colors"
-              >
-                {isSending ? (
-                  <i className="fa-solid fa-spinner fa-spin"></i>
-                ) : (
-                  <i className="fa-solid fa-paper-plane"></i>
-                )}
-              </button>
-            </form>
+                      <div
+                        className={`flex gap-2 group relative ${
+                          ownMessage ? 'flex-row-reverse' : 'flex-row'
+                        } ${isFirstInGroup ? 'mt-4' : 'mt-1'}`}
+                      >
+                        {/* Avatar - only show for first message in group, incoming messages */}
+                        {!ownMessage && (
+                          <div className="w-8 h-8 flex-shrink-0">
+                            {isFirstInGroup ? (
+                              <img
+                                src={message.users?.image || '/default-avatar.png'}
+                                alt={message.users?.name || 'User'}
+                                className="w-8 h-8 rounded-full object-cover shadow-md"
+                              />
+                            ) : (
+                              <div className="w-8" />
+                            )}
+                          </div>
+                        )}
+
+                        {/* Message content */}
+                        <div
+                          className={`flex flex-col ${
+                            ownMessage ? 'items-end' : 'items-start'
+                          } max-w-[75%] ${ownMessage ? 'mr-0' : 'ml-0'}`}
+                        >
+                          {/* Name - only show for first message in group, incoming messages */}
+                          {!ownMessage && isFirstInGroup && (
+                            <div className="mb-1.5 px-1">
+                              <span className="text-xs font-semibold text-gray-300">
+                                {message.users?.name || 'Unknown'}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Message bubble */}
+                          {editingMessageId === message.id ? (
+                            <div className="flex gap-2 w-full">
+                              <input
+                                type="text"
+                                value={editText}
+                                onChange={(e) => setEditText(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    handleSaveEdit(message.id);
+                                  } else if (e.key === 'Escape') {
+                                    handleCancelEdit();
+                                  }
+                                }}
+                                className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-2xl text-sm focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition-all"
+                                autoFocus
+                              />
+                              <button
+                                onClick={() => handleSaveEdit(message.id)}
+                                className="px-4 py-2.5 bg-accent hover:bg-accent/90 rounded-xl text-sm font-medium transition-colors"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={handleCancelEdit}
+                                className="px-4 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-sm transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div
+                              className={`group/message relative px-4 py-2.5 rounded-2xl shadow-sm transition-all ${
+                                experimentalAnimations ? 'chat-message-enter' : ''
+                              } ${
+                                ownMessage
+                                  ? 'bg-accent text-white rounded-br-md'
+                                  : 'bg-white/5 text-gray-100 rounded-bl-md border border-white/10'
+                              } ${isFirstInGroup ? '' : ownMessage ? 'rounded-tr-md' : 'rounded-tl-md'} ${
+                                isLastInGroup ? '' : ownMessage ? 'rounded-br-md' : 'rounded-bl-md'
+                              } hover:shadow-md`}
+                              style={experimentalAnimations ? { animationDelay: `${index * 20}ms` } : undefined}
+                            >
+                              <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+                                {formatMessageText(message.message)}
+                              </p>
+                              {message.updated_at !== message.created_at && (
+                                <span className="text-xs opacity-60 mt-1 block">
+                                  (edited)
+                                </span>
+                              )}
+
+                              {/* Hover actions */}
+                              {ownMessage && (
+                                <div className="absolute -right-14 top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover/message:opacity-100 transition-opacity z-10">
+                                  <button
+                                    onClick={() => handleStartEdit(message)}
+                                    className="w-7 h-7 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-sm transition-colors"
+                                    title="Edit"
+                                  >
+                                    <i className="fa-solid fa-pencil text-xs text-gray-300"></i>
+                                  </button>
+                                  <button
+                                    onClick={() => setDeletingMessageId(message.id)}
+                                    className="w-7 h-7 flex items-center justify-center rounded-full bg-white/10 hover:bg-red-500/20 backdrop-blur-sm transition-colors"
+                                    title="Delete"
+                                  >
+                                    <i className="fa-solid fa-trash text-xs text-red-400"></i>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Enhanced Message input */}
+            <div className="p-4 border-t border-white/10 bg-gradient-to-t from-white/[0.02] to-transparent shadow-[0_-4px_12px_rgba(0,0,0,0.1)]">
+              <form onSubmit={handleSendMessage} className="flex items-end gap-2">
+                <button
+                  type="button"
+                  className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-colors flex-shrink-0"
+                  title="Attach file"
+                >
+                  <i className="fa-solid fa-paperclip text-gray-400 text-sm"></i>
+                </button>
+                
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Type a message..."
+                    className="w-full px-4 py-3 pr-12 bg-white/5 border border-white/10 rounded-2xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition-all"
+                    maxLength={5000}
+                    disabled={isSending}
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors"
+                    title="Emoji"
+                  >
+                    <i className="fa-regular fa-face-smile text-gray-400 text-sm"></i>
+                  </button>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!newMessage.trim() || isSending}
+                  className={`w-10 h-10 flex items-center justify-center rounded-xl font-medium transition-all flex-shrink-0 ${
+                    newMessage.trim()
+                      ? 'bg-accent hover:bg-accent/90 text-white shadow-lg shadow-accent/30'
+                      : 'bg-white/5 text-gray-500 cursor-not-allowed'
+                  } ${isSending ? 'opacity-50' : ''}`}
+                  title="Send message"
+                >
+                  {isSending ? (
+                    <i className="fa-solid fa-spinner fa-spin text-sm"></i>
+                  ) : (
+                    <i className="fa-solid fa-paper-plane text-sm"></i>
+                  )}
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
         </div>
       </div>
     </>

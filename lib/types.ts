@@ -21,7 +21,6 @@ export interface User {
   id: string;
   name: string;
   avatar: string;
-  banner?: string;
   role: 'Admin' | 'Editor' | 'Viewer';
 }
 

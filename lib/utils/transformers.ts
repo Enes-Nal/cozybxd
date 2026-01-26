@@ -92,7 +92,6 @@ export function transformUserToFrontend(user: any, teamMembership?: any): User {
     id: user.id,
     name: user.name || 'Unknown',
     avatar: user.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}`,
-    banner: user.banner_url || user.bannerUrl || undefined,
     role,
   };
 }

@@ -5,11 +5,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Sidebar from '@/components/Sidebar';
+import Navbar from '@/components/Navbar';
 import Header from '@/components/Header';
 import MovieGrid from '@/components/MovieGrid';
 import InboxView from '@/components/InboxView';
-import WatchlistView from '@/components/WatchlistView';
-import HistoryView from '@/components/HistoryView';
+import MyStuffView from '@/components/MyStuffView';
 import SettingsView from '@/components/SettingsView';
 import GroupView from '@/components/GroupView';
 import GroupSettingsView from '@/components/GroupSettingsView';
@@ -25,6 +25,7 @@ import CreateGroupModal from '@/components/CreateGroupModal';
 import JoinGroupModal from '@/components/JoinGroupModal';
 import SetUsernameModal from '@/components/SetUsernameModal';
 import { useToast } from '@/components/Toast';
+import PageTransition from '@/components/PageTransition';
 import { Movie, User, Group } from '@/lib/types';
 import { transformTMDBMovieToMovieSync, transformTeamToGroup, transformMediaToMovie, transformYouTubeVideoToMovie } from '@/lib/utils/transformers';
 import { TMDBMovie, getGenres } from '@/lib/api/tmdb';
@@ -67,6 +68,13 @@ function HomeContent() {
   const [groupData, setGroupData] = useState<Group | null>(null);
   const [groupMovies, setGroupMovies] = useState<Movie[]>([]);
   const [filters, setFilters] = useState<FilterState | null>(null);
+  const [useNavbar, setUseNavbar] = useState(false);
+
+  // Check navbar preference on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('useNavbar');
+    setUseNavbar(saved === 'true');
+  }, []);
 
   // Fetch current user
   const { data: currentUserData, isLoading: userLoading } = useQuery({
@@ -403,11 +411,11 @@ function HomeContent() {
     const key = selectedMovie?.id || activeProfile?.id || activeGroup || activeTab;
     
     let content;
-    if (selectedMovie) content = <div className="view-transition"><TitleDetailView movie={selectedMovie} onBack={() => setSelectedMovie(null)} /></div>;
-    else if (activeProfile) content = <div className="view-transition"><ProfileView user={activeProfile} /></div>;
+    if (selectedMovie) content = <PageTransition transitionKey={key}><TitleDetailView movie={selectedMovie} onBack={() => setSelectedMovie(null)} /></PageTransition>;
+    else if (activeProfile) content = <PageTransition transitionKey={key}><ProfileView user={activeProfile} /></PageTransition>;
     else if (activeTab === 'Group Settings' && activeGroup) {
       content = (
-        <div className="view-transition">
+        <PageTransition transitionKey={key}>
           <GroupSettingsView 
             groupId={activeGroup}
             onBack={() => {
@@ -415,7 +423,7 @@ function HomeContent() {
               router.push(`/?tab=Group&group=${activeGroup}`);
             }}
           />
-        </div>
+        </PageTransition>
       );
     } else if (activeGroup) {
       if (groupLoading) {
@@ -438,7 +446,7 @@ function HomeContent() {
         );
       } else if (groupData) {
         content = (
-          <div className="view-transition">
+          <PageTransition transitionKey={key}>
             <GroupView 
               group={groupData} 
               movies={groupMovies}
@@ -446,7 +454,7 @@ function HomeContent() {
               onSelect={handleMovieSelect}
               onProfileSelect={handleProfileSelect}
             />
-          </div>
+          </PageTransition>
         );
       } else {
         content = (
@@ -458,10 +466,9 @@ function HomeContent() {
     }
     else {
       switch (activeTab) {
-        case 'Inbox': content = <div className="view-transition"><InboxView /></div>; break;
-        case 'Watchlists': content = <div className="view-transition"><WatchlistView /></div>; break;
-        case 'History': content = <div className="view-transition"><HistoryView /></div>; break;
-        case 'Settings': content = <div className="view-transition"><SettingsView /></div>; break;
+        case 'Inbox': content = <PageTransition transitionKey={key}><InboxView /></PageTransition>; break;
+        case 'My Stuff': content = <PageTransition transitionKey={key}><MyStuffView /></PageTransition>; break;
+        case 'Settings': content = <PageTransition transitionKey={key}><SettingsView /></PageTransition>; break;
         default:
           content = (
             <div className="mt-4 flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -698,7 +705,7 @@ function HomeContent() {
 
     return (
       <div key={key} className="page-transition flex-1 flex flex-col min-h-0 overflow-y-auto">
-        <div className="animate-fade-in">
+        <div className={`animate-fade-in w-full ${useNavbar ? 'flex flex-col items-center' : ''}`}>
           {content}
         </div>
       </div>
@@ -706,19 +713,32 @@ function HomeContent() {
   };
 
   return (
-    <div className="flex h-screen bg-main text-main overflow-hidden">
-      <Sidebar 
-        activeTab={activeTab} 
-        setActiveTab={handleTabChange} 
-        onGroupSelect={handleGroupSelect} 
-        onFriendSelect={handleProfileSelect}
-        onProfileClick={() => currentUser && handleProfileSelect(currentUser)}
-        onAddFriendClick={() => setIsAddFriendOpen(true)}
-        onCreateGroupClick={() => setIsCreateGroupOpen(true)}
-        onJoinGroupClick={() => setIsJoinGroupOpen(true)}
-      />
+    <div className={`${useNavbar ? 'flex flex-col navbar-mode' : 'flex'} h-screen bg-main text-main overflow-hidden`}>
+      {useNavbar ? (
+        <Navbar 
+          activeTab={activeTab} 
+          setActiveTab={handleTabChange} 
+          onGroupSelect={handleGroupSelect} 
+          onFriendSelect={handleProfileSelect}
+          onProfileClick={() => currentUser && handleProfileSelect(currentUser)}
+          onAddFriendClick={() => setIsAddFriendOpen(true)}
+          onCreateGroupClick={() => setIsCreateGroupOpen(true)}
+          onJoinGroupClick={() => setIsJoinGroupOpen(true)}
+        />
+      ) : (
+        <Sidebar 
+          activeTab={activeTab} 
+          setActiveTab={handleTabChange} 
+          onGroupSelect={handleGroupSelect} 
+          onFriendSelect={handleProfileSelect}
+          onProfileClick={() => currentUser && handleProfileSelect(currentUser)}
+          onAddFriendClick={() => setIsAddFriendOpen(true)}
+          onCreateGroupClick={() => setIsCreateGroupOpen(true)}
+          onJoinGroupClick={() => setIsJoinGroupOpen(true)}
+        />
+      )}
 
-      <main className="flex-1 flex flex-col px-8 pt-6 transition-all duration-300 overflow-hidden smooth-scroll">
+      <main className={`flex-1 flex flex-col ${useNavbar ? 'px-8 pt-4' : 'px-8 pt-6'} transition-all duration-300 overflow-hidden smooth-scroll`}>
         <Header 
           groupName={activeGroup ? "Group" : (selectedMovie ? selectedMovie.title : "cozybxd")} 
           isHome={activeTab === 'Home' && !activeGroup && !activeProfile && !selectedMovie}
@@ -738,7 +758,11 @@ function HomeContent() {
             </div>
           </div>
         ) : (
-          renderContent()
+          <div className={`flex-1 ${useNavbar ? 'flex justify-center overflow-y-auto' : ''}`}>
+            <div className={useNavbar ? 'w-full max-w-7xl flex justify-center' : 'w-full'}>
+              {renderContent()}
+            </div>
+          </div>
         )}
       </main>
 

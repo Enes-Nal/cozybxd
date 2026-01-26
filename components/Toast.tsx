@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { useAnimations } from './AnimationProvider';
 
 type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -94,6 +95,7 @@ interface ToastItemProps {
 }
 
 const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
+  const { experimentalAnimations } = useAnimations();
   const [isVisible, setIsVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
 
@@ -106,7 +108,7 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
     setIsExiting(true);
     setTimeout(() => {
       onRemove(toast.id);
-    }, 300);
+    }, experimentalAnimations ? 300 : 300);
   };
 
   const getToastStyles = () => {
@@ -142,9 +144,13 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
   return (
     <div
       className={`${getToastStyles()} ${
-        isVisible && !isExiting
-          ? 'translate-x-0 opacity-100 scale-100'
-          : 'translate-x-full opacity-0 scale-95'
+        experimentalAnimations
+          ? isVisible && !isExiting
+            ? 'toast-enter'
+            : 'toast-exit'
+          : isVisible && !isExiting
+            ? 'translate-x-0 opacity-100 scale-100'
+            : 'translate-x-full opacity-0 scale-95'
       }`}
     >
       <i className={`fa-solid ${getIcon()} text-lg flex-shrink-0`}></i>

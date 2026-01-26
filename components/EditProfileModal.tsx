@@ -13,110 +13,19 @@ interface EditProfileModalProps {
   currentUsername?: string | null;
 }
 
-// Utility function to validate banner image dimensions
-const validateBannerImage = (url: string): Promise<{ valid: boolean; error?: string }> => {
-  return new Promise((resolve) => {
-    if (!url || !url.trim()) {
-      resolve({ valid: true }); // Empty is valid (optional field)
-      return;
-    }
-
-    const trimmedUrl = url.trim();
-    
-    // Basic URL validation
-    try {
-      new URL(trimmedUrl);
-    } catch {
-      resolve({ valid: false, error: 'Invalid URL format. Please enter a valid image URL (e.g., https://example.com/image.jpg)' });
-      return;
-    }
-
-    // Check if URL looks like an image
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
-    const urlLower = trimmedUrl.toLowerCase();
-    const hasImageExtension = imageExtensions.some(ext => urlLower.includes(ext));
-    if (!hasImageExtension && !urlLower.includes('data:image')) {
-      // Not a hard requirement, but warn if it doesn't look like an image
-      // We'll still try to load it
-    }
-
-    let timeoutId: NodeJS.Timeout;
-    let resolved = false;
-    let retryAttempted = false;
-
-    const resolveOnce = (result: { valid: boolean; error?: string }) => {
-      if (!resolved) {
-        resolved = true;
-        if (timeoutId) clearTimeout(timeoutId);
-        resolve(result);
-      }
-    };
-
-    const attemptLoad = (useCors: boolean) => {
-      const img = new Image();
-      img.crossOrigin = useCors ? 'anonymous' : null;
-      
-      img.onload = () => {
-        const width = img.naturalWidth;
-        const height = img.naturalHeight;
-        
-        // If dimensions are 0, image might not have loaded properly
-        if (width === 0 || height === 0) {
-          resolveOnce({ valid: false, error: 'Could not determine image dimensions. The image may be corrupted or the URL may not point to a valid image file.' });
-          return;
-        }
-        
-        // Any size is acceptable - the banner will be fitted automatically
-        resolveOnce({ valid: true });
-      };
-      
-      img.onerror = () => {
-        // If CORS fails and we haven't retried, try without CORS
-        if (useCors && !retryAttempted) {
-          retryAttempted = true;
-          attemptLoad(false);
-          return;
-        }
-        
-        // Provide more helpful error message
-        let errorMsg = 'Failed to load image. ';
-        if (useCors && retryAttempted) {
-          errorMsg += 'The image URL may be invalid, inaccessible, or blocked by CORS. Please ensure the URL is publicly accessible and points to a valid image file.';
-        } else {
-          errorMsg += 'Please check that the URL is correct, the image is publicly accessible, and the file is a valid image format (JPG, PNG, GIF, WebP, SVG).';
-        }
-        resolveOnce({ valid: false, error: errorMsg });
-      };
-      
-      img.src = trimmedUrl;
-    };
-    
-    // Set timeout for slow-loading images
-    timeoutId = setTimeout(() => {
-      resolveOnce({ valid: false, error: 'Image took too long to load. The server may be slow or the URL may be incorrect. Please try a different image or check your internet connection.' });
-    }, 10000);
-    
-    // Start with CORS attempt
-    attemptLoad(true);
-  });
-};
-
 const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose, currentUser, currentEmail, currentUsername }) => {
   const toast = useToast();
   const [name, setName] = useState(currentUser?.name || '');
   const [avatar, setAvatar] = useState(currentUser?.avatar || '');
-  const [banner, setBanner] = useState(currentUser?.banner || '');
   const [username, setUsername] = useState(currentUsername || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [bannerValidating, setBannerValidating] = useState(false);
   const queryClient = useQueryClient();
 
   useEffect(() => {
     if (currentUser) {
       setName(currentUser.name || '');
       setAvatar(currentUser.avatar || '');
-      setBanner(currentUser.banner || '');
     }
     if (currentUsername !== undefined) {
       setUsername(currentUsername || '');
@@ -149,19 +58,6 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose, currentUse
       }
     }
 
-    // Validate banner image dimensions if provided
-    const trimmedBanner = banner.trim();
-    if (trimmedBanner) {
-      setBannerValidating(true);
-      const bannerValidation = await validateBannerImage(trimmedBanner);
-      setBannerValidating(false);
-      
-      if (!bannerValidation.valid) {
-        setError(bannerValidation.error || 'Invalid banner image');
-        return;
-      }
-    }
-
     setLoading(true);
     setError(null);
 
@@ -174,7 +70,6 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose, currentUse
         body: JSON.stringify({
           name: name.trim(),
           image: avatar.trim() || null,
-          banner: banner.trim() || null,
           username: username.trim() || null,
         }),
       });
@@ -272,47 +167,6 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ onClose, currentUse
               disabled={loading}
             />
             <p className="mt-2 text-xs text-gray-500">Leave empty to use default avatar</p>
-          </div>
-
-          <div>
-            <label className="block text-[10px] uppercase font-black text-[var(--accent-color)] tracking-widest mb-3">
-              Banner URL
-            </label>
-            <input 
-              type="url" 
-              value={banner}
-              onChange={async (e) => {
-                const newBanner = e.target.value;
-                setBanner(newBanner);
-                setError(null);
-                
-                // Validate banner dimensions when user enters a URL
-                if (newBanner.trim()) {
-                  setBannerValidating(true);
-                  const validation = await validateBannerImage(newBanner.trim());
-                  setBannerValidating(false);
-                  if (!validation.valid) {
-                    setError(validation.error || 'Invalid banner image');
-                  }
-                }
-              }}
-              placeholder="https://example.com/banner.jpg"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-sm font-medium focus:border-[var(--accent-color)]/50 focus:bg-white/[0.08] transition-all outline-none text-main"
-              disabled={loading}
-            />
-            <div className="mt-2 flex items-center gap-2">
-              {bannerValidating && (
-                <span className="text-xs text-gray-400">
-                  <i className="fa-solid fa-spinner fa-spin mr-1"></i>
-                  Validating image...
-                </span>
-              )}
-              {!bannerValidating && (
-                <p className="text-xs text-gray-500">
-                  Any size image or GIF is accepted. The banner will be automatically fitted.
-                </p>
-              )}
-            </div>
           </div>
 
           {currentEmail && (
