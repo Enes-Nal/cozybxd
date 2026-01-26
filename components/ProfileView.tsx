@@ -89,6 +89,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
     },
   });
 
+  // Check if the viewed user is the current user (needed for conditional queries)
+  const isCurrentUser = session?.user?.id === user.id;
+
   // Fetch current user's friends to check if this user is a friend
   const { data: friendsData = [] } = useQuery({
     queryKey: ['friends'],
@@ -135,7 +138,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
 
   // Check if the viewed user is a friend (only direct friends are returned now)
   const isFriend = friendsData.some((friend: User) => friend.id === user.id);
-  const isCurrentUser = session?.user?.id === user.id;
   
   // Check for pending friend requests
   const incomingRequest = incomingRequests.find((req: any) => req.user.id === user.id);

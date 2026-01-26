@@ -31,6 +31,10 @@ const JoinGroupModal: React.FC<JoinGroupModalProps> = ({ onClose, onSuccess }) =
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['teams'] });
+      // Invalidate activity log for the joined team
+      if (data?.id) {
+        queryClient.invalidateQueries({ queryKey: ['teamActivity', data.id] });
+      }
       toast.showSuccess('Successfully joined the group!');
       if (onSuccess) {
         onSuccess(data.id);

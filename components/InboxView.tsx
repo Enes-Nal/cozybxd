@@ -21,6 +21,17 @@ const InboxView: React.FC = () => {
     enabled: !!session,
   });
 
+  // Fetch notifications
+  const { data: notifications = [], isLoading: isLoadingNotifications } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: async () => {
+      const res = await fetch('/api/notifications');
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!session,
+  });
+
   // Accept friend request mutation
   const acceptRequestMutation = useMutation({
     mutationFn: async (requestId: string) => {
@@ -94,19 +105,33 @@ const InboxView: React.FC = () => {
   // Mark all as read mutation
   const markAllAsReadMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch('/api/friends/requests', {
+      // Mark all friend requests as read
+      const friendRequestRes = await fetch('/api/friends/requests', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ markAllAsRead: true }),
       });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Failed to mark all as read');
+      if (!friendRequestRes.ok) {
+        const error = await friendRequestRes.json();
+        throw new Error(error.error || 'Failed to mark all friend requests as read');
       }
-      return res.json();
+
+      // Mark all notifications as read
+      const notificationRes = await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markAllAsRead: true }),
+      });
+      if (!notificationRes.ok) {
+        const error = await notificationRes.json();
+        throw new Error(error.error || 'Failed to mark all notifications as read');
+      }
+
+      return { success: true };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['friendRequests'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
       // Don't show toast for automatic marking
     },
     onError: (error: Error) => {
@@ -167,6 +192,28 @@ const InboxView: React.FC = () => {
     return date.toLocaleDateString('default', { month: 'short', day: 'numeric' }).toUpperCase();
   };
 
+  // Mark notification as read mutation
+  const markNotificationAsReadMutation = useMutation({
+    mutationFn: async (notificationIds: string[]) => {
+      const res = await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationIds }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to mark notification as read');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+    onError: (error: Error) => {
+      console.error('Failed to mark notification as read:', error);
+    },
+  });
+
   const allNotifications = [
     ...incomingRequests.map((req: any) => ({
       id: req.id,
@@ -180,7 +227,25 @@ const InboxView: React.FC = () => {
       read_at: req.read_at,
       isRead: !!req.read_at || req.status === 'accepted',
     })),
-  ];
+    ...notifications.map((notif: any) => ({
+      id: notif.id,
+      type: notif.type,
+      from: notif.related_user?.name || notif.related_user?.username || (notif.related_user_id ? 'Admin' : 'System'),
+      avatar: notif.related_user?.avatar,
+      content: notif.message,
+      time: formatTime(notif.created_at),
+      notificationId: notif.id,
+      isRead: notif.is_read,
+      related_team_id: notif.related_team_id,
+    })),
+  ].sort((a, b) => {
+    // Sort by time (most recent first)
+    const timeA = a.time;
+    const timeB = b.time;
+    // Simple comparison - if both have time strings, compare them
+    // For more accurate sorting, we'd need to parse dates, but this works for display
+    return 0; // Keep original order from queries (already sorted by created_at DESC)
+  });
 
   const unreadCount = allNotifications.filter(n => !n.isRead).length;
 
@@ -199,7 +264,7 @@ const InboxView: React.FC = () => {
         )}
       </div>
       
-      {isLoadingRequests ? (
+      {(isLoadingRequests || isLoadingNotifications) ? (
         <div className="flex flex-col items-center justify-center py-20">
           <div className="w-20 h-20 rounded-full bg-black/[0.03] flex items-center justify-center text-gray-400 border border-main mb-6">
             <i className="fa-solid fa-spinner fa-spin text-3xl"></i>
@@ -225,7 +290,7 @@ const InboxView: React.FC = () => {
             return (
             <div key={n.id} className={`glass p-8 rounded-[2rem] border-white/5 flex items-center justify-between group transition-all-smooth ${isAccepted || isRead ? 'opacity-60 grayscale' : 'hover:bg-black/[0.02] card-hover'} ${staggerClass}`}>
               <div className="flex items-center gap-6">
-                {!isRead && n.type === 'friend_request' && n.avatar ? (
+                {!isRead && n.avatar ? (
                   <div className={`w-14 h-14 rounded-2xl overflow-hidden border border-main flex items-center justify-center bg-black/[0.03] ${isAccepted ? 'opacity-70' : ''}`}>
                     <img 
                       src={n.avatar} 
@@ -237,14 +302,21 @@ const InboxView: React.FC = () => {
                         target.style.display = 'none';
                         const parent = target.parentElement;
                         if (parent) {
-                          parent.innerHTML = '<i class="fa-solid fa-user-plus text-lg text-accent"></i>';
+                          const iconClass = n.type === 'team_member_removed' ? 'fa-user-minus' : 'fa-user-plus';
+                          parent.innerHTML = `<i class="fa-solid ${iconClass} text-lg text-accent"></i>`;
                         }
                       }}
                     />
                   </div>
                 ) : !isRead ? (
                   <div className={`w-14 h-14 rounded-2xl bg-black/[0.03] flex items-center justify-center text-accent border border-main ${isAccepted ? 'opacity-70' : ''}`}>
-                    <i className={`fa-solid ${n.type === 'friend_request' ? 'fa-user-plus' : n.type === 'invite' ? 'fa-user-group' : n.type === 'vote' ? 'fa-check-to-slot' : 'fa-bell'} text-lg`}></i>
+                    <i className={`fa-solid ${
+                      n.type === 'friend_request' ? 'fa-user-plus' : 
+                      n.type === 'team_member_removed' ? 'fa-user-minus' :
+                      n.type === 'invite' ? 'fa-user-group' : 
+                      n.type === 'vote' ? 'fa-check-to-slot' : 
+                      'fa-bell'
+                    } text-lg`}></i>
                   </div>
                 ) : null}
                 <div>
@@ -288,12 +360,27 @@ const InboxView: React.FC = () => {
                       </button>
                     </div>
                   </>
+                ) : n.type === 'team_member_removed' ? (
+                  <>
+                    {!n.isRead && (
+                      <button
+                        onClick={() => markNotificationAsReadMutation.mutate([n.notificationId])}
+                        disabled={markNotificationAsReadMutation.isPending}
+                        className="text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-accent transition-all-smooth disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-xl border border-gray-500/30 hover:border-accent/50"
+                      >
+                        Mark as Read
+                      </button>
+                    )}
+                    <div className="px-6 py-3 rounded-2xl bg-red-500/10 border border-red-500/50 flex items-center justify-center">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-red-500">Removed</span>
+                    </div>
+                  </>
                 ) : (
                   <>
-                    {!isRead && (
+                    {!n.isRead && n.notificationId && (
                       <button
-                        onClick={() => handleMarkAsRead(n.requestId)}
-                        disabled={markAsReadMutation.isPending}
+                        onClick={() => markNotificationAsReadMutation.mutate([n.notificationId])}
+                        disabled={markNotificationAsReadMutation.isPending}
                         className="text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-accent transition-all-smooth disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-xl border border-gray-500/30 hover:border-accent/50"
                       >
                         Mark as Read

@@ -17,7 +17,10 @@ export async function GET(request: NextRequest) {
   try {
     let query = supabase
       .from('notifications')
-      .select('*')
+      .select(`
+        *,
+        related_user:users!related_user_id(id, name, username, avatar)
+      `)
       .eq('user_id', session.user.id)
       .order('created_at', { ascending: false });
 

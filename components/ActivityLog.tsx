@@ -39,9 +39,16 @@ const ActivityLog: React.FC<ActivityLogProps> = ({ teamId }) => {
     queryKey: ['teamActivity', teamId],
     queryFn: async () => {
       const res = await fetch(`/api/teams/${teamId}/activity?limit=20`);
-      if (!res.ok) return [];
+      if (!res.ok) {
+        console.error('Failed to fetch activity logs:', res.status, res.statusText);
+        return [];
+      }
       return res.json();
     },
+    // Refetch every 10 seconds to catch new activity
+    refetchInterval: 10000,
+    // Also refetch when window regains focus
+    refetchOnWindowFocus: true,
   });
 
   const formatTimeAgo = (dateString: string) => {
