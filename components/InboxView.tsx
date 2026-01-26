@@ -126,7 +126,7 @@ const InboxView: React.FC = () => {
       );
       
       // Only mark as read if there are unread requests we haven't already marked
-      const unreadRequestIds = new Set(unreadRequests.map((req: any) => req.id));
+      const unreadRequestIds = new Set<string>(unreadRequests.map((req: any) => req.id));
       const hasNewUnread = Array.from(unreadRequestIds).some(id => !lastMarkedRequestIdsRef.current.has(id));
       
       if (unreadRequests.length > 0 && hasNewUnread) {
