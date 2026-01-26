@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { createServerClient } from '@/lib/supabase';
+import { checkCooldown, recordAction, getCooldownErrorMessage } from '@/lib/utils/cooldown';
 
 function isValidUuid(value: string) {
   // Loose UUID v4-ish check; Supabase uses UUIDs
@@ -69,6 +70,15 @@ export async function POST(request: NextRequest, context: { params: Promise<{ re
     return NextResponse.json({ error: 'Rating must be an integer between 1 and 5' }, { status: 400 });
   }
 
+  // Check cooldown for creating review replies
+  const cooldownCheck = await checkCooldown(session.user.id, 'create_review_reply');
+  if (!cooldownCheck.allowed) {
+    return NextResponse.json(
+      { error: getCooldownErrorMessage('create_review_reply', cooldownCheck.remainingSeconds!) },
+      { status: 429 }
+    );
+  }
+
   const supabase = createServerClient();
 
   try {
@@ -104,6 +114,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ re
     if (createError) {
       return NextResponse.json({ error: createError.message }, { status: 500 });
     }
+
+    // Record the action after successful reply creation
+    await recordAction(session.user.id, 'create_review_reply');
 
     return NextResponse.json(created);
   } catch (err) {

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { createServerClient } from '@/lib/supabase';
 import { nanoid } from 'nanoid';
+import { checkCooldown, recordAction, getCooldownErrorMessage } from '@/lib/utils/cooldown';
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -56,6 +57,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Check cooldown for creating teams
+  const cooldownCheck = await checkCooldown(session.user.id, 'create_team');
+  if (!cooldownCheck.allowed) {
+    return NextResponse.json(
+      { error: getCooldownErrorMessage('create_team', cooldownCheck.remainingSeconds!) },
+      { status: 429 }
+    );
+  }
+
   const body = await request.json();
   const { name, description, pictureUrl } = body;
 
@@ -99,6 +109,9 @@ export async function POST(request: NextRequest) {
   if (memberError) {
     return NextResponse.json({ error: memberError.message }, { status: 500 });
   }
+
+  // Record the action after successful team creation
+  await recordAction(session.user.id, 'create_team');
 
   return NextResponse.json({
     ...team,

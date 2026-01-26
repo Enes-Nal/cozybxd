@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { createServerClient } from '@/lib/supabase';
 import { transformUserToFrontend } from '@/lib/utils/transformers';
+import { checkCooldown, recordAction, getCooldownErrorMessage } from '@/lib/utils/cooldown';
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -62,6 +63,15 @@ export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Check cooldown for sending friend requests
+  const cooldownCheck = await checkCooldown(session.user.id, 'send_friend_request');
+  if (!cooldownCheck.allowed) {
+    return NextResponse.json(
+      { error: getCooldownErrorMessage('send_friend_request', cooldownCheck.remainingSeconds!) },
+      { status: 429 }
+    );
   }
 
   const supabase = createServerClient();
@@ -247,6 +257,9 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Record the action after successful friend request
+    await recordAction(session.user.id, 'send_friend_request');
 
     return NextResponse.json({
       success: true,

@@ -9,6 +9,7 @@ import MovieGrid from './MovieGrid';
 import InvitePeopleModal from './InvitePeopleModal';
 import EditGroupPictureModal from './EditGroupPictureModal';
 import GroupChatButton from './GroupChatButton';
+import ActivityLog from './ActivityLog';
 import { useToast } from './Toast';
 
 interface GroupViewProps {
@@ -287,6 +288,7 @@ const GroupView: React.FC<GroupViewProps> = ({
           // Use a small delay to ensure the database transaction is committed
           setTimeout(() => {
             queryClient.invalidateQueries({ queryKey: ['groupWatchlist', group.id] });
+            queryClient.invalidateQueries({ queryKey: ['teamActivity', group.id] });
           }, 100);
         }
       }
@@ -448,6 +450,7 @@ const GroupView: React.FC<GroupViewProps> = ({
           // Use a small delay to ensure the database transaction is committed
           setTimeout(() => {
             queryClient.invalidateQueries({ queryKey: ['groupWatchlist', group.id] });
+            queryClient.invalidateQueries({ queryKey: ['teamActivity', group.id] });
           }, 100);
         }
       }
@@ -493,6 +496,7 @@ const GroupView: React.FC<GroupViewProps> = ({
 
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['watchlist', 'shared', group.id] });
+      queryClient.invalidateQueries({ queryKey: ['teamActivity', group.id] });
       toast.showSuccess(`Removed ${movieToRemove.title} from queue`);
     } catch (error) {
       // Revert optimistic update on error
@@ -571,6 +575,7 @@ const GroupView: React.FC<GroupViewProps> = ({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['teams'] });
+      queryClient.invalidateQueries({ queryKey: ['teamActivity', group.id] });
       toast.showSuccess(`Left "${group.name}"`);
       router.push('/?tab=Home');
     },
@@ -616,6 +621,7 @@ const GroupView: React.FC<GroupViewProps> = ({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['group', group.id] });
       queryClient.invalidateQueries({ queryKey: ['teams'] });
+      queryClient.invalidateQueries({ queryKey: ['teamActivity', group.id] });
       setUserToKick(null);
       toast.showSuccess('User has been removed from the group');
     },
@@ -681,11 +687,11 @@ const GroupView: React.FC<GroupViewProps> = ({
                 className="flex -space-x-3 hover:opacity-80 active:scale-95 transition-all duration-200 cursor-pointer group"
                 title="View all members"
               >
-                {group.members.slice(0, 5).map(m => (
-                  <img key={m.id} src={m.avatar} className="w-10 h-10 rounded-full border-2 border-[#0a0a0a] group-hover:border-accent/50 transition-all-smooth animate-image-fade-in" alt={m.name} title={m.name} loading="lazy" />
+                {group.members.slice(0, 5).map((m, idx) => (
+                  <img key={m.id} src={m.avatar} className="w-10 h-10 rounded-full border-2 border-[#0a0a0a] group-hover:border-accent/50 transition-all-smooth animate-image-fade-in relative" style={{ zIndex: idx + 1 }} alt={m.name} title={m.name} loading="lazy" />
                 ))}
                 {group.members.length > 5 && (
-                  <div className="w-10 h-10 rounded-full border-2 border-[#0a0a0a] bg-white/5 flex items-center justify-center text-xs font-bold text-gray-400 group-hover:border-accent/50 transition-colors">
+                  <div className="w-10 h-10 rounded-full border-2 border-[#0a0a0a] bg-[#0a0a0a] flex items-center justify-center text-xs font-bold text-gray-400 group-hover:border-accent/50 transition-colors relative z-10">
                     +{group.members.length - 5}
                   </div>
                 )}
@@ -729,73 +735,6 @@ const GroupView: React.FC<GroupViewProps> = ({
             </div>
           </div>
         </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-        <div className="glass p-8 rounded-[2rem] border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent">
-          <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest mb-4">Most Watchlisted</p>
-          {mostWatchlistedMovie ? (
-            <div className="flex items-center gap-4">
-              <img src={mostWatchlistedMovie.poster} className="w-12 h-16 rounded-lg object-cover animate-image-fade-in" alt={mostWatchlistedMovie.title} loading="lazy" />
-              <div>
-                <h4 className="text-sm font-bold">{mostWatchlistedMovie.title}</h4>
-                <p className="text-xs text-accent">{(mostWatchlistedMovie.votes || 0)} {(mostWatchlistedMovie.votes || 0) === 1 ? 'vote' : 'votes'}</p>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-16 rounded-lg bg-white/5 flex items-center justify-center">
-                <i className="fa-solid fa-film text-gray-500 text-xs"></i>
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-gray-500">No movies yet</h4>
-                <p className="text-xs text-gray-400">Add movies to see favorites</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="glass p-8 rounded-[2rem] border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent">
-          <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest mb-4">Next Up</p>
-          {nextMovie ? (
-            <div className="flex items-center gap-4">
-              <img src={nextMovie.poster} className="w-12 h-16 rounded-lg object-cover animate-image-fade-in" alt={nextMovie.title} loading="lazy" />
-              <div>
-                <h4 className="text-sm font-bold">{nextMovie.title}</h4>
-                <p className="text-xs text-accent">{(nextMovie.votes || 0)} votes</p>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-16 rounded-lg bg-white/5 flex items-center justify-center">
-                <i className="fa-solid fa-film text-gray-500 text-xs"></i>
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-gray-500">No movies in queue</h4>
-                <p className="text-xs text-gray-400">Add movies to get started</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="glass p-8 rounded-[2rem] border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent">
-          <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest mb-4">Group Stats</p>
-          <div className="space-y-3">
-            <div>
-              <h4 className="text-xl font-bold">{totalMovies}</h4>
-              <p className="text-xs text-gray-400">Movies in watchlist</p>
-            </div>
-            <div className="pt-3 border-t border-white/10">
-              <h4 className="text-xl font-bold">{totalVotes}</h4>
-              <p className="text-xs text-gray-400">Total votes</p>
-            </div>
-            <div className="pt-3 border-t border-white/10">
-              <h4 className="text-xl font-bold">{group.members.length}</h4>
-              <p className="text-xs text-gray-400">Members</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
 
       {currentUser && (
         <GroupChatButton
@@ -893,6 +832,76 @@ const GroupView: React.FC<GroupViewProps> = ({
           </div>
         </div>
       )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12 mt-12">
+        <div className="glass p-8 rounded-[2rem] border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent">
+          <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest mb-4">Most Watchlisted</p>
+          {mostWatchlistedMovie ? (
+            <div className="flex items-center gap-4">
+              <img src={mostWatchlistedMovie.poster} className="w-12 h-16 rounded-lg object-cover animate-image-fade-in" alt={mostWatchlistedMovie.title} loading="lazy" />
+              <div>
+                <h4 className="text-sm font-bold">{mostWatchlistedMovie.title}</h4>
+                <p className="text-xs text-accent">{(mostWatchlistedMovie.votes || 0)} {(mostWatchlistedMovie.votes || 0) === 1 ? 'vote' : 'votes'}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-16 rounded-lg bg-white/5 flex items-center justify-center">
+                <i className="fa-solid fa-film text-gray-500 text-xs"></i>
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-gray-500">No movies yet</h4>
+                <p className="text-xs text-gray-400">Add movies to see favorites</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="glass p-8 rounded-[2rem] border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent">
+          <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest mb-4">Next Up</p>
+          {nextMovie ? (
+            <div className="flex items-center gap-4">
+              <img src={nextMovie.poster} className="w-12 h-16 rounded-lg object-cover animate-image-fade-in" alt={nextMovie.title} loading="lazy" />
+              <div>
+                <h4 className="text-sm font-bold">{nextMovie.title}</h4>
+                <p className="text-xs text-accent">{(nextMovie.votes || 0)} votes</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-16 rounded-lg bg-white/5 flex items-center justify-center">
+                <i className="fa-solid fa-film text-gray-500 text-xs"></i>
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-gray-500">No movies in queue</h4>
+                <p className="text-xs text-gray-400">Add movies to get started</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="glass p-8 rounded-[2rem] border-white/5 bg-gradient-to-br from-white/[0.03] to-transparent">
+          <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest mb-4">Group Stats</p>
+          <div className="space-y-3">
+            <div>
+              <h4 className="text-xl font-bold">{totalMovies}</h4>
+              <p className="text-xs text-gray-400">Movies in watchlist</p>
+            </div>
+            <div className="pt-3 border-t border-white/10">
+              <h4 className="text-xl font-bold">{totalVotes}</h4>
+              <p className="text-xs text-gray-400">Total votes</p>
+            </div>
+            <div className="pt-3 border-t border-white/10">
+              <h4 className="text-xl font-bold">{group.members.length}</h4>
+              <p className="text-xs text-gray-400">Members</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-12">
+        <ActivityLog teamId={group.id} />
+      </div>
       </div>
 
       {isInviteModalOpen && (
@@ -941,14 +950,22 @@ const GroupView: React.FC<GroupViewProps> = ({
       )}
 
       {isMembersModalOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
-          <div className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-in zoom-in-95 duration-300">
-            <button 
-              onClick={() => setIsMembersModalOpen(false)} 
-              className="absolute top-8 right-8 text-gray-500 hover:text-white active:scale-90 transition-all duration-200"
-            >
-              <i className="fa-solid fa-xmark text-xl"></i>
-            </button>
+        <div 
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4"
+          onClick={() => setIsMembersModalOpen(false)}
+        >
+          <div 
+            className="glass w-full max-w-md rounded-[2.5rem] p-10 relative border-white/10 animate-in zoom-in-95 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="absolute top-6 right-6 z-10">
+              <button 
+                onClick={() => setIsMembersModalOpen(false)} 
+                className="text-gray-500 hover:text-white active:scale-90 transition-all duration-200"
+              >
+                <i className="fa-solid fa-xmark text-xl"></i>
+              </button>
+            </div>
 
             <h2 className="text-2xl font-black mb-2">Group Members</h2>
             <p className="text-sm text-gray-400 mb-8">{group.members.length} {group.members.length === 1 ? 'member' : 'members'}</p>

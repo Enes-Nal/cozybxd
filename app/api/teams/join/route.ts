@@ -2,11 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { createServerClient } from '@/lib/supabase';
+import { checkCooldown, recordAction, getCooldownErrorMessage } from '@/lib/utils/cooldown';
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Check cooldown for joining teams
+  const cooldownCheck = await checkCooldown(session.user.id, 'join_team');
+  if (!cooldownCheck.allowed) {
+    return NextResponse.json(
+      { error: getCooldownErrorMessage('join_team', cooldownCheck.remainingSeconds!) },
+      { status: 429 }
+    );
   }
 
   const body = await request.json();
@@ -164,6 +174,23 @@ export async function POST(request: NextRequest) {
     if (memberError) {
       return NextResponse.json({ error: memberError.message }, { status: 500 });
     }
+
+    // Log activity: member joined
+    await supabase
+      .from('team_activity_logs')
+      .insert({
+        team_id: teamId,
+        user_id: session.user.id,
+        activity_type: 'member_joined',
+        metadata: { action: 'joined' },
+      })
+      .catch((err) => {
+        // Don't fail the request if logging fails
+        console.error('Failed to log activity:', err);
+      });
+
+    // Record the action after successful team join
+    await recordAction(session.user.id, 'join_team');
 
     return NextResponse.json(membership.teams);
   } catch (error) {

@@ -257,7 +257,7 @@ const InboxView: React.FC = () => {
               </div>
               <div className="flex items-center gap-2">
                 {n.type === 'friend_request' && isAccepted ? (
-                  <div className="px-6 py-3 rounded-2xl bg-gray-500/20 border border-gray-500/30">
+                  <div className="px-6 py-3 rounded-2xl bg-gray-500/20 border border-gray-500/30 flex items-center justify-center">
                     <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Accepted</span>
                   </div>
                 ) : n.type === 'friend_request' && !isAccepted ? (

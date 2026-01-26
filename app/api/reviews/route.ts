@@ -4,6 +4,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { createServerClient } from '@/lib/supabase';
 import { getMovieDetails, getPosterUrl, getBackdropUrl, getGenres } from '@/lib/api/tmdb';
 import { getOMDbData } from '@/lib/api/omdb';
+import { checkCooldown, recordAction, getCooldownErrorMessage } from '@/lib/utils/cooldown';
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -179,6 +180,7 @@ export async function POST(request: NextRequest) {
 
     let review;
     if (existing) {
+      // Updating existing review - no cooldown needed
       // Update existing review
       const { data: updated, error: updateError } = await supabase
         .from('reviews')
@@ -201,7 +203,15 @@ export async function POST(request: NextRequest) {
 
       review = updated;
     } else {
-      // Create new review
+      // Create new review - check cooldown first
+      const cooldownCheck = await checkCooldown(session.user.id, 'create_review');
+      if (!cooldownCheck.allowed) {
+        return NextResponse.json(
+          { error: getCooldownErrorMessage('create_review', cooldownCheck.remainingSeconds!) },
+          { status: 429 }
+        );
+      }
+
       const { data: created, error: createError } = await supabase
         .from('reviews')
         .insert({
@@ -223,6 +233,9 @@ export async function POST(request: NextRequest) {
       }
 
       review = created;
+      
+      // Record the action after successful review creation
+      await recordAction(session.user.id, 'create_review');
     }
 
     return NextResponse.json(review);

@@ -146,6 +146,34 @@ export async function POST(
 
     const score = (updated.upvotes || 0) - (updated.downvotes || 0);
     
+    // Log activity: movie downvoted (only for team watchlists and when vote was added/switched, not removed)
+    if (teamId && voteAction !== 'removed') {
+      // Get media info for logging
+      const { data: media } = await supabase
+        .from('media')
+        .select('title, type')
+        .eq('id', mediaId)
+        .single();
+
+      await supabase
+        .from('team_activity_logs')
+        .insert({
+          team_id: teamId,
+          user_id: session.user.id,
+          activity_type: 'movie_downvoted',
+          media_id: mediaId,
+          metadata: media ? { 
+            title: media.title,
+            type: media.type,
+            action: voteAction
+          } : { action: voteAction },
+        })
+        .catch((err) => {
+          // Don't fail the request if logging fails
+          console.error('Failed to log activity:', err);
+        });
+    }
+    
     return NextResponse.json({ 
       upvotes: updated.upvotes,
       downvotes: updated.downvotes,

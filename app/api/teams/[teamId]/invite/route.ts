@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { createServerClient } from '@/lib/supabase';
+import { checkCooldown, recordAction, getCooldownErrorMessage } from '@/lib/utils/cooldown';
 
 export async function POST(
   request: NextRequest,
@@ -13,6 +14,16 @@ export async function POST(
   }
 
   const { teamId } = await context.params;
+  
+  // Check cooldown for inviting users
+  const cooldownCheck = await checkCooldown(session.user.id, 'invite_user');
+  if (!cooldownCheck.allowed) {
+    return NextResponse.json(
+      { error: getCooldownErrorMessage('invite_user', cooldownCheck.remainingSeconds!) },
+      { status: 429 }
+    );
+  }
+
   const supabase = createServerClient();
 
   try {
@@ -146,6 +157,27 @@ export async function POST(
     if (memberError) {
       return NextResponse.json({ error: memberError.message }, { status: 500 });
     }
+
+    // Log activity: member joined (invited by current user)
+    await supabase
+      .from('team_activity_logs')
+      .insert({
+        team_id: teamId,
+        user_id: inviteUser.id,
+        activity_type: 'member_joined',
+        metadata: { 
+          action: 'joined',
+          invited_by: session.user.id,
+          invited_by_name: session.user.name || session.user.email || 'Unknown'
+        },
+      })
+      .catch((err) => {
+        // Don't fail the request if logging fails
+        console.error('Failed to log activity:', err);
+      });
+
+    // Record the action after successful invite
+    await recordAction(session.user.id, 'invite_user');
 
     return NextResponse.json({
       success: true,

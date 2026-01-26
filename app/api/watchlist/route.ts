@@ -183,6 +183,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Log activity: movie added (only for team watchlists)
+    if (teamId) {
+      await supabase
+        .from('team_activity_logs')
+        .insert({
+          team_id: teamId,
+          user_id: session.user.id,
+          activity_type: 'movie_added',
+          media_id: mediaId,
+          metadata: { 
+            title: existingMedia.title,
+            type: existingMedia.type
+          },
+        })
+        .catch((err) => {
+          // Don't fail the request if logging fails
+          console.error('Failed to log activity:', err);
+        });
+    }
+
     const movie = transformMediaToMovie(watchlistItem.media, watchlistItem);
 
     return NextResponse.json(movie);
@@ -261,6 +281,33 @@ export async function DELETE(request: NextRequest) {
 
       if (!data || data.length === 0) {
         return NextResponse.json({ error: 'Watchlist item not found' }, { status: 404 });
+      }
+
+      // Log activity: movie removed (only for team watchlists)
+      if (teamId && data.length > 0) {
+        // Get media info for logging
+        const { data: media } = await supabase
+          .from('media')
+          .select('title, type')
+          .eq('id', actualMediaId)
+          .single();
+
+        await supabase
+          .from('team_activity_logs')
+          .insert({
+            team_id: teamId,
+            user_id: session.user.id,
+            activity_type: 'movie_removed',
+            media_id: actualMediaId,
+            metadata: media ? { 
+              title: media.title,
+              type: media.type
+            } : {},
+          })
+          .catch((err) => {
+            // Don't fail the request if logging fails
+            console.error('Failed to log activity:', err);
+          });
       }
 
       return NextResponse.json({ success: true });

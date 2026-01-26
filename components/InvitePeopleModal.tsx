@@ -83,6 +83,7 @@ const InvitePeopleModal: React.FC<InvitePeopleModalProps> = ({
       queryClient.invalidateQueries({ queryKey: ['teams', groupId] });
       queryClient.invalidateQueries({ queryKey: ['teams'] });
       queryClient.invalidateQueries({ queryKey: ['friends'] });
+      queryClient.invalidateQueries({ queryKey: ['teamActivity', groupId] });
       setTimeout(() => {
         setSuccess(false);
         setSuccessMessage('');

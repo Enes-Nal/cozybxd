@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { User, Movie } from '@/lib/types';
@@ -98,6 +98,17 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
       return res.json();
     },
     enabled: !!session,
+  });
+
+  // Fetch current user's teams to find shared groups
+  const { data: currentUserData } = useQuery({
+    queryKey: ['user', 'me'],
+    queryFn: async () => {
+      const res = await fetch('/api/users/me');
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!session && !isCurrentUser,
   });
 
   // Fetch incoming friend requests
@@ -335,7 +346,24 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
   };
 
   const stats = userData?.stats || { watched: 0, reviews: 0, groups: 0 };
-  const teams = userData?.teams || [];
+  const allTeams = userData?.teams || [];
+  const currentUserTeams = currentUserData?.teams || [];
+  
+  // Filter to only show groups that both users are in
+  const sharedTeams = useMemo(() => {
+    if (isCurrentUser) {
+      // If viewing own profile, show all teams
+      return allTeams;
+    }
+    if (!session || currentUserTeams.length === 0) {
+      // If not logged in or no current user teams, show empty
+      return [];
+    }
+    // Find teams where both users are members
+    const currentUserTeamIds = new Set(currentUserTeams.map((team: any) => team.id));
+    return allTeams.filter((team: any) => currentUserTeamIds.has(team.id));
+  }, [allTeams, currentUserTeams, isCurrentUser, session]);
+  
   const recentReviews = reviewsData.slice(0, 2);
 
   return (
@@ -378,9 +406,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
             <h2 className="text-5xl font-black text-main tracking-tight">{user.name.toUpperCase()}</h2>
           </div>
           <p className="text-gray-500 font-bold uppercase tracking-widest">{user.role}</p>
-          {userData?.email && (
-            <p className="text-gray-500 text-sm mt-1">{userData.email}</p>
-          )}
           {session && !isCurrentUser && !isFriend && !hasPendingRequest && (
             <div className="mt-4 flex flex-col justify-center md:justify-start gap-2">
               <button
@@ -553,14 +578,18 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
 
         <div className="space-y-12">
           <section>
-            <h3 className="text-sm font-black uppercase tracking-[0.2em] text-accent mb-6">GROUPS</h3>
-            {teams.length === 0 ? (
+            <h3 className="text-sm font-black uppercase tracking-[0.2em] text-accent mb-6">
+              {isCurrentUser ? 'GROUPS' : 'SHARED GROUPS'}
+            </h3>
+            {sharedTeams.length === 0 ? (
               <div className="glass p-5 rounded-3xl border-main text-center">
-                <p className="text-sm text-gray-500">No groups yet</p>
+                <p className="text-sm text-gray-500">
+                  {isCurrentUser ? 'No groups yet' : 'No shared groups'}
+                </p>
               </div>
             ) : (
               <div className="space-y-3">
-                {teams.map((team: any) => (
+                {sharedTeams.map((team: any) => (
                   <div key={team.id} className="glass p-5 rounded-3xl border-main flex items-center gap-4">
                     <div className="w-10 h-10 rounded-xl bg-black/[0.03] flex items-center justify-center text-gray-400">
                       <i className="fa-solid fa-user-group text-sm"></i>
