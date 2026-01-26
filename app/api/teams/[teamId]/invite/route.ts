@@ -159,22 +159,23 @@ export async function POST(
     }
 
     // Log activity: member joined (invited by current user)
-    await supabase
-      .from('team_activity_logs')
-      .insert({
-        team_id: teamId,
-        user_id: inviteUser.id,
-        activity_type: 'member_joined',
-        metadata: { 
-          action: 'joined',
-          invited_by: session.user.id,
-          invited_by_name: session.user.name || session.user.email || 'Unknown'
-        },
-      })
-      .catch((err) => {
-        // Don't fail the request if logging fails
-        console.error('Failed to log activity:', err);
-      });
+    try {
+      await supabase
+        .from('team_activity_logs')
+        .insert({
+          team_id: teamId,
+          user_id: inviteUser.id,
+          activity_type: 'member_joined',
+          metadata: { 
+            action: 'joined',
+            invited_by: session.user.id,
+            invited_by_name: session.user.name || session.user.email || 'Unknown'
+          },
+        });
+    } catch (err) {
+      // Don't fail the request if logging fails
+      console.error('Failed to log activity:', err);
+    }
 
     // Record the action after successful invite
     await recordAction(session.user.id, 'invite_user');
