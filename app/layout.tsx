@@ -45,6 +45,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
+                // Apply theme
                 const savedTheme = localStorage.getItem('theme');
                 if (savedTheme === 'light') {
                   document.body.classList.add('light-mode');
@@ -53,6 +54,50 @@ export default function RootLayout({
                   if (!savedTheme) {
                     localStorage.setItem('theme', 'dark');
                   }
+                }
+                
+                // Apply accent color
+                const savedAccent = localStorage.getItem('accent');
+                if (savedAccent) {
+                  document.documentElement.style.setProperty('--accent-color', savedAccent);
+                } else {
+                  document.documentElement.style.setProperty('--accent-color', '#FF47C8');
+                }
+                
+                // Apply corner radius
+                const savedCornerRadius = localStorage.getItem('cornerRadius');
+                if (savedCornerRadius) {
+                  document.documentElement.style.setProperty('--corner-radius', savedCornerRadius);
+                } else {
+                  document.documentElement.style.setProperty('--corner-radius', '25px');
+                }
+                
+                // Apply font family
+                const savedFontFamily = localStorage.getItem('fontFamily');
+                if (savedFontFamily) {
+                  let fontFamilyValue = '';
+                  switch (savedFontFamily) {
+                    case 'Inter':
+                      fontFamilyValue = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+                      break;
+                    case 'Roboto':
+                      fontFamilyValue = "'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+                      break;
+                    case 'Poppins':
+                      fontFamilyValue = "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+                      break;
+                    default:
+                      fontFamilyValue = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+                  }
+                  document.documentElement.style.setProperty('--font-family', fontFamilyValue);
+                }
+                
+                // Apply glass blur
+                const savedGlass = localStorage.getItem('glass');
+                if (savedGlass === 'off') {
+                  document.documentElement.style.setProperty('--glass-blur', '0px');
+                } else {
+                  document.documentElement.style.setProperty('--glass-blur', '10px');
                 }
               })();
             `,

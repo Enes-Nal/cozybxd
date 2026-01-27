@@ -93,6 +93,7 @@ export function transformUserToFrontend(user: any, teamMembership?: any): User {
     name: user.name || 'Unknown',
     avatar: user.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}`,
     role,
+    username: user.username || null,
   };
 }
 

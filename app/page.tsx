@@ -68,13 +68,13 @@ function HomeContent() {
   const [groupData, setGroupData] = useState<Group | null>(null);
   const [groupMovies, setGroupMovies] = useState<Movie[]>([]);
   const [filters, setFilters] = useState<FilterState | null>(null);
-  const [useNavbar, setUseNavbar] = useState(false);
-
-  // Check navbar preference on mount
-  useEffect(() => {
-    const saved = localStorage.getItem('useNavbar');
-    setUseNavbar(saved === 'true');
-  }, []);
+  const [useNavbar, setUseNavbar] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('useNavbar');
+      return saved === 'true';
+    }
+    return false;
+  });
 
   // Fetch current user
   const { data: currentUserData, isLoading: userLoading } = useQuery({
@@ -275,25 +275,10 @@ function HomeContent() {
     enabled: sessionStatus === 'authenticated',
   });
 
+  // Settings are now applied in layout.tsx beforeInteractive script to prevent flash
+  // This useEffect is kept for any runtime updates that might be needed
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'light') {
-      document.body.classList.add('light-mode');
-    } else {
-      // Default to dark mode - ensure light-mode class is removed
-      document.body.classList.remove('light-mode');
-      // Set theme to 'dark' if not already set, to ensure consistency
-      if (!savedTheme) {
-        localStorage.setItem('theme', 'dark');
-      }
-    }
-    const savedAccent = localStorage.getItem('accent');
-    if (savedAccent) {
-      document.documentElement.style.setProperty('--accent-color', savedAccent);
-    } else {
-      // Set default accent color if none is saved
-      document.documentElement.style.setProperty('--accent-color', '#FF47C8');
-    }
+    // Only apply glass blur setting here as it's not critical for initial render
     const savedGlass = localStorage.getItem('glass');
     if (savedGlass === 'off') {
       document.documentElement.style.setProperty('--glass-blur', '0px');

@@ -369,155 +369,161 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
   const recentReviews = reviewsData.slice(0, 2);
 
   return (
-    <div className="py-8 max-w-5xl mx-auto view-transition overflow-y-auto pb-20">
-      {/* Profile Header */}
-      <div className="mb-12">
-        {/* Avatar and Name Section */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-40 h-40 md:w-48 md:h-48 rounded-[3rem] overflow-hidden border-4 border-main shadow-2xl bg-black mb-6">
+    <div className="py-8 max-w-6xl mx-auto view-transition overflow-y-auto pb-20 px-4">
+      {/* Profile Header - Centered */}
+      <div className="mb-10">
+        {/* Avatar */}
+        <div className="flex justify-center mb-6">
+          <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden border-2 border-main/30 shadow-lg bg-black">
             <img src={user.avatar} className="w-full h-full object-cover animate-image-fade-in" alt={user.name} loading="lazy" />
           </div>
-          
+        </div>
+        
+        {/* Name and Role */}
+        <div className="text-center mb-6">
+          <h2 className="text-3xl md:text-4xl font-bold text-main tracking-tight mb-1">{user.name}</h2>
+          <p className="text-gray-400 text-sm uppercase tracking-wider">{user.role}</p>
+          {/* Action Buttons */}
+          {session && !isCurrentUser && !isFriend && !hasPendingRequest && (
+            <div className="flex flex-col items-center gap-2 mb-6">
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleAddFriend();
+                }}
+                disabled={addFriendMutation.isPending || userLoading || !userData?.username}
+                className="px-5 py-2 rounded-lg bg-accent/10 border border-accent/30 text-accent hover:bg-accent/20 transition-all text-xs font-semibold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              >
+                <i className="fa-solid fa-user-plus text-xs"></i>
+                {addFriendMutation.isPending ? 'Sending...' : 'Send Friend Request'}
+              </button>
+              {userLoading && (
+                <p className="text-xs text-gray-500">Loading user data...</p>
+              )}
+              {!userLoading && !userData?.username && (
+                <p className="text-xs text-gray-500">This user needs to log in to set their username</p>
+              )}
+              {addFriendError && (
+                <p className="text-xs text-red-400">{addFriendError}</p>
+              )}
+            </div>
+          )}
+          {session && !isCurrentUser && !isFriend && incomingRequest && (
+            <div className="flex flex-col items-center gap-2 mb-6">
+              <div className="flex gap-2">
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    acceptRequestMutation.mutate(incomingRequest.id);
+                  }}
+                  disabled={acceptRequestMutation.isPending || rejectRequestMutation.isPending}
+                  className="px-5 py-2 rounded-lg bg-accent/10 border border-accent/30 text-accent hover:bg-accent/20 transition-all text-xs font-semibold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                >
+                  <i className="fa-solid fa-check text-xs"></i>
+                  {acceptRequestMutation.isPending ? 'Accepting...' : 'Accept'}
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    rejectRequestMutation.mutate(incomingRequest.id);
+                  }}
+                  disabled={acceptRequestMutation.isPending || rejectRequestMutation.isPending}
+                  className="px-5 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20 transition-all text-xs font-semibold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                >
+                  <i className="fa-solid fa-xmark text-xs"></i>
+                  {rejectRequestMutation.isPending ? 'Rejecting...' : 'Reject'}
+                </button>
+              </div>
+              {addFriendError && (
+                <p className="text-xs text-red-400">{addFriendError}</p>
+              )}
+            </div>
+          )}
+          {session && !isCurrentUser && !isFriend && outgoingRequest && (
+            <div className="flex flex-col items-center gap-2 mb-6">
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  cancelRequestMutation.mutate(outgoingRequest.id);
+                }}
+                disabled={cancelRequestMutation.isPending}
+                className="px-5 py-2 rounded-lg bg-gray-500/10 border border-gray-500/30 text-gray-500 hover:bg-gray-500/20 transition-all text-xs font-semibold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              >
+                <i className="fa-solid fa-paper-plane text-xs"></i>
+                {cancelRequestMutation.isPending ? 'Cancelling...' : 'Friend Request Sent'}
+              </button>
+              {addFriendError && (
+                <p className="text-xs text-red-400">{addFriendError}</p>
+              )}
+            </div>
+          )}
+          {session && !isCurrentUser && isFriend && (
+            <div className="flex justify-center mb-6">
+              <button
+                onClick={handleUnfriend}
+                disabled={unfriendMutation.isPending}
+                className="px-5 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20 transition-all text-xs font-semibold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <i className="fa-solid fa-user-minus text-xs"></i>
+                {unfriendMutation.isPending ? 'Unfriending...' : 'Unfriend'}
+              </button>
+            </div>
+          )}
+          {showUnfriendModal && (
+            <UnfriendConfirmModal
+              friend={user}
+              onClose={() => setShowUnfriendModal(false)}
+              onConfirm={handleConfirmUnfriend}
+              isPending={unfriendMutation.isPending}
+            />
+          )}
+
+        {/* Stats - Letterboxd Style */}
+        <div className="flex flex-wrap justify-center gap-6 md:gap-8 text-sm">
           <div className="text-center">
-            <h2 className="text-4xl md:text-5xl font-black text-main tracking-tight mb-2">{user.name.toUpperCase()}</h2>
-            <p className="text-gray-500 font-bold uppercase tracking-widest text-sm mb-6">{user.role}</p>
-            {session && !isCurrentUser && !isFriend && !hasPendingRequest && (
-              <div className="flex flex-col items-center gap-2">
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleAddFriend();
-                  }}
-                  disabled={addFriendMutation.isPending || userLoading || !userData?.username}
-                  className="px-6 py-2 rounded-xl bg-accent/10 border border-accent/50 text-accent hover:bg-accent/20 transition-all text-sm font-bold uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
-                >
-                  <i className="fa-solid fa-user-plus text-xs"></i>
-                  {addFriendMutation.isPending ? 'Sending...' : 'Send Friend Request'}
-                </button>
-                {userLoading && (
-                  <p className="text-sm text-gray-500">Loading user data...</p>
-                )}
-                {!userLoading && !userData?.username && (
-                  <p className="text-sm text-gray-500">This user needs to log in to set their username</p>
-                )}
-                {addFriendError && (
-                  <p className="text-sm text-red-400">{addFriendError}</p>
-                )}
-              </div>
-            )}
-            {session && !isCurrentUser && !isFriend && incomingRequest && (
-              <div className="flex flex-col items-center gap-2">
-                <div className="flex gap-2">
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      acceptRequestMutation.mutate(incomingRequest.id);
-                    }}
-                    disabled={acceptRequestMutation.isPending || rejectRequestMutation.isPending}
-                    className="px-6 py-2 rounded-xl bg-accent/10 border border-accent/50 text-accent hover:bg-accent/20 transition-all text-sm font-bold uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
-                  >
-                    <i className="fa-solid fa-check text-xs"></i>
-                    {acceptRequestMutation.isPending ? 'Accepting...' : 'Accept Request'}
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      rejectRequestMutation.mutate(incomingRequest.id);
-                    }}
-                    disabled={acceptRequestMutation.isPending || rejectRequestMutation.isPending}
-                    className="px-6 py-2 rounded-xl bg-red-500/10 border border-red-500/50 text-red-500 hover:bg-red-500/20 transition-all text-sm font-bold uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
-                  >
-                    <i className="fa-solid fa-xmark text-xs"></i>
-                    {rejectRequestMutation.isPending ? 'Rejecting...' : 'Reject'}
-                  </button>
-                </div>
-                {addFriendError && (
-                  <p className="text-sm text-red-400">{addFriendError}</p>
-                )}
-              </div>
-            )}
-            {session && !isCurrentUser && !isFriend && outgoingRequest && (
-              <div className="flex flex-col items-center gap-2">
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    cancelRequestMutation.mutate(outgoingRequest.id);
-                  }}
-                  disabled={cancelRequestMutation.isPending}
-                  className="px-6 py-2 rounded-xl bg-gray-500/10 border border-gray-500/50 text-gray-500 hover:bg-gray-500/20 transition-all text-sm font-bold uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
-                >
-                  <i className="fa-solid fa-paper-plane text-xs"></i>
-                  {cancelRequestMutation.isPending ? 'Cancelling...' : 'Friend Request Sent'}
-                </button>
-                {addFriendError && (
-                  <p className="text-sm text-red-400">{addFriendError}</p>
-                )}
-              </div>
-            )}
-            {session && !isCurrentUser && isFriend && (
-              <div className="flex justify-center">
-                <button
-                  onClick={handleUnfriend}
-                  disabled={unfriendMutation.isPending}
-                  className="px-6 py-2 rounded-xl bg-red-500/10 border border-red-500/50 text-red-500 hover:bg-red-500/20 transition-all text-sm font-bold uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  <i className="fa-solid fa-user-minus text-xs"></i>
-                  {unfriendMutation.isPending ? 'Unfriending...' : 'Unfriend'}
-                </button>
-              </div>
-            )}
-            {showUnfriendModal && (
-              <UnfriendConfirmModal
-                friend={user}
-                onClose={() => setShowUnfriendModal(false)}
-                onConfirm={handleConfirmUnfriend}
-                isPending={unfriendMutation.isPending}
-              />
-            )}
+            <span className="text-main font-semibold">{stats.watched}</span>
+            <span className="text-gray-400 ml-1 uppercase tracking-wider text-xs">Watched</span>
+          </div>
+          <div className="text-center">
+            <span className="text-main font-semibold">{stats.reviews}</span>
+            <span className="text-gray-400 ml-1 uppercase tracking-wider text-xs">Reviews</span>
+          </div>
+          <div className="text-center">
+            <span className="text-main font-semibold">{stats.groups}</span>
+            <span className="text-gray-400 ml-1 uppercase tracking-wider text-xs">Groups</span>
           </div>
         </div>
-
-        {/* Stats Section */}
-        <div className="flex gap-4 md:gap-6 justify-center mt-8">
-          {[
-            { label: 'Watched', value: stats.watched },
-            { label: 'Reviews', value: stats.reviews },
-            { label: 'Groups', value: stats.groups }
-          ].map(stat => (
-            <div key={stat.label} className="text-center glass px-6 py-4 rounded-3xl border-main min-w-[100px]">
-              <p className="text-2xl font-black text-accent">{stat.value}</p>
-              <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest">{stat.label}</p>
-            </div>
-          ))}
-        </div>
+      </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12 mt-12">
-        <div className="lg:col-span-2 space-y-8">
+      {/* Two Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-10">
+        {/* Main Content Column */}
+        <div className="lg:col-span-2 space-y-10">
           <section>
-            <h3 className="text-sm font-black uppercase tracking-[0.2em] text-accent mb-6">RECENT ACTIVITY</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-6">RECENT ACTIVITY</h3>
             {recentReviews.length === 0 ? (
-              <div className="glass p-5 rounded-3xl border-main text-center">
+              <div className="glass p-5 rounded-xl border border-white/5 text-center">
                 <p className="text-sm text-gray-500">No recent reviews</p>
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {recentReviews.map((review: any) => {
                   const reviewDate = review.created_at ? new Date(review.created_at) : new Date();
-                  const dateStr = reviewDate.toLocaleDateString('default', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
+                  const dateStr = reviewDate.toLocaleDateString('default', { month: 'short', day: 'numeric', year: 'numeric' });
                   
                   return (
-                    <div key={review.id} className="glass p-6 rounded-[2.5rem] flex gap-8 hover:bg-black/[0.02] transition-all group">
+                    <div key={review.id} className="glass p-5 rounded-xl flex gap-5 hover:bg-black/[0.02] transition-all group border border-white/5">
                       {review.media?.posterUrl && (
-                        <img src={review.media.posterUrl} className="w-24 h-36 rounded-2xl object-cover shadow-md" alt={review.media.title} />
+                        <img src={review.media.posterUrl} className="w-20 h-28 rounded-lg object-cover shadow-md flex-shrink-0" alt={review.media.title} />
                       )}
-                      <div className="flex-1 py-1">
-                        <div className="flex justify-between items-start mb-2">
-                          <h4 className="text-lg font-black text-main group-hover:text-accent transition-colors">{review.media?.title || 'Unknown'}</h4>
+                      <div className="flex-1 py-1 min-w-0">
+                        <div className="flex justify-between items-start mb-2 gap-3">
+                          <h4 className="text-base font-semibold text-main group-hover:text-accent transition-colors truncate">{review.media?.title || 'Unknown'}</h4>
                           <div className="flex items-center gap-3">
                             {isCurrentUser && (
                               <button
@@ -541,9 +547,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
                             </div>
                           </div>
                         </div>
-                        <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-4">RATED ON {dateStr}</p>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-3">Rated on {dateStr}</p>
                         {review.comment && (
-                          <p className="text-sm text-gray-500 font-medium italic">"{review.comment}"</p>
+                          <p className="text-sm text-gray-400 leading-relaxed">"{review.comment}"</p>
                         )}
                       </div>
                     </div>
@@ -554,25 +560,26 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
           </section>
         </div>
 
+        {/* Sidebar Column */}
         <div className="space-y-8">
           <section>
-            <h3 className="text-sm font-black uppercase tracking-[0.2em] text-accent mb-6">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-4">
               {isCurrentUser ? 'GROUPS' : 'SHARED GROUPS'}
             </h3>
             {sharedTeams.length === 0 ? (
-              <div className="glass p-5 rounded-3xl border-main text-center">
+              <div className="glass p-4 rounded-xl border border-white/5 text-center">
                 <p className="text-sm text-gray-500">
                   {isCurrentUser ? 'No groups yet' : 'No shared groups'}
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {sharedTeams.map((team: any) => (
-                  <div key={team.id} className="glass p-5 rounded-3xl border-main flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-black/[0.03] flex items-center justify-center text-gray-400">
-                      <i className="fa-solid fa-user-group text-sm"></i>
+                  <div key={team.id} className="glass p-4 rounded-xl border border-white/5 flex items-center gap-3 hover:bg-black/[0.02] transition-colors">
+                    <div className="w-8 h-8 rounded-lg bg-black/[0.03] flex items-center justify-center text-gray-400 flex-shrink-0">
+                      <i className="fa-solid fa-user-group text-xs"></i>
                     </div>
-                    <span className="text-sm font-bold text-main">{team.name}</span>
+                    <span className="text-sm text-main truncate">{team.name}</span>
                   </div>
                 ))}
               </div>
@@ -580,7 +587,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
           </section>
           
           <section>
-            <h3 className="text-sm font-black uppercase tracking-[0.2em] text-accent mb-6">TOP GENRES</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-4">TOP GENRES</h3>
             <div className="flex flex-wrap gap-3">
               {reviewsData.length > 0 ? (
                 // Extract genres from reviews (if available)
@@ -599,11 +606,13 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, movies: propMovies }) =
                     .map(([genre]) => genre.toUpperCase());
                   
                   return topGenres.length > 0 ? (
-                    topGenres.map(tag => (
-                      <span key={tag} className={`px-4 py-2 rounded-2xl border text-[10px] font-black tracking-widest ${getGenreColor(tag)}`}>
-                        {tag}
-                      </span>
-                    ))
+                    <div className="flex flex-wrap gap-2">
+                      {topGenres.map(tag => (
+                        <span key={tag} className={`px-3 py-1.5 rounded-lg border text-[10px] font-medium tracking-wider ${getGenreColor(tag)}`}>
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
                   ) : (
                     <p className="text-sm text-gray-500">No genres yet</p>
                   );

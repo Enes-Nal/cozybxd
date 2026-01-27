@@ -32,78 +32,62 @@ export async function GET(
       return NextResponse.json({ error: 'Not a team member' }, { status: 403 });
     }
 
-    // Fetch activity logs with user and media information
-    // Try explicit foreign key syntax first, fallback to simple syntax if needed
-    let { data: logs, error } = await supabase
+    // Fetch activity logs first (without joins to avoid FK issues)
+    const { data: logs, error: logsError } = await supabase
       .from('team_activity_logs')
-      .select(`
-        *,
-        users!user_id(id, name, image),
-        media!media_id(id, title, poster_url, type)
-      `)
+      .select('*')
       .eq('team_id', teamId)
       .order('created_at', { ascending: false })
       .limit(limit);
 
-    // If explicit syntax fails, try simple auto-detection
-    if (error) {
-      console.warn('Activity log query with explicit FK failed, trying auto-detection:', error.message);
-      const { data: logsFallback, error: errorFallback } = await supabase
-        .from('team_activity_logs')
-        .select(`
-          *,
-          users(id, name, image),
-          media(id, title, poster_url, type)
-        `)
-        .eq('team_id', teamId)
-        .order('created_at', { ascending: false })
-        .limit(limit);
-      
-      if (!errorFallback) {
-        logs = logsFallback;
-        error = null;
-      } else {
-        console.error('Error fetching activity logs:', errorFallback);
-        return NextResponse.json({ error: errorFallback.message }, { status: 500 });
-      }
+    if (logsError) {
+      console.error('Error fetching activity logs:', logsError);
+      return NextResponse.json({ error: logsError.message }, { status: 500 });
     }
 
-    // If joins still failed, manually enrich the data
+    // Manually enrich the data with users and media
     if (logs && Array.isArray(logs) && logs.length > 0) {
       const userIds = [...new Set(logs.map((log: any) => log.user_id).filter(Boolean))];
       const mediaIds = [...new Set(logs.map((log: any) => log.media_id).filter(Boolean))];
 
-      // Fetch users if not already joined
-      if (userIds.length > 0 && (!logs[0]?.users || Object.keys(logs[0].users || {}).length === 0)) {
-        const { data: users } = await supabase
+      // Fetch users
+      let userMap = new Map();
+      if (userIds.length > 0) {
+        const { data: users, error: usersError } = await supabase
           .from('users')
           .select('id, name, image')
           .in('id', userIds);
 
-        if (users) {
-          const userMap = new Map(users.map((u: any) => [u.id, u]));
-          logs = logs.map((log: any) => ({
-            ...log,
-            users: userMap.get(log.user_id) || null,
-          }));
+        if (usersError) {
+          console.warn('Error fetching users for activity logs:', usersError);
+        } else if (users) {
+          userMap = new Map(users.map((u: any) => [u.id, u]));
         }
       }
 
-      // Fetch media if not already joined
-      if (mediaIds.length > 0 && (!logs[0]?.media || Object.keys(logs[0].media || {}).length === 0)) {
-        const { data: media } = await supabase
+      // Fetch media
+      let mediaMap = new Map();
+      if (mediaIds.length > 0) {
+        const { data: media, error: mediaError } = await supabase
           .from('media')
           .select('id, title, poster_url, type')
           .in('id', mediaIds);
 
-        if (media) {
-          const mediaMap = new Map(media.map((m: any) => [m.id, m]));
-          logs = logs.map((log: any) => ({
-            ...log,
-            media: log.media_id ? (mediaMap.get(log.media_id) || null) : null,
-          }));
+        if (mediaError) {
+          console.warn('Error fetching media for activity logs:', mediaError);
+        } else if (media) {
+          mediaMap = new Map(media.map((m: any) => [m.id, m]));
         }
       }
+
+      // Combine the data
+      const enrichedLogs = logs.map((log: any) => ({
+        ...log,
+        users: userMap.get(log.user_id) || null,
+        media: log.media_id ? (mediaMap.get(log.media_id) || null) : null,
+      }));
+
+      return NextResponse.json(enrichedLogs);
     }
 
     return NextResponse.json(logs || []);

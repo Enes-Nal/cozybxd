@@ -10,6 +10,7 @@ import InvitePeopleModal from './InvitePeopleModal';
 import EditGroupPictureModal from './EditGroupPictureModal';
 import GroupChatButton from './GroupChatButton';
 import ActivityLog from './ActivityLog';
+import MovieSwipe from './MovieSwipe';
 import { useToast } from './Toast';
 
 interface GroupViewProps {
@@ -89,6 +90,7 @@ const GroupView: React.FC<GroupViewProps> = ({
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
   const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isMovieSwipeOpen, setIsMovieSwipeOpen] = useState(false);
   const [userToKick, setUserToKick] = useState<User | null>(null);
   const [movies, setMovies] = useState(initialMovies);
   const [votingMovieId, setVotingMovieId] = useState<string | null>(null); // Track which movie is being voted on
@@ -748,7 +750,17 @@ const GroupView: React.FC<GroupViewProps> = ({
       )}
 
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-bold">Group Queue</h3>
+        <div className="flex items-center gap-4">
+          <h3 className="text-lg font-bold">Group Queue</h3>
+          <button
+            onClick={() => setIsMovieSwipeOpen(true)}
+            className="bg-accent hover:bg-accent/80 text-black px-4 py-2 rounded-xl text-sm font-bold transition-all active:scale-95 flex items-center gap-2"
+            title="Discover new movies"
+          >
+            <i className="fa-solid fa-fire"></i>
+            Discover Movies
+          </button>
+        </div>
         {movies.length > 0 && (
           <div className="relative" ref={sortDropdownRef}>
             <button
@@ -1023,6 +1035,17 @@ const GroupView: React.FC<GroupViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {isMovieSwipeOpen && (
+        <MovieSwipe
+          teamId={group.id}
+          onClose={() => {
+            setIsMovieSwipeOpen(false);
+            // Refresh watchlist after swiping
+            queryClient.invalidateQueries({ queryKey: ['groupWatchlist', group.id] });
+          }}
+        />
       )}
     </>
   );

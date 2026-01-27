@@ -22,6 +22,7 @@ export interface User {
   name: string;
   avatar: string;
   role: 'Admin' | 'Editor' | 'Viewer';
+  username?: string | null;
 }
 
 export interface Group {
