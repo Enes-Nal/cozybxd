@@ -162,7 +162,6 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
       : null;
 
     // Optimistically move to next movie immediately for smooth UX
-    const movieTitle = currentMovie.title;
     const nextIndex = currentIndex + 1;
     
     if (nextIndex < movies.length) {
@@ -183,7 +182,7 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
         : m
     ));
 
-    // Make API call in background (non-blocking)
+    // Make API call in background (non-blocking, silent - no UI feedback)
     fetch(`/api/teams/${teamId}/swipe`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -193,19 +192,11 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
         swipeType,
       }),
     })
-      .then(res => {
-        if (!res.ok) {
-          throw new Error('Failed to record swipe');
-        }
-        if (swipeType === 'like') {
-          toast.showSuccess(`Liked ${movieTitle}! Added to watchlist.`);
-        }
-      })
       .catch(error => {
+        // Silently log errors in background - no user-facing notifications
         console.error('Error swiping:', error);
-        toast.showError('Failed to record swipe');
       });
-  }, [currentMovie, teamId, currentIndex, movies.length, fetchMovies, toast]);
+  }, [currentMovie, teamId, currentIndex, movies.length, currentPage, totalPages, fetchMovies]);
 
   // Smooth swipe handlers with global event listeners
   const handleStart = useCallback((clientX: number, clientY: number) => {
