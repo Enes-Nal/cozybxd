@@ -133,7 +133,7 @@ export async function GET(
     const genreMap = new Map(genres.map(g => [g.id, g.name]));
 
     // Transform to Movie format
-    const movies = unswipedMovies.map(tmdbMovie => 
+    const movies = unswipedMovies.map((tmdbMovie: TMDBMovie) => 
       transformTMDBMovieToMovieSync(tmdbMovie, genreMap)
     );
 
