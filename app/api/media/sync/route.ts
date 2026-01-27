@@ -48,6 +48,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid YouTube URL or ID' }, { status: 400 });
       }
 
+      // Fetch YouTube video data first to get latest title and channel
+      const videoData = await getYouTubeVideoData(videoId);
+      if (!videoData) {
+        return NextResponse.json({ error: 'Could not fetch YouTube video' }, { status: 404 });
+      }
+
       // Check if media already exists (by YouTube URL)
       const { data: existing } = await supabase
         .from('media')
@@ -56,13 +62,27 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (existing) {
-        return NextResponse.json(existing);
-      }
+        // Always update existing record with latest title and channel info
+        // This ensures videos with fallback "YouTube Video" title get updated
+        const { data: updated, error: updateError } = await supabase
+          .from('media')
+          .update({
+            title: videoData.title,
+            thumbnail_url: videoData.thumbnail,
+            duration: videoData.duration,
+            overview: videoData.channelTitle ? `Channel: ${videoData.channelTitle}` : existing.overview,
+            release_date: videoData.publishedAt ? new Date(videoData.publishedAt) : existing.release_date,
+          })
+          .eq('id', existing.id)
+          .select()
+          .single();
 
-      // Fetch YouTube video data
-      const videoData = await getYouTubeVideoData(videoId);
-      if (!videoData) {
-        return NextResponse.json({ error: 'Could not fetch YouTube video' }, { status: 404 });
+        if (updateError) {
+          console.error('Failed to update YouTube video:', updateError);
+          return NextResponse.json(existing);
+        }
+
+        return NextResponse.json(updated);
       }
 
       // Create media record for YouTube video
@@ -74,7 +94,8 @@ export async function POST(request: NextRequest) {
           youtube_url: `https://www.youtube.com/watch?v=${videoId}`,
           thumbnail_url: videoData.thumbnail,
           duration: videoData.duration,
-          overview: `Channel: ${videoData.channelTitle}`,
+          overview: videoData.channelTitle ? `Channel: ${videoData.channelTitle}` : null,
+          release_date: videoData.publishedAt ? new Date(videoData.publishedAt) : null,
         })
         .select()
         .single();

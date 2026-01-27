@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { User } from '@/lib/types';
 import Logo from './Logo';
@@ -15,6 +16,9 @@ interface NavbarProps {
   onAddFriendClick: () => void;
   onCreateGroupClick: () => void;
   onJoinGroupClick: () => void;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+  onSearchSubmit?: (query: string) => void;
 }
 
 // Group item component with image error handling
@@ -62,9 +66,13 @@ const Navbar: React.FC<NavbarProps> = ({
   onProfileClick,
   onAddFriendClick,
   onCreateGroupClick,
-  onJoinGroupClick
+  onJoinGroupClick,
+  searchQuery,
+  setSearchQuery,
+  onSearchSubmit
 }) => {
   const { data: session } = useSession();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isGroupsMenuOpen, setIsGroupsMenuOpen] = useState(false);
@@ -186,6 +194,28 @@ const Navbar: React.FC<NavbarProps> = ({
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Center Section: Search Bar */}
+      <div className="flex-1 max-w-2xl mx-8 relative group">
+        <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-accent transition-colors"></i>
+        <input 
+          type="text" 
+          placeholder="Search titles, actors, or moods..." 
+          className="w-full bg-[#111] border border-[#222] rounded-xl py-2.5 pl-12 pr-4 outline-none focus:border-accent/50 focus:bg-[#1a1a1a] transition-all duration-200 text-xs font-medium text-main"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && searchQuery.trim()) {
+              if (onSearchSubmit) {
+                onSearchSubmit(searchQuery.trim());
+              } else {
+                // Default behavior: navigate to search page
+                router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+              }
+            }
+          }}
+        />
       </div>
 
       {/* Right Section: Groups, Friends, User */}

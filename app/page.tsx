@@ -461,18 +461,7 @@ function HomeContent() {
           content = (
             <div className="mt-4 flex-1 flex flex-col min-h-0 overflow-hidden">
               <div className="flex flex-col gap-6 mb-8">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 max-w-2xl relative group mr-12">
-                    <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-[var(--accent-color)] transition-colors"></i>
-                    <input 
-                      type="text" 
-                      placeholder="Search titles, actors, or moods..." 
-                      className="w-full bg-[#111] border border-[#222] rounded-xl py-2.5 pl-12 pr-4 outline-none focus:border-[var(--accent-color)]/50 focus:bg-[#1a1a1a] transition-all duration-200 text-xs font-medium text-main"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                  </div>
-                  
+                <div className="flex items-center justify-end">
                   <div className="flex items-center gap-2">
                     <button 
                       onClick={() => setIsFilterDrawerOpen(true)}
@@ -713,6 +702,8 @@ function HomeContent() {
           onAddFriendClick={() => setIsAddFriendOpen(true)}
           onCreateGroupClick={() => setIsCreateGroupOpen(true)}
           onJoinGroupClick={() => setIsJoinGroupOpen(true)}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
         />
       ) : (
         <Sidebar 

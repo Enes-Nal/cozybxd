@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { createServerClient } from '@/lib/supabase';
 import { transformMediaToMovie } from '@/lib/utils/transformers';
+import { extractYouTubeId, getYouTubeVideoData } from '@/lib/api/youtube';
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -69,6 +70,46 @@ export async function GET(request: NextRequest) {
       // Create a map of watchlist_item_id -> vote_type
       (userVotes || []).forEach((vote: any) => {
         voteMap[vote.watchlist_item_id] = vote.vote_type;
+      });
+    }
+
+    // Background refresh for YouTube videos with fallback title
+    const videosToRefresh = (watchlistItems || [])
+      .filter((item: any) => 
+        item.media?.type === 'youtube' && 
+        item.media?.title === 'YouTube Video' &&
+        item.media?.youtube_url
+      )
+      .map((item: any) => ({
+        mediaId: item.media.id,
+        videoId: extractYouTubeId(item.media.youtube_url)
+      }))
+      .filter((v: any) => v.videoId);
+
+    // Refresh videos in background (don't await)
+    if (videosToRefresh.length > 0) {
+      Promise.all(
+        videosToRefresh.map(async ({ mediaId, videoId }) => {
+          try {
+            const videoData = await getYouTubeVideoData(videoId);
+            if (videoData && videoData.title !== 'YouTube Video') {
+              await supabase
+                .from('media')
+                .update({
+                  title: videoData.title,
+                  thumbnail_url: videoData.thumbnail,
+                  duration: videoData.duration,
+                  overview: videoData.channelTitle ? `Channel: ${videoData.channelTitle}` : null,
+                })
+                .eq('id', mediaId);
+            }
+          } catch (error) {
+            // Silently fail - don't block the request
+            console.error('Failed to refresh YouTube video:', error);
+          }
+        })
+      ).catch(() => {
+        // Ignore errors in background refresh
       });
     }
 

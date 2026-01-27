@@ -17,6 +17,8 @@ export function transformMediaToMovie(media: any, watchlistItem?: any, logs?: an
   // Handle both snake_case (Supabase) and camelCase (Prisma) formats
   const releaseDate = media.releaseDate || media.release_date;
   const year = releaseDate ? new Date(releaseDate).getFullYear() : new Date().getFullYear();
+  // Convert releaseDate to string if it's a Date object
+  const releaseDateString = releaseDate ? (typeof releaseDate === 'string' ? releaseDate : new Date(releaseDate).toISOString()) : undefined;
   
   // Determine status based on logs
   let status: 'Watchlist' | 'Ongoing' | 'Seen' = 'Watchlist';
@@ -80,6 +82,7 @@ export function transformMediaToMovie(media: any, watchlistItem?: any, logs?: an
     seenBy: [...new Set(seenBy)],
     availability,
     imdbRating,
+    releaseDate: releaseDateString,
   };
 }
 
@@ -168,6 +171,7 @@ export async function transformTMDBMovieToMovie(tmdbMovie: TMDBMovie, watchlistI
   const year = tmdbMovie.release_date 
     ? new Date(tmdbMovie.release_date).getFullYear() 
     : new Date().getFullYear();
+  const releaseDateString = tmdbMovie.release_date || undefined;
   
   // Determine status based on logs
   let status: 'Watchlist' | 'Ongoing' | 'Seen' = 'Watchlist';
@@ -211,6 +215,7 @@ export async function transformTMDBMovieToMovie(tmdbMovie: TMDBMovie, watchlistI
     userVote,
     seenBy: [...new Set(seenBy)],
     availability: [],
+    releaseDate: releaseDateString,
   };
 }
 
@@ -284,6 +289,7 @@ export function transformTMDBMovieToMovieSync(tmdbMovie: TMDBMovie, genreMap: Ma
     userVote,
     seenBy: [...new Set(seenBy)],
     availability: [],
+    releaseDate: releaseDateString,
   };
 }
 
@@ -331,11 +337,18 @@ export function transformYouTubeVideoToMovie(youtubeVideo: any, watchlistItem?: 
   const youtubeUrl = youtubeVideo.youtubeUrl || youtubeVideo.youtube_url || 
                      (youtubeVideo.id ? `https://www.youtube.com/watch?v=${youtubeVideo.id}` : null);
 
+  // Get published date from YouTube video (could be from API response or media record)
+  // Also check for release_date from media record (when transforming from database)
+  const publishedAt = youtubeVideo.publishedAt || youtubeVideo.published_at;
+  const releaseDate = youtubeVideo.releaseDate || youtubeVideo.release_date;
+  const releaseDateString = publishedAt || releaseDate || undefined;
+  const year = releaseDateString ? new Date(releaseDateString).getFullYear() : new Date().getFullYear();
+
   return {
     id: `youtube-${youtubeVideo.id}`,
     title: youtubeVideo.title,
     poster: youtubeVideo.thumbnail || '',
-    year: new Date().getFullYear(), // YouTube videos don't have a release year
+    year,
     runtime,
     genre: ['YouTube'],
     description: youtubeVideo.channelTitle ? `Channel: ${youtubeVideo.channelTitle}` : undefined,
@@ -347,6 +360,7 @@ export function transformYouTubeVideoToMovie(youtubeVideo: any, watchlistItem?: 
     userVote,
     seenBy: [...new Set(seenBy)],
     availability: youtubeUrl ? [youtubeUrl] : [],
+    releaseDate: releaseDateString,
   };
 }
 

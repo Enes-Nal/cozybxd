@@ -6,6 +6,7 @@ export interface YouTubeVideo {
   thumbnail: string;
   duration: number; // in seconds
   channelTitle: string;
+  publishedAt?: string; // ISO 8601 date string
 }
 
 export function extractYouTubeId(url: string): string | null {
@@ -22,39 +23,61 @@ export function extractYouTubeId(url: string): string | null {
 }
 
 export async function getYouTubeVideoData(videoId: string): Promise<YouTubeVideo | null> {
-  if (!YOUTUBE_API_KEY) {
-    // Fallback: try to extract basic info from URL
-    return {
-      id: videoId,
-      title: 'YouTube Video',
-      thumbnail: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
-      duration: 0,
-      channelTitle: 'Unknown',
-    };
+  // Try YouTube Data API v3 first if API key is available
+  if (YOUTUBE_API_KEY) {
+    try {
+      const response = await fetch(
+        `https://www.googleapis.com/youtube/v3/videos?id=${videoId}&key=${YOUTUBE_API_KEY}&part=snippet,contentDetails`
+      );
+      const data = await response.json();
+      
+      if (data.items && data.items.length > 0) {
+        const item = data.items[0];
+        const duration = parseDuration(item.contentDetails.duration);
+        
+        return {
+          id: videoId,
+          title: item.snippet.title,
+          thumbnail: item.snippet.thumbnails.maxres?.url || item.snippet.thumbnails.high?.url || '',
+          duration,
+          channelTitle: item.snippet.channelTitle,
+          publishedAt: item.snippet.publishedAt,
+        };
+      }
+    } catch (error) {
+      console.error('YouTube API error:', error);
+      // Fall through to oEmbed fallback
+    }
   }
 
+  // Fallback: Use oEmbed API (no API key required, but limited info)
   try {
-    const response = await fetch(
-      `https://www.googleapis.com/youtube/v3/videos?id=${videoId}&key=${YOUTUBE_API_KEY}&part=snippet,contentDetails`
+    const oEmbedResponse = await fetch(
+      `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`
     );
-    const data = await response.json();
     
-    if (!data.items || data.items.length === 0) return null;
-    
-    const item = data.items[0];
-    const duration = parseDuration(item.contentDetails.duration);
-    
-    return {
-      id: videoId,
-      title: item.snippet.title,
-      thumbnail: item.snippet.thumbnails.maxres?.url || item.snippet.thumbnails.high?.url || '',
-      duration,
-      channelTitle: item.snippet.channelTitle,
-    };
+    if (oEmbedResponse.ok) {
+      const oEmbedData = await oEmbedResponse.json();
+      return {
+        id: videoId,
+        title: oEmbedData.title || 'YouTube Video',
+        thumbnail: oEmbedData.thumbnail_url || `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+        duration: 0, // oEmbed doesn't provide duration
+        channelTitle: oEmbedData.author_name || 'Unknown',
+      };
+    }
   } catch (error) {
-    console.error('YouTube API error:', error);
-    return null;
+    console.error('YouTube oEmbed error:', error);
   }
+
+  // Final fallback if both methods fail
+  return {
+    id: videoId,
+    title: 'YouTube Video',
+    thumbnail: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+    duration: 0,
+    channelTitle: 'Unknown',
+  };
 }
 
 function parseDuration(duration: string): number {

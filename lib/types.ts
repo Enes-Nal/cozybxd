@@ -15,6 +15,7 @@ export interface Movie {
   seenBy: string[];
   availability: string[]; // e.g., ['Netflix', 'Max']
   imdbRating?: number;
+  releaseDate?: string | Date; // Full release/published date
 }
 
 export interface User {

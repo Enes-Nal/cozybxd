@@ -250,7 +250,7 @@ const InboxView: React.FC = () => {
   const unreadCount = allNotifications.filter(n => !n.isRead).length;
 
   return (
-    <div className="py-8 max-w-4xl view-transition">
+    <div className="py-8 max-w-7xl view-transition">
       <div className="flex items-center justify-between mb-10">
         <h2 className="text-3xl font-black uppercase tracking-tight text-main animate-slide-down">Inbox</h2>
         {unreadCount > 0 && (
@@ -288,10 +288,10 @@ const InboxView: React.FC = () => {
             const isAccepted = n.type === 'friend_request' && n.status === 'accepted';
             const isRead = n.isRead;
             return (
-            <div key={n.id} className={`glass p-8 rounded-[2rem] border-white/5 flex items-center justify-between group transition-all-smooth ${isAccepted || isRead ? 'opacity-60 grayscale' : 'hover:bg-black/[0.02] card-hover'} ${staggerClass}`}>
-              <div className="flex items-center gap-6">
+            <div key={n.id} className={`glass p-8 rounded-[2rem] border-white/5 flex items-center justify-between gap-6 group transition-all-smooth ${isAccepted || isRead ? 'opacity-60 grayscale' : 'hover:bg-black/[0.02] card-hover'} ${staggerClass}`}>
+              <div className="flex items-center gap-6 min-w-0 flex-1">
                 {!isRead && n.avatar ? (
-                  <div className={`w-14 h-14 rounded-2xl overflow-hidden border border-main flex items-center justify-center bg-black/[0.03] ${isAccepted ? 'opacity-70' : ''}`}>
+                  <div className={`w-14 h-14 rounded-2xl overflow-hidden border border-main flex items-center justify-center bg-black/[0.03] flex-shrink-0 ${isAccepted ? 'opacity-70' : ''}`}>
                     <img 
                       src={n.avatar} 
                       alt={n.from}
@@ -309,7 +309,7 @@ const InboxView: React.FC = () => {
                     />
                   </div>
                 ) : !isRead ? (
-                  <div className={`w-14 h-14 rounded-2xl bg-black/[0.03] flex items-center justify-center text-accent border border-main ${isAccepted ? 'opacity-70' : ''}`}>
+                  <div className={`w-14 h-14 rounded-2xl bg-black/[0.03] flex items-center justify-center text-accent border border-main flex-shrink-0 ${isAccepted ? 'opacity-70' : ''}`}>
                     <i className={`fa-solid ${
                       n.type === 'friend_request' ? 'fa-user-plus' : 
                       n.type === 'team_member_removed' ? 'fa-user-minus' :
@@ -319,15 +319,15 @@ const InboxView: React.FC = () => {
                     } text-lg`}></i>
                   </div>
                 ) : null}
-                <div>
-                  <p className={`text-sm font-bold ${isAccepted || isRead ? 'text-gray-500' : ''}`}>
+                <div className="min-w-0 flex-1">
+                  <p className={`text-sm font-bold break-words ${isAccepted || isRead ? 'text-gray-500' : ''}`}>
                     <span className={`${isAccepted || isRead ? 'text-gray-400' : 'text-accent'} font-black`}>{n.from}</span> 
                     <span className={`${isAccepted || isRead ? 'text-gray-500' : 'text-main'} ml-1`}>{n.content}</span>
                   </p>
                   <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1.5">{n.time}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 {n.type === 'friend_request' && isAccepted ? (
                   <div className="px-6 py-3 rounded-2xl bg-gray-500/20 border border-gray-500/30 flex items-center justify-center">
                     <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Accepted</span>

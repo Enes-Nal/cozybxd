@@ -355,6 +355,30 @@ const TitleDetailView: React.FC<TitleDetailViewProps> = ({ movie, onBack }) => {
 
   const displayRuntime = formatRuntime();
 
+  // Format release date - prefer movieDetails release_date (from TMDB API) if available
+  const formatReleaseDate = (): string => {
+    // If we have release_date from TMDB API, format it nicely
+    if (movieDetails?.release_date) {
+      try {
+        const date = new Date(movieDetails.release_date);
+        // Check if date is valid
+        if (!isNaN(date.getTime())) {
+          return date.toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          });
+        }
+      } catch (error) {
+        console.error('Error formatting release date:', error);
+      }
+    }
+    // Fall back to movie.year if available
+    return movie.year ? movie.year.toString() : '—';
+  };
+
+  const displayReleaseDate = formatReleaseDate();
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -702,7 +726,7 @@ const TitleDetailView: React.FC<TitleDetailViewProps> = ({ movie, onBack }) => {
             </div>
             
             <div className="flex items-center gap-3 mb-4 flex-wrap">
-              <span className="text-base font-black text-main">{movie.year}</span>
+              <span className="text-base font-black text-main">{displayReleaseDate}</span>
               {displayRuntime && (
                 <>
                   <span className="text-gray-500/40 text-xs">•</span>
@@ -823,8 +847,8 @@ const TitleDetailView: React.FC<TitleDetailViewProps> = ({ movie, onBack }) => {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="glass p-5 rounded-2xl border-main bg-white/[0.02]">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2">Release Year</div>
-                  <div className="text-2xl font-black text-main">{movie.year}</div>
+                  <div className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2">Release Date</div>
+                  <div className="text-2xl font-black text-main">{displayReleaseDate}</div>
                 </div>
                 <div className="glass p-5 rounded-2xl border-main bg-white/[0.02]">
                   <div className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2">Runtime</div>

@@ -418,14 +418,35 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
               {movie.title}
             </h3>
             <div className="flex items-center gap-2 text-[10px] text-gray-600 font-medium">
-              <span>{movie.year}</span>
-              <>
-                <span className="opacity-30">•</span>
-                <span className="flex items-center gap-1">
-                  <i className="fa-solid fa-star text-yellow-500 text-[9px]"></i>
-                  <span>{imdbRating ? imdbRating.toFixed(1) : 'N/A'}</span>
-                </span>
-              </>
+              <span>
+                {movie.releaseDate 
+                  ? (() => {
+                      try {
+                        const date = new Date(movie.releaseDate);
+                        if (!isNaN(date.getTime())) {
+                          return date.toLocaleDateString('en-US', { 
+                            year: 'numeric', 
+                            month: 'short', 
+                            day: 'numeric' 
+                          });
+                        }
+                      } catch (e) {
+                        // Fall through to year
+                      }
+                      return movie.year;
+                    })()
+                  : movie.year
+                }
+              </span>
+              {!(movie.id.startsWith('youtube-') || movie.genre?.includes('YouTube')) && (
+                <>
+                  <span className="opacity-30">•</span>
+                  <span className="flex items-center gap-1">
+                    <i className="fa-solid fa-star text-yellow-500 text-[9px]"></i>
+                    <span>{imdbRating ? imdbRating.toFixed(1) : 'N/A'}</span>
+                  </span>
+                </>
+              )}
               {isGroupWatchlist && movie.votes !== undefined && movie.votes !== 0 && (
                 <>
                   <span className="opacity-30">•</span>
