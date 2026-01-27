@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { createServerClient } from '@/lib/supabase';
-import { getPopularMovies, getTrendingMovies, discoverMovies, getMovieDetails, getPosterUrl, getBackdropUrl } from '@/lib/api/tmdb';
+import { getPopularMovies, getTrendingMovies, discoverMovies, getMovieDetails, getPosterUrl, getBackdropUrl, TMDBMovie } from '@/lib/api/tmdb';
 import { transformTMDBMovieToMovieSync } from '@/lib/utils/transformers';
 import { getGenres } from '@/lib/api/tmdb';
 import { getOMDbData } from '@/lib/api/omdb';
@@ -126,7 +126,7 @@ export async function GET(
     }
 
     // Filter out already swiped movies
-    const unswipedMovies = tmdbMovies.filter(movie => !swipedTmdbIds.has(movie.id));
+    const unswipedMovies = tmdbMovies.filter((movie: TMDBMovie) => !swipedTmdbIds.has(movie.id));
 
     // Get genre map for transformation
     const genres = await getGenres();
