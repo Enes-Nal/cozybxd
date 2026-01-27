@@ -246,6 +246,7 @@ export function transformTMDBMovieToMovieSync(tmdbMovie: TMDBMovie, genreMap: Ma
   const year = tmdbMovie.release_date 
     ? new Date(tmdbMovie.release_date).getFullYear() 
     : new Date().getFullYear();
+  const releaseDateString = tmdbMovie.release_date || undefined;
   
   // Determine status based on logs
   let status: 'Watchlist' | 'Ongoing' | 'Seen' = 'Watchlist';
