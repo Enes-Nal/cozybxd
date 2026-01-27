@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
         mediaId: item.media.id,
         videoId: extractYouTubeId(item.media.youtube_url)
       }))
-      .filter((v: any) => v.videoId);
+      .filter((v: any): v is { mediaId: string; videoId: string } => v.videoId !== null);
 
     // Refresh videos in background (don't await)
     if (videosToRefresh.length > 0) {
