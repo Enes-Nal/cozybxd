@@ -124,10 +124,12 @@ export async function POST(request: NextRequest) {
           }
 
           // Get genre names - handle both genres array and genre_ids
+          // Note: getMovieDetails returns a response with 'genres' array, but TMDBMovie type only has 'genre_ids'
+          const tmdbDataWithGenres = tmdbData as any;
           let genreNames: string[] = [];
-          if (Array.isArray(tmdbData.genres) && tmdbData.genres.length > 0) {
+          if (Array.isArray(tmdbDataWithGenres.genres) && tmdbDataWithGenres.genres.length > 0) {
             // From detail response - extract names directly
-            genreNames = tmdbData.genres.map((g: any) => g.name).filter(Boolean);
+            genreNames = tmdbDataWithGenres.genres.map((g: any) => g.name).filter(Boolean);
           } else if (Array.isArray(tmdbData.genre_ids) && tmdbData.genre_ids.length > 0) {
             // From search results - map IDs to names
             const genres = await getGenres();
