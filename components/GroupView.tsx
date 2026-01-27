@@ -837,7 +837,7 @@ const GroupView: React.FC<GroupViewProps> = ({
           isGroupWatchlist={true}
         />
       ) : (
-        <div className="flex items-center justify-center h-64">
+        <div className="flex items-center justify-center h-64 w-full max-w-full">
           <div className="text-center">
             <p className="text-gray-500 mb-2">No movies in group watchlist</p>
             <p className="text-xs text-gray-400">Add movies to start building your queue</p>

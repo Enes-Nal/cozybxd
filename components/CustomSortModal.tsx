@@ -8,7 +8,7 @@ interface CustomSortModalProps {
 }
 
 const CustomSortModal: React.FC<CustomSortModalProps> = ({ onClose }) => {
-  const [selections, setSelections] = useState<string[]>(['rating']);
+  const [selection, setSelection] = useState<string>('rating');
 
   const options = [
     { id: 'rating', label: 'Top Rated', icon: 'fa-star', description: 'Prioritize critically acclaimed titles' },
@@ -17,10 +17,8 @@ const CustomSortModal: React.FC<CustomSortModalProps> = ({ onClose }) => {
     { id: 'consensus', label: 'Group Faves', icon: 'fa-users', description: 'Movies with the most votes in your group' }
   ];
 
-  const toggleSelection = (id: string) => {
-    setSelections(prev => 
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    );
+  const handleSelection = (id: string) => {
+    setSelection(id);
   };
 
   return (
@@ -45,27 +43,27 @@ const CustomSortModal: React.FC<CustomSortModalProps> = ({ onClose }) => {
           {options.map((opt) => (
             <button
               key={opt.id}
-              onClick={() => toggleSelection(opt.id)}
+              onClick={() => handleSelection(opt.id)}
               className={`w-full flex items-center gap-4 p-5 rounded-2xl border transition-all duration-200 text-left active:scale-[0.98] ${
-                selections.includes(opt.id) 
+                selection === opt.id 
                   ? 'bg-white/5 border-accent/40 scale-[1.02]' 
                   : 'bg-transparent border-white/5 hover:bg-white/[0.02] hover:scale-[1.01]'
               }`}
             >
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors duration-300 ${
-                selections.includes(opt.id) ? 'bg-accent text-white' : 'bg-white/5 text-gray-500'
+                selection === opt.id ? 'bg-accent text-white' : 'bg-white/5 text-gray-500'
               }`}>
                 <i className={`fa-solid ${opt.icon}`}></i>
               </div>
               <div className="flex-1">
-                <p className={`text-sm font-bold transition-colors ${selections.includes(opt.id) ? 'text-white' : 'text-gray-400'}`}>
+                <p className={`text-sm font-bold transition-colors ${selection === opt.id ? 'text-white' : 'text-gray-400'}`}>
                   {opt.label}
                 </p>
                 <p className="text-[10px] text-gray-600 font-medium uppercase tracking-tighter">
                   {opt.description}
                 </p>
               </div>
-              {selections.includes(opt.id) && (
+              {selection === opt.id && (
                 <div className="w-5 h-5 rounded-full bg-accent flex items-center justify-center animate-in zoom-in">
                   <i className="fa-solid fa-check text-[10px] text-white"></i>
                 </div>

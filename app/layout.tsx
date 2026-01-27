@@ -31,7 +31,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
@@ -45,6 +45,28 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
+                // Migration: Apply new defaults to all users (one-time)
+                const settingsVersion = localStorage.getItem('settingsVersion');
+                const currentVersion = '2.0'; // Version with new defaults
+                
+                if (settingsVersion !== currentVersion) {
+                  // Apply new defaults to all users
+                  const defaultAccent = '#f59e0b';
+                  const defaultNavbar = 'true';
+                  
+                  // Migrate accent color: if not set or using old default (pink), use new default (yellow-orange)
+                  const savedAccent = localStorage.getItem('accent');
+                  if (!savedAccent || savedAccent === '#FF47C8') {
+                    localStorage.setItem('accent', defaultAccent);
+                  }
+                  
+                  // Migrate navbar: set to true for all users (new default)
+                  localStorage.setItem('useNavbar', defaultNavbar);
+                  
+                  // Mark migration as complete
+                  localStorage.setItem('settingsVersion', currentVersion);
+                }
+                
                 // Apply theme
                 const savedTheme = localStorage.getItem('theme');
                 if (savedTheme === 'light') {
@@ -61,7 +83,15 @@ export default function RootLayout({
                 if (savedAccent) {
                   document.documentElement.style.setProperty('--accent-color', savedAccent);
                 } else {
-                  document.documentElement.style.setProperty('--accent-color', '#FF47C8');
+                  const defaultAccent = '#f59e0b';
+                  document.documentElement.style.setProperty('--accent-color', defaultAccent);
+                  localStorage.setItem('accent', defaultAccent);
+                }
+                
+                // Navbar is handled in components, but ensure default is set
+                const savedNavbar = localStorage.getItem('useNavbar');
+                if (savedNavbar === null) {
+                  localStorage.setItem('useNavbar', 'true');
                 }
                 
                 // Apply corner radius

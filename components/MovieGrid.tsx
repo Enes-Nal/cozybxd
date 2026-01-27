@@ -224,7 +224,7 @@ const MovieGrid: React.FC<MovieGridProps> = ({ movies, onVote, onUpvote, onDownv
   };
 
   return (
-    <div ref={gridRef} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-10">
+    <div ref={gridRef} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-10 w-full max-w-full">
       {movies.map((movie, idx) => {
         const staggerClass = idx < 5 ? `animate-stagger-${idx + 1}` : 'animate-fade-in';
         const imdbRating = getImdbRating(movie);

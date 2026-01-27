@@ -7,12 +7,23 @@ import { getGenres } from '@/lib/api/tmdb';
 import { getOMDbData } from '@/lib/api/omdb';
 import { extractYouTubeId, getYouTubeVideoData } from '@/lib/api/youtube';
 
-// Helper to get genre names from IDs
-async function getGenreNames(genreIds: number[]): Promise<string[]> {
+// Helper to extract genre names from TMDB movie data
+// Handles both genre_ids (from search results) and genres (from detail responses)
+async function extractGenreNames(tmdbData: any): Promise<string[]> {
   try {
-    const genres = await getGenres();
-    const genreMap = new Map(genres.map(g => [g.id, g.name]));
-    return genreIds.map(id => genreMap.get(id) || '').filter(Boolean);
+    // If genres array exists (from detail response), extract names directly
+    if (Array.isArray(tmdbData.genres) && tmdbData.genres.length > 0) {
+      return tmdbData.genres.map((g: any) => g.name).filter(Boolean);
+    }
+    
+    // Otherwise, use genre_ids and map to names
+    if (Array.isArray(tmdbData.genre_ids) && tmdbData.genre_ids.length > 0) {
+      const genres = await getGenres();
+      const genreMap = new Map(genres.map(g => [g.id, g.name]));
+      return tmdbData.genre_ids.map((id: number) => genreMap.get(id) || '').filter(Boolean);
+    }
+    
+    return [];
   } catch {
     return [];
   }
@@ -87,10 +98,6 @@ export async function POST(request: NextRequest) {
       .eq('tmdb_id', tmdbId)
       .single();
 
-    if (existing) {
-      return NextResponse.json(existing);
-    }
-
     // Fetch from TMDB
     const tmdbData = await getMovieDetails(tmdbId);
     if (!tmdbData) {
@@ -98,7 +105,28 @@ export async function POST(request: NextRequest) {
     }
 
     // Get genre names
-    const genres = await getGenreNames(tmdbData.genre_ids || []);
+    const genres = await extractGenreNames(tmdbData);
+
+    // If media exists but is missing genres, update it
+    if (existing) {
+      const hasGenres = existing.genres && Array.isArray(existing.genres) && existing.genres.length > 0;
+      if (!hasGenres && genres.length > 0) {
+        // Update existing media with genres
+        const { data: updated, error: updateError } = await supabase
+          .from('media')
+          .update({ genres })
+          .eq('id', existing.id)
+          .select()
+          .single();
+        
+        if (updateError) {
+          console.error('Failed to update genres:', updateError);
+          return NextResponse.json(existing);
+        }
+        return NextResponse.json(updated);
+      }
+      return NextResponse.json(existing);
+    }
 
     // Fetch IMDB rating if IMDB ID is available
     let imdbRating: number | null = null;

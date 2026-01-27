@@ -357,6 +357,8 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
   const toast = useToast();
   const gridRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const sliderRef = useRef<HTMLDivElement>(null);
 
   // Fetch personal watchlist
   const { data: personalWatchlist = [], isLoading: personalLoading } = useQuery({
@@ -464,6 +466,42 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
   const isLoading = tab === 'Personal' ? personalLoading : sharedLoading;
 
   // Setup layout animation for the grid - animates when movies change or tab switches
+  // Update slider position when tab changes
+  useEffect(() => {
+    const updateSliderPosition = () => {
+      const activeIndex = tab === 'Personal' ? 0 : 1;
+      const activeButton = buttonRefs.current[activeIndex];
+      const slider = sliderRef.current;
+      
+      if (activeButton && slider) {
+        const container = activeButton.parentElement;
+        if (container) {
+          const containerRect = container.getBoundingClientRect();
+          const buttonRect = activeButton.getBoundingClientRect();
+          const left = buttonRect.left - containerRect.left;
+          const width = buttonRect.width;
+          
+          slider.style.transform = `translateX(${left}px)`;
+          slider.style.width = `${width}px`;
+        }
+      }
+    };
+
+    // Small delay to ensure DOM is ready
+    const timeoutId = setTimeout(updateSliderPosition, 0);
+    
+    // Update on window resize
+    const handleResize = () => {
+      updateSliderPosition();
+    };
+    window.addEventListener('resize', handleResize);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [tab, sharedWatchlist.length]);
+
   useLayoutAnimation(
     gridRef,
     {
@@ -570,16 +608,28 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
         <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-main">WATCHLISTS</h2>
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
           <div className="flex items-center gap-3">
-            <div className="flex bg-black/[0.03] p-1 rounded-2xl border border-main overflow-hidden">
-              {['Personal', `Shared (${sharedWatchlist.length})`].map(t => {
+            <div className="relative flex bg-black/[0.03] p-1 rounded-2xl border border-main overflow-hidden">
+              {/* Sliding pill background */}
+              <div
+                ref={sliderRef}
+                className="absolute top-1 bottom-1 rounded-xl bg-accent transition-all duration-300 ease-out"
+                style={{
+                  left: '4px',
+                  width: buttonRefs.current[0]?.offsetWidth || 'auto',
+                }}
+              />
+              {['Personal', `Shared (${sharedWatchlist.length})`].map((t, index) => {
                 const isPersonal = t.startsWith('Personal');
                 const isActive = (isPersonal && tab === 'Personal') || (!isPersonal && tab === 'Shared');
                 return (
                   <button 
                     key={t}
+                    ref={(el) => {
+                      buttonRefs.current[index] = el;
+                    }}
                     onClick={() => setTab(isPersonal ? 'Personal' : 'Shared')}
-                    className={`px-4 sm:px-6 py-2 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all duration-200 active:scale-95 whitespace-nowrap ${
-                      isActive ? 'bg-accent text-white shadow-md scale-105' : 'text-gray-500 hover:text-main hover:scale-[1.02]'
+                    className={`relative z-10 px-4 sm:px-6 py-2 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-colors duration-300 active:scale-95 whitespace-nowrap ${
+                      isActive ? 'text-white' : 'text-gray-500 hover:text-main'
                     }`}
                   >
                     {t}
@@ -642,7 +692,7 @@ const WatchlistView: React.FC<{ movies?: Movie[] }> = ({ movies: propMovies }) =
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-12 sm:py-20">
+        <div className="flex items-center justify-center py-12 sm:py-20 w-full max-w-full">
           <div className="text-gray-500 text-sm sm:text-base">Loading watchlist...</div>
         </div>
       ) : movies.length === 0 ? (

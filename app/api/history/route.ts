@@ -123,10 +123,17 @@ export async function POST(request: NextRequest) {
             );
           }
 
-          // Get genre names
-          const genres = await getGenres();
-          const genreMap = new Map(genres.map(g => [g.id, g.name]));
-          const genreNames = (tmdbData.genre_ids || []).map(id => genreMap.get(id) || '').filter(Boolean);
+          // Get genre names - handle both genres array and genre_ids
+          let genreNames: string[] = [];
+          if (Array.isArray(tmdbData.genres) && tmdbData.genres.length > 0) {
+            // From detail response - extract names directly
+            genreNames = tmdbData.genres.map((g: any) => g.name).filter(Boolean);
+          } else if (Array.isArray(tmdbData.genre_ids) && tmdbData.genre_ids.length > 0) {
+            // From search results - map IDs to names
+            const genres = await getGenres();
+            const genreMap = new Map(genres.map(g => [g.id, g.name]));
+            genreNames = tmdbData.genre_ids.map((id: number) => genreMap.get(id) || '').filter(Boolean);
+          }
 
           // Fetch IMDB rating if IMDB ID is available
           let imdbRating: number | null = null;

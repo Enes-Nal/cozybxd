@@ -18,9 +18,14 @@ const SettingsView: React.FC = () => {
   const [useNavbar, setUseNavbar] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('useNavbar');
+      // If not set, default to true and save it
+      if (saved === null) {
+        localStorage.setItem('useNavbar', 'true');
+        return true;
+      }
       return saved === 'true';
     }
-    return false;
+    return true; // Default to true
   });
 
   const toggleNavbar = () => {
@@ -53,7 +58,19 @@ const SettingsView: React.FC = () => {
     // If no saved theme, default to dark mode (false = not light mode)
     return false;
   });
-  const [currentAccent, setCurrentAccent] = useState(() => localStorage.getItem('accent') || '#FF47C8');
+  const [currentAccent, setCurrentAccent] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('accent');
+      // If not set, default to yellow-orange and save it
+      if (!saved) {
+        const defaultAccent = '#f59e0b';
+        localStorage.setItem('accent', defaultAccent);
+        return defaultAccent;
+      }
+      return saved;
+    }
+    return '#f59e0b';
+  });
   const [cornerRadius, setCornerRadius] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('cornerRadius');
@@ -123,7 +140,9 @@ const SettingsView: React.FC = () => {
   useEffect(() => {
     const savedAccent = localStorage.getItem('accent');
     if (!savedAccent) {
-      document.documentElement.style.setProperty('--accent-color', '#FF47C8');
+      const defaultAccent = '#f59e0b';
+      document.documentElement.style.setProperty('--accent-color', defaultAccent);
+      localStorage.setItem('accent', defaultAccent);
     } else {
       document.documentElement.style.setProperty('--accent-color', savedAccent);
     }
@@ -182,7 +201,7 @@ const SettingsView: React.FC = () => {
         </section>
 
         <section>
-          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--accent-color)] mb-6">Preferences</h3>
+          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--accent-color)] mb-6">Visual</h3>
           <div className="space-y-3">
             <div className="flex items-center justify-between glass p-6 rounded-2xl border-main">
               <div>
@@ -211,31 +230,7 @@ const SettingsView: React.FC = () => {
                 ))}
               </div>
             </div>
-          </div>
-        </section>
 
-        <section>
-          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--accent-color)] mb-6">Advanced</h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between glass p-6 rounded-2xl border-main">
-              <div>
-                <p className="text-sm font-bold text-main">Experimental Animations</p>
-                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter mt-1">Enable premium motion design and physics-based transitions.</p>
-              </div>
-              <div 
-                onClick={() => {
-                  if (!experimentalAnimations) {
-                    setIsAdvancedSettingsOpen(true);
-                  } else {
-                    setExperimentalAnimations(false);
-                  }
-                }}
-                className={`w-12 h-6 rounded-full relative cursor-pointer transition-colors ${experimentalAnimations ? 'bg-[var(--accent-color)]' : 'bg-gray-400/20'}`}
-              >
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${experimentalAnimations ? 'right-1' : 'left-1'}`}></div>
-              </div>
-            </div>
-            
             <div className="flex items-center justify-between glass p-6 rounded-2xl border-main">
               <div>
                 <p className="text-sm font-bold text-main">Navbar Layout</p>
@@ -288,6 +283,30 @@ const SettingsView: React.FC = () => {
                     {font}
                   </button>
                 ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--accent-color)] mb-6">Advanced</h3>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between glass p-6 rounded-2xl border-main">
+              <div>
+                <p className="text-sm font-bold text-main">Experimental Animations</p>
+                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter mt-1">Enable premium motion design and physics-based transitions.</p>
+              </div>
+              <div 
+                onClick={() => {
+                  if (!experimentalAnimations) {
+                    setIsAdvancedSettingsOpen(true);
+                  } else {
+                    setExperimentalAnimations(false);
+                  }
+                }}
+                className={`w-12 h-6 rounded-full relative cursor-pointer transition-colors ${experimentalAnimations ? 'bg-[var(--accent-color)]' : 'bg-gray-400/20'}`}
+              >
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${experimentalAnimations ? 'right-1' : 'left-1'}`}></div>
               </div>
             </div>
           </div>

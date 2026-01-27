@@ -132,11 +132,11 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({ isOpen, onClose, onApplyFil
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[150] flex justify-end animate-fade-in">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center animate-fade-in">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300" onClick={onClose}></div>
       
-      <div className="relative w-full max-w-md bg-[#0d0d0d] h-full shadow-2xl border-l border-white/5 flex flex-col animate-slide-in-right">
-        <div className="p-8 border-b border-white/5 flex items-center justify-between">
+      <div className="relative w-full max-w-4xl mx-4 bg-[#0d0d0d] rounded-3xl shadow-2xl border border-white/5 flex flex-col animate-scale-in max-h-[90vh]">
+        <div className="p-6 border-b border-white/5 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-black uppercase tracking-widest">Discovery Filters</h2>
             <p className="text-[10px] text-gray-500 font-bold mt-1">Refine your search parameters</p>
@@ -146,158 +146,184 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({ isOpen, onClose, onApplyFil
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-8 space-y-10">
-          {/* Type Section */}
-          <section>
-            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--accent-color)] mb-4 block">Content Type</label>
-            <div className="grid grid-cols-2 gap-2">
-              <button 
-                onClick={() => setContentType('movie')}
-                className={`py-3 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 ${
-                  contentType === 'movie' 
-                    ? 'bg-[var(--accent-color)] text-black scale-105' 
-                    : 'bg-white/5 text-gray-500 hover:text-white'
-                }`}
-              >
-                Movies
-              </button>
-              <button 
-                onClick={() => setContentType('tv')}
-                className={`py-3 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 ${
-                  contentType === 'tv' 
-                    ? 'bg-[var(--accent-color)] text-black scale-105' 
-                    : 'bg-white/5 text-gray-500 hover:text-white'
-                }`}
-              >
-                TV Shows
-              </button>
-            </div>
-          </section>
-
-          {/* Runtime Slider */}
-          <section>
-            <div className="flex justify-between items-center mb-4">
-              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--accent-color)]">Max Runtime</label>
-              <span className="text-xs font-bold text-white">{runtimeRange === 240 ? 'No limit' : `${runtimeRange} min`}</span>
-            </div>
-            <input 
-              type="range" 
-              min="30" 
-              max="240" 
-              value={runtimeRange}
-              onChange={(e) => setRuntimeRange(parseInt(e.target.value))}
-              className="w-full h-1 bg-white/10 rounded-full appearance-none"
-              style={{ accentColor: 'var(--accent-color)' }}
-            />
-            <div className="flex justify-between mt-2">
-              <button className="text-[9px] font-bold text-gray-600 hover:text-white" onClick={() => setRuntimeRange(90)}>Short (&lt;90)</button>
-              <button className="text-[9px] font-bold text-gray-600 hover:text-white" onClick={() => setRuntimeRange(120)}>Standard</button>
-              <button className="text-[9px] font-bold text-gray-600 hover:text-white" onClick={() => setRuntimeRange(180)}>Epic</button>
-            </div>
-          </section>
-
-          {/* Rating Section */}
-          <section>
-            <div className="flex justify-between items-center mb-4">
-              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--accent-color)]">Min Rating</label>
-              <span className="text-xs font-bold text-white">{ratingMin === 0 ? 'Any' : `${ratingMin}.0+`}</span>
-            </div>
-            <div className="flex gap-2">
-              <button 
-                onClick={() => setRatingMin(0)}
-                className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all duration-200 border active:scale-95 ${
-                  ratingMin === 0 ? 'bg-[var(--accent-color)] border-[var(--accent-color)] text-black scale-105' : 'bg-white/5 border-white/5 text-gray-500 hover:text-white'
-                }`}
-              >
-                Any
-              </button>
-              {[5, 6, 7, 8, 9].map(r => (
-                <button 
-                  key={r}
-                  onClick={() => setRatingMin(r)}
-                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all duration-200 border active:scale-95 ${
-                    ratingMin === r ? 'bg-[var(--accent-color)] border-[var(--accent-color)] text-black scale-105' : 'bg-white/5 border-white/5 text-gray-500 hover:text-white'
-                  }`}
-                >
-                  {r}+
-                </button>
-              ))}
-            </div>
-          </section>
-
-          {/* Genres (Multi-select) */}
-          <section>
-            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--accent-color)] mb-4 block">Genres</label>
-            <div className="flex flex-wrap gap-2">
-              {availableGenres.map(genre => {
-                const isSelected = selectedGenres.includes(genre.id);
-                return (
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-full">
+            {/* Left Column */}
+            <div className="space-y-6">
+              {/* Type Section */}
+              <section>
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--accent-color)] mb-3 block">Content Type</label>
+                <div className="grid grid-cols-2 gap-2">
                   <button 
-                    key={genre.id}
-                    onClick={() => handleGenreToggle(genre.id)}
-                    className={`px-4 py-2 rounded-xl border text-[10px] font-bold active:scale-95 transition-all duration-200 ${
-                      isSelected
-                        ? 'bg-[var(--accent-color)] border-[var(--accent-color)] text-black scale-105'
-                        : 'border-white/5 bg-white/5 text-gray-500 hover:border-[var(--accent-color)]/50 hover:text-white'
+                    onClick={() => setContentType('movie')}
+                    className={`py-3 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 ${
+                      contentType === 'movie' 
+                        ? 'bg-[var(--accent-color)] text-black scale-105' 
+                        : 'bg-white/5 text-gray-500 hover:text-white'
                     }`}
                   >
-                    {genre.name}
+                    Movies
                   </button>
-                );
-              })}
-            </div>
-          </section>
+                  <button 
+                    onClick={() => setContentType('tv')}
+                    className={`py-3 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 ${
+                      contentType === 'tv' 
+                        ? 'bg-[var(--accent-color)] text-black scale-105' 
+                        : 'bg-white/5 text-gray-500 hover:text-white'
+                    }`}
+                  >
+                    TV Shows
+                  </button>
+                </div>
+              </section>
 
-          {/* Better Constraints */}
-          <section>
-            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--accent-color)] mb-4 block">Discovery Logic</label>
-            <div className="space-y-2">
-              <label className="flex items-center justify-between glass p-4 rounded-xl border-white/5 cursor-pointer hover:bg-white/10 transition-all">
-                <div>
-                  <p className="text-xs font-bold">Critically Acclaimed</p>
-                  <p className="text-[9px] text-gray-500 font-medium mt-0.5">Focus on award winners and high critic scores</p>
+              {/* Runtime Slider */}
+              <section>
+                <div className="flex justify-between items-center mb-3">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--accent-color)]">Max Runtime</label>
+                  <span className="text-xs font-bold text-white">{runtimeRange === 240 ? 'No limit' : `${runtimeRange} min`}</span>
                 </div>
                 <input 
-                  type="checkbox" 
-                  className="w-4 h-4" 
-                  style={{ accentColor: 'var(--accent-color)' }} 
-                  checked={criticallyAcclaimed}
-                  onChange={(e) => setCriticallyAcclaimed(e.target.checked)}
+                  type="range" 
+                  min="30" 
+                  max="240" 
+                  value={runtimeRange}
+                  onChange={(e) => setRuntimeRange(parseInt(e.target.value))}
+                  className="w-full h-1 bg-white/10 rounded-full appearance-none"
+                  style={{ accentColor: 'var(--accent-color)' }}
                 />
-              </label>
-              
-              <label className="flex items-center justify-between glass p-4 rounded-xl border-white/5 cursor-pointer hover:bg-white/10 transition-all">
-                <div>
-                  <p className="text-xs font-bold">Niche & Experimental</p>
-                  <p className="text-[9px] text-gray-500 font-medium mt-0.5">Exclude blockbusters and massive franchises</p>
+                <div className="flex justify-between mt-2">
+                  <button className="text-[9px] font-bold text-gray-600 hover:text-white" onClick={() => setRuntimeRange(90)}>Short (&lt;90)</button>
+                  <button className="text-[9px] font-bold text-gray-600 hover:text-white" onClick={() => setRuntimeRange(120)}>Standard</button>
+                  <button className="text-[9px] font-bold text-gray-600 hover:text-white" onClick={() => setRuntimeRange(180)}>Epic</button>
                 </div>
-                <input 
-                  type="checkbox" 
-                  className="w-4 h-4" 
-                  style={{ accentColor: 'var(--accent-color)' }} 
-                  checked={nicheExperimental}
-                  onChange={(e) => setNicheExperimental(e.target.checked)}
-                />
-              </label>
+              </section>
 
-              <label className="flex items-center justify-between glass p-4 rounded-xl border-white/5 cursor-pointer hover:bg-white/10 transition-all">
-                <div>
-                  <p className="text-xs font-bold">Budget Fit</p>
-                  <p className="text-[9px] text-gray-500 font-medium mt-0.5">Only titles fitting group's remaining monthly hours</p>
+              {/* Rating Section */}
+              <section>
+                <div className="flex justify-between items-center mb-3">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--accent-color)]">Min Rating</label>
+                  <span className="text-xs font-bold text-white">{ratingMin === 0 ? 'Any' : `${ratingMin}.0+`}</span>
                 </div>
-                <input 
-                  type="checkbox" 
-                  className="w-4 h-4" 
-                  style={{ accentColor: 'var(--accent-color)' }} 
-                  checked={budgetFit}
-                  onChange={(e) => setBudgetFit(e.target.checked)}
-                />
-              </label>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setRatingMin(0)}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all duration-200 border active:scale-95 ${
+                      ratingMin === 0 ? 'bg-[var(--accent-color)] border-[var(--accent-color)] text-black scale-105' : 'bg-white/5 border-white/5 text-gray-500 hover:text-white'
+                    }`}
+                  >
+                    Any
+                  </button>
+                  {[5, 6, 7, 8, 9].map(r => (
+                    <button 
+                      key={r}
+                      onClick={() => setRatingMin(r)}
+                      className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all duration-200 border active:scale-95 ${
+                        ratingMin === r ? 'bg-[var(--accent-color)] border-[var(--accent-color)] text-black scale-105' : 'bg-white/5 border-white/5 text-gray-500 hover:text-white'
+                      }`}
+                    >
+                      {r}+
+                    </button>
+                  ))}
+                </div>
+              </section>
             </div>
-          </section>
+
+            {/* Right Column */}
+            <div className="space-y-6">
+              {/* Genres (Multi-select) */}
+              <section>
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--accent-color)] mb-3 block">Genres</label>
+                <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto">
+                  {availableGenres.map(genre => {
+                    const isSelected = selectedGenres.includes(genre.id);
+                    return (
+                      <button 
+                        key={genre.id}
+                        onClick={() => handleGenreToggle(genre.id)}
+                        className={`px-4 py-2 rounded-xl border text-[10px] font-bold active:scale-95 transition-all duration-200 ${
+                          isSelected
+                            ? 'bg-[var(--accent-color)] border-[var(--accent-color)] text-black scale-105'
+                            : 'border-white/5 bg-white/5 text-gray-500 hover:border-[var(--accent-color)]/50 hover:text-white'
+                        }`}
+                      >
+                        {genre.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              {/* Discovery Logic */}
+              <section>
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--accent-color)] mb-3 block">Discovery Logic</label>
+                <div className="space-y-2">
+                  <label 
+                    className="flex items-center gap-3 glass p-4 rounded-xl border border-white/5 cursor-pointer hover:bg-white/10 transition-all group"
+                    onClick={() => setCriticallyAcclaimed(!criticallyAcclaimed)}
+                  >
+                    <div className="flex-shrink-0 w-5 h-5 rounded border-2 border-white/20 flex items-center justify-center transition-all group-hover:border-[var(--accent-color)]/50"
+                      style={{ 
+                        backgroundColor: criticallyAcclaimed ? 'var(--accent-color)' : 'transparent',
+                        borderColor: criticallyAcclaimed ? 'var(--accent-color)' : undefined
+                      }}
+                    >
+                      {criticallyAcclaimed && (
+                        <i className="fa-solid fa-check text-[10px] text-black"></i>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold">Critically Acclaimed</p>
+                      <p className="text-[9px] text-gray-500 font-medium mt-0.5">Focus on award winners and high critic scores</p>
+                    </div>
+                  </label>
+                  
+                  <label 
+                    className="flex items-center gap-3 glass p-4 rounded-xl border border-white/5 cursor-pointer hover:bg-white/10 transition-all group"
+                    onClick={() => setNicheExperimental(!nicheExperimental)}
+                  >
+                    <div className="flex-shrink-0 w-5 h-5 rounded border-2 border-white/20 flex items-center justify-center transition-all group-hover:border-[var(--accent-color)]/50"
+                      style={{ 
+                        backgroundColor: nicheExperimental ? 'var(--accent-color)' : 'transparent',
+                        borderColor: nicheExperimental ? 'var(--accent-color)' : undefined
+                      }}
+                    >
+                      {nicheExperimental && (
+                        <i className="fa-solid fa-check text-[10px] text-black"></i>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold">Niche & Experimental</p>
+                      <p className="text-[9px] text-gray-500 font-medium mt-0.5">Exclude blockbusters and massive franchises</p>
+                    </div>
+                  </label>
+
+                  <label 
+                    className="flex items-center gap-3 glass p-4 rounded-xl border border-white/5 cursor-pointer hover:bg-white/10 transition-all group"
+                    onClick={() => setBudgetFit(!budgetFit)}
+                  >
+                    <div className="flex-shrink-0 w-5 h-5 rounded border-2 border-white/20 flex items-center justify-center transition-all group-hover:border-[var(--accent-color)]/50"
+                      style={{ 
+                        backgroundColor: budgetFit ? 'var(--accent-color)' : 'transparent',
+                        borderColor: budgetFit ? 'var(--accent-color)' : undefined
+                      }}
+                    >
+                      {budgetFit && (
+                        <i className="fa-solid fa-check text-[10px] text-black"></i>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold">Budget Fit</p>
+                      <p className="text-[9px] text-gray-500 font-medium mt-0.5">Only titles fitting group's remaining monthly hours</p>
+                    </div>
+                  </label>
+                </div>
+              </section>
+            </div>
+          </div>
         </div>
 
-        <div className="p-8 border-t border-white/5 bg-[#0d0d0d] flex gap-3">
+        <div className="p-6 border-t border-white/5 bg-[#0d0d0d] flex gap-3 rounded-b-3xl">
           <button 
             onClick={handleApply}
             className="flex-1 bg-[var(--accent-color)] text-black font-black py-4 rounded-2xl text-xs uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all no-glow"

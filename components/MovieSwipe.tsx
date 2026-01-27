@@ -16,6 +16,55 @@ interface SwipeableMovie extends Movie {
   rotation: number;
 }
 
+// Helper function to get genre color classes
+const getGenreColor = (genre: string): string => {
+  const genreLower = genre.toLowerCase();
+  const colors: Record<string, string> = {
+    'action': 'bg-red-500/10 border-red-500/30 text-red-400',
+    'adventure': 'bg-orange-500/10 border-orange-500/30 text-orange-400',
+    'animation': 'bg-pink-500/10 border-pink-500/30 text-pink-400',
+    'comedy': 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400',
+    'crime': 'bg-gray-500/10 border-gray-500/30 text-gray-400',
+    'documentary': 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400',
+    'drama': 'bg-blue-500/10 border-blue-500/30 text-blue-400',
+    'family': 'bg-green-500/10 border-green-500/30 text-green-400',
+    'fantasy': 'bg-purple-500/10 border-purple-500/30 text-purple-400',
+    'history': 'bg-amber-500/10 border-amber-500/30 text-amber-400',
+    'horror': 'bg-red-600/10 border-red-600/30 text-red-500',
+    'music': 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400',
+    'mystery': 'bg-slate-500/10 border-slate-500/30 text-slate-400',
+    'romance': 'bg-rose-500/10 border-rose-500/30 text-rose-400',
+    'science fiction': 'bg-violet-500/10 border-violet-500/30 text-violet-400',
+    'sci-fi': 'bg-violet-500/10 border-violet-500/30 text-violet-400',
+    'thriller': 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400',
+    'war': 'bg-stone-500/10 border-stone-500/30 text-stone-400',
+    'western': 'bg-amber-600/10 border-amber-600/30 text-amber-500',
+  };
+  
+  // Try exact match first
+  if (colors[genreLower]) {
+    return colors[genreLower];
+  }
+  
+  // Try partial match
+  for (const [key, value] of Object.entries(colors)) {
+    if (genreLower.includes(key) || key.includes(genreLower)) {
+      return value;
+    }
+  }
+  
+  // Default fallback - use hash of genre name for consistent color
+  const hash = genreLower.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const defaultColors = [
+    'bg-blue-500/10 border-blue-500/30 text-blue-400',
+    'bg-purple-500/10 border-purple-500/30 text-purple-400',
+    'bg-pink-500/10 border-pink-500/30 text-pink-400',
+    'bg-indigo-500/10 border-indigo-500/30 text-indigo-400',
+    'bg-cyan-500/10 border-cyan-500/30 text-cyan-400',
+  ];
+  return defaultColors[hash % defaultColors.length];
+};
+
 const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
   const { data: session } = useSession();
   const toast = useToast();
@@ -24,6 +73,9 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [swiping, setSwiping] = useState(false);
   const [source, setSource] = useState<'popular' | 'trending' | 'discover'>('popular');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1000);
+  const [consecutiveEmptyPages, setConsecutiveEmptyPages] = useState(0);
   
   const cardRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -33,9 +85,10 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
   const offsetY = useRef(0);
   const isDragging = useRef(false);
   const animationFrameRef = useRef<number | null>(null);
+  const consecutiveEmptyPagesRef = useRef(0);
 
   // Fetch movies for swiping
-  const fetchMovies = useCallback(async (page = 1) => {
+  const fetchMovies = useCallback(async (page = 1, autoFetchNext = false) => {
     try {
       setLoading(true);
       const res = await fetch(`/api/teams/${teamId}/swipe?page=${page}&source=${source}`);
@@ -49,7 +102,37 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
         rotation: 0,
       }));
       
-      setMovies(prev => [...prev, ...swipeableMovies]);
+      // Update pagination info
+      if (data.currentPage !== undefined) {
+        setCurrentPage(data.currentPage);
+      }
+      if (data.totalPages !== undefined) {
+        setTotalPages(data.totalPages);
+      }
+      
+      // If we got movies, reset consecutive empty pages counter
+      if (swipeableMovies.length > 0) {
+        consecutiveEmptyPagesRef.current = 0;
+        setConsecutiveEmptyPages(0);
+        setMovies(prev => [...prev, ...swipeableMovies]);
+      } else {
+        // No movies returned - increment empty pages counter
+        const newEmptyCount = consecutiveEmptyPagesRef.current + 1;
+        consecutiveEmptyPagesRef.current = newEmptyCount;
+        setConsecutiveEmptyPages(newEmptyCount);
+        
+        // If we have more pages and haven't hit too many consecutive empty pages, fetch next page
+        if (autoFetchNext && data.hasMore && page < (data.totalPages || 1000) && newEmptyCount < 5) {
+          // Fetch next page automatically
+          setTimeout(() => {
+            fetchMovies(page + 1, true).catch(console.error);
+          }, 100);
+        } else {
+          // Only add empty array if we're not auto-fetching
+          setMovies(prev => [...prev, ...swipeableMovies]);
+        }
+      }
+      
       setLoading(false);
     } catch (error) {
       console.error('Error fetching movies:', error);
@@ -59,12 +142,17 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
   }, [teamId, source, toast]);
 
   useEffect(() => {
-    fetchMovies(1);
-  }, [fetchMovies]);
+    setMovies([]);
+    setCurrentIndex(0);
+    setCurrentPage(1);
+    consecutiveEmptyPagesRef.current = 0;
+    setConsecutiveEmptyPages(0);
+    fetchMovies(1, true);
+  }, [source, fetchMovies]); // Re-fetch when source or fetchMovies changes
 
   const currentMovie = movies[currentIndex];
 
-  // Handle swipe
+  // Handle swipe - optimized for immediate UI response
   const handleSwipe = useCallback(async (direction: 'left' | 'right') => {
     if (!currentMovie) return;
 
@@ -73,37 +161,50 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
       ? parseInt(currentMovie.id.replace('tmdb-', ''))
       : null;
 
-    try {
-      const res = await fetch(`/api/teams/${teamId}/swipe`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tmdbId,
-          mediaId: currentMovie.id.startsWith('tmdb-') ? null : currentMovie.id,
-          swipeType,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to record swipe');
+    // Optimistically move to next movie immediately for smooth UX
+    const movieTitle = currentMovie.title;
+    const nextIndex = currentIndex + 1;
+    
+    if (nextIndex < movies.length) {
+      setCurrentIndex(nextIndex);
+    } else {
+      // Load more movies in background - fetch next page
+      const nextPage = currentPage + 1;
+      if (nextPage <= totalPages) {
+        fetchMovies(nextPage, true).catch(console.error);
       }
-
-      if (swipeType === 'like') {
-        toast.showSuccess(`Liked ${currentMovie.title}! Added to watchlist.`);
-      }
-
-      // Move to next movie
-      if (currentIndex < movies.length - 1) {
-        setCurrentIndex(currentIndex + 1);
-      } else {
-        // Load more movies
-        await fetchMovies(Math.floor(movies.length / 20) + 1);
-        setCurrentIndex(currentIndex + 1);
-      }
-    } catch (error) {
-      console.error('Error swiping:', error);
-      toast.showError('Failed to record swipe');
+      setCurrentIndex(nextIndex);
     }
+
+    // Reset current card position immediately
+    setMovies(prev => prev.map((m, i) => 
+      i === currentIndex 
+        ? { ...m, x: 0, y: 0, rotation: 0 }
+        : m
+    ));
+
+    // Make API call in background (non-blocking)
+    fetch(`/api/teams/${teamId}/swipe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tmdbId,
+        mediaId: currentMovie.id.startsWith('tmdb-') ? null : currentMovie.id,
+        swipeType,
+      }),
+    })
+      .then(res => {
+        if (!res.ok) {
+          throw new Error('Failed to record swipe');
+        }
+        if (swipeType === 'like') {
+          toast.showSuccess(`Liked ${movieTitle}! Added to watchlist.`);
+        }
+      })
+      .catch(error => {
+        console.error('Error swiping:', error);
+        toast.showError('Failed to record swipe');
+      });
   }, [currentMovie, teamId, currentIndex, movies.length, fetchMovies, toast]);
 
   // Smooth swipe handlers with global event listeners
@@ -154,7 +255,6 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
     if (!isDragging.current || !currentMovie) return;
     
     isDragging.current = false;
-    setSwiping(false);
     
     // Cancel any pending animation
     if (animationFrameRef.current) {
@@ -167,6 +267,8 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
 
     // Only check horizontal swipe (left/right)
     if (Math.abs(x) > threshold) {
+      // Immediately hide swiping state and trigger swipe
+      setSwiping(false);
       if (x > 0) {
         handleSwipe('right');
       } else {
@@ -174,6 +276,7 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
       }
     } else {
       // Snap back smoothly
+      setSwiping(false);
       setMovies(prev => prev.map((m, i) => 
         i === currentIndex 
           ? { ...m, x: 0, y: 0, rotation: 0 }
@@ -212,7 +315,6 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
       if (!isDragging.current || !currentMovie) return;
       
       isDragging.current = false;
-      setSwiping(false);
       
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
@@ -223,12 +325,14 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
       const threshold = 80;
 
       if (Math.abs(x) > threshold) {
+        setSwiping(false);
         if (x > 0) {
           handleSwipe('right');
         } else {
           handleSwipe('left');
         }
       } else {
+        setSwiping(false);
         setMovies(prev => prev.map((m, i) => 
           i === currentIndex 
             ? { ...m, x: 0, y: 0, rotation: 0 }
@@ -265,7 +369,6 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
       if (!isDragging.current || !currentMovie) return;
       
       isDragging.current = false;
-      setSwiping(false);
       
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
@@ -276,12 +379,14 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
       const threshold = 80;
 
       if (Math.abs(x) > threshold) {
+        setSwiping(false);
         if (x > 0) {
           handleSwipe('right');
         } else {
           handleSwipe('left');
         }
       } else {
+        setSwiping(false);
         setMovies(prev => prev.map((m, i) => 
           i === currentIndex 
             ? { ...m, x: 0, y: 0, rotation: 0 }
@@ -341,7 +446,11 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
     );
   }
 
-  if (!currentMovie && !loading) {
+  // Only show "No more movies!" if we've exhausted pages or hit too many consecutive empty pages
+  const shouldShowNoMore = !currentMovie && !loading && 
+    (currentPage >= totalPages || consecutiveEmptyPages >= 5);
+  
+  if (shouldShowNoMore) {
     return (
       <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl">
         <div className="text-center max-w-md">
@@ -352,7 +461,10 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
               onClick={() => {
                 setMovies([]);
                 setCurrentIndex(0);
-                fetchMovies(1);
+                setCurrentPage(1);
+                consecutiveEmptyPagesRef.current = 0;
+                setConsecutiveEmptyPages(0);
+                fetchMovies(1, true);
               }}
               className="bg-accent hover:bg-accent/80 px-6 py-3 rounded-xl font-bold transition-colors"
             >
@@ -371,6 +483,18 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
       </div>
     );
   }
+  
+  // Show loading if we're fetching more movies
+  if (!currentMovie && loading) {
+    return (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading more movies...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-xl">
@@ -379,9 +503,6 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
           <button
             onClick={() => {
               setSource('popular');
-              setMovies([]);
-              setCurrentIndex(0);
-              fetchMovies(1);
             }}
             className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
               source === 'popular' 
@@ -394,9 +515,6 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
           <button
             onClick={() => {
               setSource('trending');
-              setMovies([]);
-              setCurrentIndex(0);
-              fetchMovies(1);
             }}
             className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
               source === 'trending' 
@@ -409,9 +527,6 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
           <button
             onClick={() => {
               setSource('discover');
-              setMovies([]);
-              setCurrentIndex(0);
-              fetchMovies(1);
             }}
             className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
               source === 'discover' 
@@ -477,13 +592,13 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
                         <i className="fa-solid fa-film text-6xl text-gray-500"></i>
                       </div>
                     )}
-                    
-                    {/* Title overlay on poster */}
-                    <div className="absolute top-0 left-0 right-0 p-6">
-                      <h3 className="text-4xl md:text-5xl font-black text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] leading-tight">
-                        {movie.title.toUpperCase()}
-                      </h3>
-                    </div>
+
+                    {/* Runtime at top right */}
+                    {movie.runtime && (
+                      <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                        <span className="text-xs text-white font-medium">{movie.runtime}</span>
+                      </div>
+                    )}
 
                     {/* Gradient overlay at bottom of poster */}
                     <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent" />
@@ -491,12 +606,14 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
                   
                   {/* Movie details section */}
                   <div className="bg-black/95 backdrop-blur-sm p-6 space-y-4">
-                    {/* Year, Runtime, Rating */}
+                    {/* Title */}
+                    <h3 className="text-lg md:text-xl font-black text-white leading-tight truncate">
+                      {movie.title.toUpperCase()}
+                    </h3>
+
+                    {/* Year, Rating */}
                     <div className="flex items-center gap-4 text-sm text-gray-300">
                       {movie.year && <span className="font-medium">{movie.year}</span>}
-                      {movie.runtime && (
-                        <span className="text-gray-400">• {movie.runtime}</span>
-                      )}
                       {movie.imdbRating && (
                         <span className="flex items-center gap-1 ml-auto">
                           <i className="fa-solid fa-star text-yellow-400 text-xs"></i>
@@ -511,7 +628,7 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
                         {movie.genre.slice(0, 3).map((g, i) => (
                           <span
                             key={i}
-                            className="px-3 py-1.5 bg-white/10 backdrop-blur-sm rounded-full text-xs font-semibold text-gray-200 border border-white/20"
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${getGenreColor(g)}`}
                           >
                             {g}
                           </span>
@@ -527,29 +644,55 @@ const MovieSwipe: React.FC<MovieSwipeProps> = ({ teamId, onClose }) => {
                     )}
                   </div>
 
+                  {/* Full-card swipe overlays */}
+                  {isCurrent && (
+                    <>
+                      {/* Green overlay when swiping right */}
+                      {movie.x > 30 && (
+                        <div 
+                          className="absolute inset-0 bg-green-500/40 rounded-[2rem] pointer-events-none transition-opacity duration-200"
+                          style={{
+                            opacity: Math.min(0.6, Math.abs(movie.x) / 150),
+                            zIndex: 50,
+                          }}
+                        />
+                      )}
+                      {/* Red overlay when swiping left */}
+                      {movie.x < -30 && (
+                        <div 
+                          className="absolute inset-0 bg-red-500/40 rounded-[2rem] pointer-events-none transition-opacity duration-200"
+                          style={{
+                            opacity: Math.min(0.6, Math.abs(movie.x) / 150),
+                            zIndex: 50,
+                          }}
+                        />
+                      )}
+                    </>
+                  )}
+
                   {/* Swipe indicators */}
                   {isCurrent && (
                     <>
                       {movie.x > 30 && (
                         <div 
-                          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 border-4 border-green-500 rounded-2xl p-6 rotate-[-20deg] pointer-events-none transition-opacity duration-200"
+                          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity duration-200 flex items-center justify-center"
                           style={{
                             opacity: Math.min(1, Math.abs(movie.x) / 100),
                             zIndex: 1000,
                           }}
                         >
-                          <i className="fa-solid fa-heart text-5xl text-green-500"></i>
+                          <i className="fa-solid fa-heart text-5xl text-white rotate-[-20deg]"></i>
                         </div>
                       )}
                       {movie.x < -30 && (
                         <div 
-                          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 border-4 border-red-500 rounded-2xl p-6 rotate-[20deg] pointer-events-none transition-opacity duration-200"
+                          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity duration-200 flex items-center justify-center"
                           style={{
                             opacity: Math.min(1, Math.abs(movie.x) / 100),
                             zIndex: 1000,
                           }}
                         >
-                          <i className="fa-solid fa-xmark text-5xl text-red-500"></i>
+                          <i className="fa-solid fa-xmark text-5xl text-white rotate-[20deg]"></i>
                         </div>
                       )}
                     </>

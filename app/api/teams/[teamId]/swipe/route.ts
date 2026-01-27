@@ -58,18 +58,71 @@ export async function GET(
 
     // Fetch movies based on source
     let tmdbMovies;
+    let totalPages = 1000; // Default high number, TMDB typically has many pages
+    let currentPage = page;
+    const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY || process.env.TMDB_API_KEY;
+    
+    if (!apiKey) {
+      throw new Error('TMDB API key is not configured');
+    }
+    
     if (source === 'trending') {
-      tmdbMovies = await getTrendingMovies(page);
+      try {
+        const response = await fetch(
+          `https://api.themoviedb.org/3/trending/movie/day?api_key=${apiKey}&page=${page}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          tmdbMovies = data.results || [];
+          totalPages = data.total_pages || 1000;
+          currentPage = data.page || page;
+        } else {
+          tmdbMovies = await getTrendingMovies(page);
+        }
+      } catch {
+        tmdbMovies = await getTrendingMovies(page);
+      }
     } else if (source === 'discover') {
-      // Use discover with default options
-      tmdbMovies = await discoverMovies({
-        contentType: 'movie',
-        page,
-        sortBy: 'popularity.desc',
-      });
+      try {
+        const response = await fetch(
+          `https://api.themoviedb.org/3/discover/movie?api_key=${apiKey}&page=${page}&sort_by=popularity.desc`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          tmdbMovies = data.results || [];
+          totalPages = data.total_pages || 1000;
+          currentPage = data.page || page;
+        } else {
+          tmdbMovies = await discoverMovies({
+            contentType: 'movie',
+            page,
+            sortBy: 'popularity.desc',
+          });
+        }
+      } catch {
+        tmdbMovies = await discoverMovies({
+          contentType: 'movie',
+          page,
+          sortBy: 'popularity.desc',
+        });
+      }
     } else {
       // Default to popular
-      tmdbMovies = await getPopularMovies(page);
+      try {
+        const response = await fetch(
+          `https://api.themoviedb.org/3/movie/popular?api_key=${apiKey}&page=${page}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          tmdbMovies = data.results || [];
+          totalPages = data.total_pages || 1000;
+          currentPage = data.page || page;
+        } else {
+          tmdbMovies = await getPopularMovies(page);
+        }
+      } catch {
+        tmdbMovies = await getPopularMovies(page);
+      }
     }
 
     // Filter out already swiped movies
@@ -86,7 +139,9 @@ export async function GET(
 
     return NextResponse.json({
       movies,
-      hasMore: unswipedMovies.length > 0, // Simple check, could be improved
+      hasMore: currentPage < totalPages, // Check if there are more pages available
+      currentPage,
+      totalPages,
     });
   } catch (error) {
     console.error('Swipe movies error:', error);
@@ -135,12 +190,23 @@ export async function POST(
       return NextResponse.json({ error: 'Not a member of this team' }, { status: 403 });
     }
 
-    // Helper to get genre names from IDs
-    async function getGenreNames(genreIds: number[]): Promise<string[]> {
+    // Helper to extract genre names from TMDB movie data
+    // Handles both genre_ids (from search results) and genres (from detail responses)
+    async function extractGenreNames(tmdbData: any): Promise<string[]> {
       try {
-        const genres = await getGenres();
-        const genreMap = new Map(genres.map(g => [g.id, g.name]));
-        return genreIds.map(id => genreMap.get(id) || '').filter(Boolean);
+        // If genres array exists (from detail response), extract names directly
+        if (Array.isArray(tmdbData.genres) && tmdbData.genres.length > 0) {
+          return tmdbData.genres.map((g: any) => g.name).filter(Boolean);
+        }
+        
+        // Otherwise, use genre_ids and map to names
+        if (Array.isArray(tmdbData.genre_ids) && tmdbData.genre_ids.length > 0) {
+          const genres = await getGenres();
+          const genreMap = new Map(genres.map(g => [g.id, g.name]));
+          return tmdbData.genre_ids.map((id: number) => genreMap.get(id) || '').filter(Boolean);
+        }
+        
+        return [];
       } catch {
         return [];
       }
@@ -162,7 +228,7 @@ export async function POST(
         // Sync media from TMDB
         const tmdbData = await getMovieDetails(tmdbId);
         if (tmdbData) {
-          const genres = await getGenreNames(tmdbData.genre_ids || []);
+          const genres = await extractGenreNames(tmdbData);
           
           // Fetch IMDB rating if available
           let imdbRating: number | null = null;

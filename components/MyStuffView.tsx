@@ -223,6 +223,8 @@ const MyStuffView: React.FC = () => {
   const gridRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const sliderRef = useRef<HTMLDivElement>(null);
 
   // Fetch personal watchlist
   const { data: watchlistMovies = [], isLoading: watchlistIsLoading } = useQuery({
@@ -261,6 +263,42 @@ const MyStuffView: React.FC = () => {
     duration: 500,
     ease: 'easeOutExpo',
   }, [historyData.length, historyData.map((m: any) => m.id).join(',')]);
+
+  // Update slider position when active tab changes
+  useEffect(() => {
+    const updateSliderPosition = () => {
+      const activeIndex = activeSubTab === 'Watchlist' ? 0 : 1;
+      const activeButton = buttonRefs.current[activeIndex];
+      const slider = sliderRef.current;
+      
+      if (activeButton && slider) {
+        const container = activeButton.parentElement;
+        if (container) {
+          const containerRect = container.getBoundingClientRect();
+          const buttonRect = activeButton.getBoundingClientRect();
+          const left = buttonRect.left - containerRect.left;
+          const width = buttonRect.width;
+          
+          slider.style.transform = `translateX(${left}px)`;
+          slider.style.width = `${width}px`;
+        }
+      }
+    };
+
+    // Small delay to ensure DOM is ready
+    const timeoutId = setTimeout(updateSliderPosition, 0);
+    
+    // Update on window resize
+    const handleResize = () => {
+      updateSliderPosition();
+    };
+    window.addEventListener('resize', handleResize);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [activeSubTab]);
 
   const handleDeleteWatchlist = async (movie: Movie) => {
     if (!session?.user?.id) return;
@@ -372,15 +410,27 @@ const MyStuffView: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-10">
         <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-main">MY STUFF</h2>
         <div className="flex items-center gap-3">
-          <div className="flex bg-black/[0.03] p-1 rounded-2xl border border-main overflow-hidden">
-            {['Watchlist', 'History'].map(t => {
+          <div className="relative flex bg-black/[0.03] p-1 rounded-2xl border border-main overflow-hidden">
+            {/* Sliding pill background */}
+            <div
+              ref={sliderRef}
+              className="absolute top-1 bottom-1 rounded-xl bg-accent transition-all duration-300 ease-out"
+              style={{
+                left: '4px',
+                width: buttonRefs.current[0]?.offsetWidth || 'auto',
+              }}
+            />
+            {['Watchlist', 'History'].map((t, index) => {
               const isActive = activeSubTab === t;
               return (
                 <button 
                   key={t}
+                  ref={(el) => {
+                    buttonRefs.current[index] = el;
+                  }}
                   onClick={() => setActiveSubTab(t as 'Watchlist' | 'History')}
-                  className={`px-4 sm:px-6 py-2 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all duration-200 active:scale-95 whitespace-nowrap ${
-                    isActive ? 'bg-accent text-white shadow-md scale-105' : 'text-gray-500 hover:text-main hover:scale-[1.02]'
+                  className={`relative z-10 px-4 sm:px-6 py-2 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-colors duration-300 active:scale-95 whitespace-nowrap ${
+                    isActive ? 'text-white' : 'text-gray-500 hover:text-main'
                   }`}
                 >
                   {t}
@@ -395,7 +445,7 @@ const MyStuffView: React.FC = () => {
       {activeSubTab === 'Watchlist' && (
         <>
           {watchlistIsLoading ? (
-            <div className="flex items-center justify-center py-12 sm:py-20">
+            <div className="flex items-center justify-center py-12 sm:py-20 w-full max-w-full">
               <div className="text-gray-500 text-sm sm:text-base">Loading watchlist...</div>
             </div>
           ) : watchlistMovies.length === 0 ? (
@@ -469,7 +519,7 @@ const MyStuffView: React.FC = () => {
       {activeSubTab === 'History' && (
         <>
           {historyLoading ? (
-            <div className="flex items-center justify-center py-12 sm:py-20">
+            <div className="flex items-center justify-center py-12 sm:py-20 w-full max-w-full">
               <div className="text-gray-500 text-sm sm:text-base">Loading history...</div>
             </div>
           ) : historyData.length === 0 ? (

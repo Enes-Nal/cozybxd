@@ -68,13 +68,16 @@ function HomeContent() {
   const [groupData, setGroupData] = useState<Group | null>(null);
   const [groupMovies, setGroupMovies] = useState<Movie[]>([]);
   const [filters, setFilters] = useState<FilterState | null>(null);
-  const [useNavbar, setUseNavbar] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('useNavbar');
-      return saved === 'true';
+  // Initialize with a consistent value for SSR, then update after hydration
+  const [useNavbar, setUseNavbar] = useState(true);
+  
+  // Update useNavbar from localStorage after hydration
+  useEffect(() => {
+    const saved = localStorage.getItem('useNavbar');
+    if (saved !== null) {
+      setUseNavbar(saved === 'true');
     }
-    return false;
-  });
+  }, []);
 
   // Fetch current user
   const { data: currentUserData, isLoading: userLoading } = useQuery({
@@ -413,13 +416,13 @@ function HomeContent() {
     } else if (activeGroup) {
       if (groupLoading) {
         content = (
-          <div className="flex items-center justify-center h-64">
+          <div className="flex items-center justify-center h-64 w-full max-w-full">
             <div className="text-gray-500">Loading group...</div>
           </div>
         );
       } else if (groupError) {
         content = (
-          <div className="flex flex-col items-center justify-center h-64 gap-4">
+          <div className="flex flex-col items-center justify-center h-64 gap-4 w-full max-w-full">
             <div className="text-red-400">Failed to load group</div>
             <button
               onClick={() => refetchGroup()}
@@ -443,7 +446,7 @@ function HomeContent() {
         );
       } else {
         content = (
-          <div className="flex items-center justify-center h-64">
+          <div className="flex items-center justify-center h-64 w-full max-w-full">
             <div className="text-gray-500">Group not found</div>
           </div>
         );
@@ -485,6 +488,7 @@ function HomeContent() {
                       Filters{filters && ' •'}
                     </button>
                     <button 
+                      onClick={() => toast.showInfo('Presets feature coming soon!')}
                       className="bg-[#111] border border-[#222] px-4 py-2 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:bg-[#1a1a1a] hover:border-[var(--accent-color)]/30 active:scale-95 transition-all duration-200 text-main"
                     >
                       <i className="fa-solid fa-bookmark text-[var(--accent-color)] transition-transform duration-200 hover:scale-110"></i>
@@ -517,13 +521,13 @@ function HomeContent() {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto pr-2 pb-20">
+              <div className="flex-1 overflow-y-auto pr-2 pb-20 min-h-0 w-full max-w-full">
                 {moviesLoading ? (
-                  <div className="flex items-center justify-center h-64">
+                  <div className="flex items-center justify-center h-64 w-full max-w-full">
                     <div className="text-gray-500">Loading movies...</div>
                   </div>
                 ) : filteredAndSortedMovies.length === 0 ? (
-                  <div className="flex items-center justify-center h-64">
+                  <div className="flex items-center justify-center h-64 w-full max-w-full">
                     <div className="text-gray-500">No movies found</div>
                   </div>
                 ) : (
@@ -723,7 +727,7 @@ function HomeContent() {
         />
       )}
 
-      <main className={`flex-1 flex flex-col ${useNavbar ? 'px-8 pt-4' : 'px-8 pt-6'} transition-all duration-300 overflow-hidden smooth-scroll`}>
+      <main className={`flex-1 flex flex-col ${useNavbar ? 'px-8 pt-4' : 'px-8 pt-6'} transition-all duration-300 ${useNavbar ? 'overflow-hidden' : 'overflow-y-auto'} smooth-scroll`}>
         <Header 
           groupName={activeGroup ? "Group" : (selectedMovie ? selectedMovie.title : "cozybxd")} 
           isHome={activeTab === 'Home' && !activeGroup && !activeProfile && !selectedMovie}
@@ -743,7 +747,7 @@ function HomeContent() {
             </div>
           </div>
         ) : (
-          <div className={`flex-1 ${useNavbar ? 'flex justify-center overflow-y-auto' : ''}`}>
+          <div className={`flex-1 ${useNavbar ? 'flex justify-center overflow-y-auto' : 'overflow-y-auto'}`}>
             <div className={useNavbar ? 'w-full max-w-7xl flex justify-center' : 'w-full'}>
               {renderContent()}
             </div>

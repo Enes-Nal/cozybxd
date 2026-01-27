@@ -20,21 +20,21 @@ const accentToLogo: Record<string, string> = {
 };
 
 const getLogoFromAccent = (accentColor: string): string => {
-  return accentToLogo[accentColor] || 'cozybxd pink.png'; // Default to pink
+  return accentToLogo[accentColor] || 'cozybxd yellow.png'; // Default to yellow
 };
 
 const Logo: React.FC<LogoProps> = ({ className = '', size = 'md', showText = false }) => {
-  const [logoSource, setLogoSource] = useState<string>('/cozybxd pink.png');
+  const [logoSource, setLogoSource] = useState<string>('/cozybxd yellow.png');
 
   useEffect(() => {
     // Get initial accent color
     const getAccentColor = () => {
-      if (typeof window === 'undefined') return '#FF47C8';
+      if (typeof window === 'undefined') return '#f59e0b';
       const savedAccent = localStorage.getItem('accent');
       if (savedAccent) return savedAccent;
       // Fallback to CSS variable if available
       const cssAccent = getComputedStyle(document.documentElement).getPropertyValue('--accent-color').trim();
-      return cssAccent || '#FF47C8';
+      return cssAccent || '#f59e0b';
     };
 
     const updateLogo = () => {
