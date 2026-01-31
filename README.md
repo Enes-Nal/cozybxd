@@ -1,3 +1,5 @@
+![cozybxd](https://media.discordapp.net/attachments/885574523796197397/1467010102476275742/Make_your_README.png?ex=697ed320&is=697d81a0&hm=3b961e7b6e51e54c88a4ca4312571884715d0dfa9ce0706068e01036281e7987&=&format=webp&quality=lossless&width=2344&height=1198)
+
 # Cozybxd
 
 **What did we watch?** - A social tracking platform for group movie nights and digital hangouts.
