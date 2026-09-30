@@ -734,7 +734,7 @@ function HomeContent() {
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <h2 className="text-2xl font-bold mb-4">Please sign in</h2>
-              <a href="/api/auth/signin" className="text-accent hover:underline">Sign in with Discord</a>
+              <a href="/api/auth/signin" className="text-accent hover:underline">Sign in</a>
             </div>
           </div>
         ) : (

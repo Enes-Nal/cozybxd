@@ -1,5 +1,6 @@
 import NextAuth, { NextAuthOptions } from 'next-auth';
 import DiscordProvider from 'next-auth/providers/discord';
+import GoogleProvider from 'next-auth/providers/google';
 import { createServerClient } from '@/lib/supabase';
 import type { NextRequest } from 'next/server';
 
@@ -14,9 +15,9 @@ const nextAuthUrl = process.env.NEXTAUTH_URL;
 // Log configuration on startup (only in server environment)
 if (typeof window === 'undefined') {
   console.log('[AUTH CONFIG] NEXTAUTH_URL:', nextAuthUrl || 'NOT SET');
-  console.log('[AUTH CONFIG] Expected redirect URI:', 
+  console.log('[AUTH CONFIG] Expected redirect URIs:', 
     nextAuthUrl 
-      ? `${nextAuthUrl}/api/auth/callback/discord`
+      ? `${nextAuthUrl}/api/auth/callback/discord, ${nextAuthUrl}/api/auth/callback/google`
       : 'NOT SET - NEXTAUTH_URL is missing'
   );
 }
@@ -29,7 +30,6 @@ export const authOptions: NextAuthOptions = {
     error: '/api/auth/error',
   },
   providers: [
-    // Discord provider - mandatory
     DiscordProvider({
       clientId: process.env.DISCORD_CLIENT_ID || '',
       clientSecret: process.env.DISCORD_CLIENT_SECRET || '',
@@ -38,6 +38,10 @@ export const authOptions: NextAuthOptions = {
           scope: 'identify email',
         },
       },
+    }),
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID || '',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     }),
   ],
   callbacks: {
@@ -58,9 +62,15 @@ export const authOptions: NextAuthOptions = {
           return false;
         }
 
-        // Enforce Discord-only authentication
-        if (account.provider !== 'discord') {
-          console.error('[AUTH] Sign in failed: Only Discord authentication is allowed', { provider: account.provider });
+        const allowedProviders = ['discord', 'google'];
+        if (!allowedProviders.includes(account.provider)) {
+          console.error('[AUTH] Sign in failed: Unsupported provider', { provider: account.provider });
+          return false;
+        }
+
+        // Google accounts must have a verified email, since users are matched by email
+        if (account.provider === 'google' && !(profile as any)?.email_verified) {
+          console.error('[AUTH] Sign in failed: Google email not verified', { email: user?.email });
           return false;
         }
 
@@ -139,7 +149,7 @@ export const authOptions: NextAuthOptions = {
                 }
 
                 // Update username from Discord if user doesn't have one
-                const discordUsername = (profile as any)?.username;
+                const discordUsername = account.provider === 'discord' ? (profile as any)?.username : undefined;
                 if (discordUsername) {
                   // Check if user already has a username
                   const { data: currentUser } = await supabase

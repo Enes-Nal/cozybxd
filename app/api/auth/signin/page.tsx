@@ -89,14 +89,17 @@ function SignInContent() {
                 );
               })
             ) : (
-              // Fallback: Show Discord button directly if providers fail to load
-              <button
-                onClick={() => handleSignIn('discord')}
-                disabled={!!isLoading}
-                className="w-full px-4 py-3 rounded-xl font-bold bg-accent text-white hover:opacity-90 disabled:opacity-50 transition-all active:scale-[0.98]"
-              >
-                {isLoading === 'discord' ? 'Signing in...' : 'Sign in with Discord'}
-              </button>
+              // Fallback: Show buttons directly if providers fail to load
+              [{ id: 'discord', name: 'Discord' }, { id: 'google', name: 'Google' }].map((provider) => (
+                <button
+                  key={provider.id}
+                  onClick={() => handleSignIn(provider.id)}
+                  disabled={!!isLoading}
+                  className="w-full px-4 py-3 rounded-xl font-bold bg-accent text-white hover:opacity-90 disabled:opacity-50 transition-all active:scale-[0.98]"
+                >
+                  {isLoading === provider.id ? 'Signing in...' : `Sign in with ${provider.name}`}
+                </button>
+              ))
             )}
           </div>
         </div>
