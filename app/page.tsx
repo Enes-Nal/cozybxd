@@ -734,7 +734,10 @@ function HomeContent() {
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <h2 className="text-2xl font-bold mb-4">Please sign in</h2>
-              <a href="/api/auth/signin" className="text-accent hover:underline">Sign in</a>
+              <div className="flex gap-3 justify-center">
+                <a href="/api/auth/signin" className="px-5 py-2 rounded-full font-bold bg-accent text-white hover:opacity-90">Sign in</a>
+                <a href="/api/auth/signin?mode=signup" className="px-5 py-2 rounded-full font-bold border border-main hover:bg-white/5">Create account</a>
+              </div>
             </div>
           </div>
         ) : (
