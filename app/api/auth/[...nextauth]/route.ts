@@ -24,7 +24,8 @@ if (typeof window === 'undefined') {
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
-  debug: process.env.NODE_ENV === 'production', // Enable debug in production to see redirect URI
+  // Debug output includes the OAuth client secrets, so keep it out of production logs
+  debug: process.env.NODE_ENV === 'development',
   pages: {
     signIn: '/api/auth/signin',
     error: '/api/auth/error',
@@ -46,6 +47,9 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
+      // Returning a URL instead of false lets the error page show the real reason
+      const fail = (error: string) => `/api/auth/error?error=${error}`;
+
       try {
         console.log('[AUTH] Sign in callback invoked:', { 
           email: user?.email, 
@@ -71,12 +75,12 @@ export const authOptions: NextAuthOptions = {
         // Google accounts must have a verified email, since users are matched by email
         if (account.provider === 'google' && !(profile as any)?.email_verified) {
           console.error('[AUTH] Sign in failed: Google email not verified', { email: user?.email });
-          return false;
+          return fail('EmailNotVerified');
         }
 
         if (!user?.email) {
           console.error('[AUTH] Sign in failed: No email provided', { user });
-          return false;
+          return fail('NoEmail');
         }
 
         console.log('[AUTH] Creating Supabase client...');
@@ -89,8 +93,8 @@ export const authOptions: NextAuthOptions = {
             console.error('[AUTH] Supabase error message:', supabaseError.message);
           }
           // Don't fail sign-in if Supabase client creation fails - might be env var issue
-          // But we can't proceed without it, so return false
-          return false;
+          // But we can't proceed without it
+          return fail('DatabaseUnavailable');
         }
         
         // Check if user exists, if not create them
@@ -110,7 +114,7 @@ export const authOptions: NextAuthOptions = {
             details: userCheckError.details,
             hint: userCheckError.hint
           });
-          return false;
+          return fail('DatabaseUnavailable');
         }
 
         console.log('[AUTH] User check result:', { exists: !!existingUser, userId: existingUser?.id });
@@ -205,12 +209,12 @@ export const authOptions: NextAuthOptions = {
 
           if (createUserError) {
             console.error('[AUTH] Error creating user:', JSON.stringify(createUserError, null, 2));
-            return false;
+            return fail('AccountCreationFailed');
           }
 
           if (!newUser) {
             console.error('[AUTH] User creation returned no data');
-            return false;
+            return fail('AccountCreationFailed');
           }
 
           console.log('[AUTH] User created successfully:', { userId: newUser.id, username: newUser.username, discordUsername });
@@ -235,7 +239,7 @@ export const authOptions: NextAuthOptions = {
 
             if (accountError) {
               console.error('[AUTH] Error creating account:', JSON.stringify(accountError, null, 2));
-              return false;
+              return fail('AccountCreationFailed');
             }
             console.log('[AUTH] Account created successfully');
           }
